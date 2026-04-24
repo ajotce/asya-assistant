@@ -1,0 +1,49 @@
+# OS
+.DS_Store
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
+.npm/
+.pnpm-store/
+
+# Build artifacts
+frontend/dist/
+frontend/.vite/
+backend/build/
+backend/dist/
+*.egg-info/
+
+# Runtime data
+*.log
+logs/
+/tmp/
+backend/tmp/
+backend/data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
