@@ -11,6 +11,24 @@ cp .env.example .env
 docker compose up --build
 ```
 
+## Backend skeleton (этап 1)
+Локальный запуск backend:
+```bash
+cd backend
+python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Проверка health-check:
+```bash
+curl http://127.0.0.1:8000/api/health
+```
+
+Запуск тестов backend:
+```bash
+cd backend
+python3 -m pytest -q
+```
+
 ## Полезные make-команды
 ```bash
 make dev

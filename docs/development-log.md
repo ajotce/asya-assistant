@@ -2,6 +2,35 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализован backend skeleton этапа 1:
+    - модуль конфигурации (`app/core/config.py`) на Pydantic Settings;
+    - модуль логирования (`app/core/logging.py`);
+    - роут health-check (`app/api/routes_health.py`);
+    - Pydantic-схемы ответа (`app/models/schemas.py`);
+    - сборка приложения через `create_app()` в `app/main.py`.
+  - Добавлены минимальные pytest-тесты для `/api/health`.
+  - Обновлены `docs/api.md` и `docs/development.md`.
+- Какие файлы изменены:
+  - `backend/app/main.py`
+  - `backend/app/core/config.py`
+  - `backend/app/core/logging.py`
+  - `backend/app/api/routes_health.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_health.py`
+  - `backend/pyproject.toml`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/development-log.md`
+- Какие тесты запущены:
+  - `cd backend && python3 -m pytest -q` -> `2 passed`.
+  - Проверка через test client: `GET /api/health` -> `200 OK`.
+- Какие проблемы остались:
+  - Пока не реализованы settings persistence, models API, chat, session, files.
+- Следующий рекомендуемый шаг:
+  - Этап 2: frontend-каркас React + Vite + TypeScript с экранами Chat/Settings/Status.
+
+## 2026-04-25
+- Что сделано:
   - Создан базовый каркас проекта (frontend/backend/docs).
   - Добавлены базовые конфигурационные файлы: `docker-compose.yml`, `Makefile`, `frontend/package.json`, `backend/pyproject.toml`, `backend/Dockerfile`.
   - Обновлен `README.md` и создана документация: `docs/decisions.md`, `docs/development.md`, `docs/testing.md`, `docs/api.md`.
