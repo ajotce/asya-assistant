@@ -6,6 +6,7 @@ import type {
   SessionCreateResponse,
   SettingsResponse,
   SettingsUpdateRequest,
+  UsageOverviewResponse,
 } from "../types/api";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -26,6 +27,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/api/health");
+}
+
+export function getUsage(): Promise<UsageOverviewResponse> {
+  return apiFetch<UsageOverviewResponse>("/api/usage");
 }
 
 export function getModels(): Promise<ModelInfo[]> {

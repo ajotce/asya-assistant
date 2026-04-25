@@ -2,6 +2,58 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Проведена финальная приёмка MVP по требованиям AGENTS/ТЗ/плана без расширения scope.
+  - Подтверждено, что репозиторий `ajotce/asya-assistant`, ветка `main` актуальна относительно `origin/main`.
+  - Проверено, что `.env`, `frontend/node_modules`, `frontend/dist`, `backend/data`, `backend/tmp`, `.pytest_cache` и runtime-базы не отслеживаются git.
+  - Выполнен secret scan tracked-файлов по паттернам ключей/токенов: реальных секретов не найдено.
+  - Исправлены два безопасных MVP-недочёта:
+    - `StatusPage` теперь показывает VseLLM reachable, files, sessions и usage через `/api/health` + `/api/usage`;
+    - frontend синхронизирует вкладки с прямыми URL `/`, `/settings`, `/status`.
+  - Документация обновлена под фактическое поведение страницы состояния и прямых frontend URL.
+- Какие файлы изменены:
+  - `frontend/src/App.tsx`
+  - `frontend/src/App.test.tsx`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/pages/StatusPage.tsx`
+  - `frontend/src/pages/StatusPage.test.tsx`
+  - `frontend/src/types/api.ts`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `git fetch origin`
+  - `git status --short --branch`
+  - `git ls-files`
+  - `git check-ignore -v .env frontend/node_modules frontend/dist backend/data backend/tmp .pytest_cache backend/data/asya.sqlite backend/tmp/cache.db`
+  - `git grep`/pattern scan tracked-файлов на секреты
+  - `make test` -> `40 passed`
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"` -> `10 passed`
+  - `make lint` -> успешно
+  - `make build-frontend` -> успешно
+  - `docker compose up -d --build` -> backend container `healthy`
+  - `curl http://localhost:${ASYA_PORT}/api/health` -> `200`
+  - `curl http://localhost:${ASYA_PORT}/openapi.json` -> `200`
+  - `curl http://localhost:${ASYA_PORT}/docs` -> `200`
+  - `curl http://localhost:${ASYA_PORT}/` -> `200`
+  - `curl http://localhost:${ASYA_PORT}/manifest.webmanifest` -> `200`
+  - `curl http://localhost:${ASYA_PORT}/status` -> `200`
+  - `curl http://localhost:${ASYA_PORT}/settings` -> `200`
+  - `curl http://localhost:${ASYA_PORT}/api/models` -> `200`, получен список моделей VseLLM
+  - `curl http://localhost:${ASYA_PORT}/api/usage` -> `200`
+  - Реальный smoke `POST /api/chat/stream` -> `200`, SSE `token` + `done`
+  - Реальный smoke `POST /api/session/{session_id}/files` для PDF/DOCX/XLSX/PNG/JPG/WEBP -> `201`
+  - Реальный retrieval smoke по загруженным документам -> найден `ASYA_ACCEPTANCE_CODE_42`
+  - Реальный vision smoke по PNG -> `200`, получен ответ модели
+  - Negative smoke: unsupported `.txt` -> `400`, >10 files -> `400`, PDF без текста -> `400`
+  - `DELETE /api/session/{session_id}` -> `204`, повторное чтение сессии -> `404`
+- Какие проблемы остались:
+  - `npm ci` сообщает `5 moderate severity vulnerabilities` в npm audit; тесты/lint/build проходят. Обновление frontend dev-зависимостей лучше вынести отдельной задачей, чтобы не менять lockfile в acceptance-коммите без необходимости.
+  - Service worker не добавлен; это ограничение PWA честно зафиксировано в документации, offline-чат не заявлен как готовый.
+- Следующий рекомендуемый шаг:
+  - Создать финальный acceptance commit и затем, отдельной задачей, разобрать npm audit/dev-dependency upgrade.
+
+## 2026-04-25
+- Что сделано:
   - Проведен финальный security-pass без расширения scope:
     1. Проверено, что `.env` не отслеживается git (`.env` игнорируется, в tracked есть только `.env.example`).
     2. Проверены tracked-файлы на реальные ключи/токены (паттерн-поиск по репозиторию): утечек не обнаружено.

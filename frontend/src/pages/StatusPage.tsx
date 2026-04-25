@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 
-import { getHealth } from "../api/client";
-import type { HealthResponse } from "../types/api";
+import { getHealth, getUsage } from "../api/client";
+import type { HealthResponse, UsageOverviewResponse } from "../types/api";
 
 export default function StatusPage() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [usage, setUsage] = useState<UsageOverviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usageError, setUsageError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,11 +17,20 @@ export default function StatusPage() {
   async function refreshStatus() {
     setLoading(true);
     setError(null);
+    setUsageError(null);
     try {
-      const data = await getHealth();
-      setHealth(data);
+      const [healthData, usageData] = await Promise.all([
+        getHealth(),
+        getUsage().catch((usageLoadError) => {
+          setUsageError(getErrorMessage(usageLoadError));
+          return null;
+        }),
+      ]);
+      setHealth(healthData);
+      setUsage(usageData);
     } catch (statusError) {
       setHealth(null);
+      setUsage(null);
       setError(getErrorMessage(statusError));
     } finally {
       setLoading(false);
@@ -30,9 +41,13 @@ export default function StatusPage() {
   const apiKeyStatus = health?.vsellm.api_key_configured ? "настроен" : "не настроен";
   const modelSelected = health?.model.selected.trim() ? health.model.selected : "не выбрана";
   const uptimeText = formatUptime(health?.uptime_seconds);
+  const vsellmStatus = formatVseLLMStatus(health);
+  const filesStatus = formatFilesStatus(health);
   const embeddingsStatus = formatEmbeddingsStatus(health);
+  const sessionStatus = formatSessionStatus(health);
   const storageStatus = formatStorageStatus(health);
   const storageTmpDir = health?.storage?.tmp_dir ?? "неизвестно";
+  const usageStatus = formatUsageStatus(usage, usageError);
 
   return (
     <section className="page" aria-label="Состояние Asya">
@@ -49,9 +64,13 @@ export default function StatusPage() {
       <dl className="status-grid">
         <StatusItem label="Бэкенд" value={backendStatus} />
         <StatusItem label="Время работы backend" value={uptimeText} />
+        <StatusItem label="VseLLM" value={vsellmStatus} />
         <StatusItem label="Выбранная модель" value={modelSelected} />
         <StatusItem label="VseLLM API-ключ" value={apiKeyStatus} />
+        <StatusItem label="Файлы" value={filesStatus} />
         <StatusItem label="Embeddings" value={embeddingsStatus} />
+        <StatusItem label="Сессии" value={sessionStatus} />
+        <StatusItem label="Usage" value={usageStatus} />
         <StatusItem label="Временное хранилище" value={storageStatus} />
         <StatusItem label="TMP путь" value={storageTmpDir} />
       </dl>
@@ -91,6 +110,31 @@ function formatUptime(seconds?: number): string {
   return `${hours} ч ${mins} мин`;
 }
 
+function formatVseLLMStatus(health: HealthResponse | null): string {
+  if (!health) {
+    return "неизвестно";
+  }
+
+  if (health.vsellm.reachable === true) {
+    return `доступен (${health.vsellm.base_url})`;
+  }
+  if (health.vsellm.reachable === false) {
+    const error = health.last_error?.trim();
+    return error ? `недоступен: ${error}` : "недоступен";
+  }
+  return `не проверялся (${health.vsellm.base_url})`;
+}
+
+function formatFilesStatus(health: HealthResponse | null): string {
+  if (!health) {
+    return "неизвестно";
+  }
+
+  const enabledText = health.files.enabled ? "включены" : "отключены";
+  const status = health.files.status.trim() || "неизвестно";
+  return `${enabledText}, ${status}`;
+}
+
 function formatEmbeddingsStatus(health: HealthResponse | null): string {
   if (!health) {
     return "неизвестно";
@@ -107,6 +151,15 @@ function formatEmbeddingsStatus(health: HealthResponse | null): string {
   return `${status} (${model})`;
 }
 
+function formatSessionStatus(health: HealthResponse | null): string {
+  if (!health) {
+    return "неизвестно";
+  }
+
+  const enabledText = health.session.enabled ? "включены" : "отключены";
+  return `${enabledText}, активных: ${health.session.active_sessions}`;
+}
+
 function formatStorageStatus(health: HealthResponse | null): string {
   if (!health) {
     return "неизвестно";
@@ -114,4 +167,21 @@ function formatStorageStatus(health: HealthResponse | null): string {
 
   const writableText = health.storage.writable ? "доступно для записи" : "нет записи";
   return `sessions: ${health.storage.session_store}, files: ${health.storage.file_store}, ${writableText}`;
+}
+
+function formatUsageStatus(usage: UsageOverviewResponse | null, usageError: string | null): string {
+  if (usageError) {
+    return `ошибка: ${usageError}`;
+  }
+  if (!usage) {
+    return "неизвестно";
+  }
+
+  const chat = usage.chat.total_tokens == null ? usage.chat.status : `${usage.chat.total_tokens} chat tokens`;
+  const embeddings =
+    usage.embeddings.total_tokens == null
+      ? usage.embeddings.status
+      : `${usage.embeddings.total_tokens} embedding tokens`;
+  const cost = usage.cost.status;
+  return `chat: ${chat}, embeddings: ${embeddings}, cost: ${cost}`;
 }

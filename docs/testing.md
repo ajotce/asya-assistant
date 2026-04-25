@@ -16,6 +16,7 @@ docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci 
 - `vitest run` завершается без ошибок
 - `Test Files ... passed`
 - покрыты минимальные MVP-сценарии:
+  - `App` (прямое открытие `/status`, синхронизация вкладки настроек с URL)
   - `ChatPage` (рендер, отправка, streaming, ошибки)
   - `SettingsPage` (модель, системный промт)
   - `StatusPage` (состояние, ошибки)

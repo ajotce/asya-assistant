@@ -92,3 +92,30 @@ export interface SessionFilesUploadResponse {
   files: SessionUploadedFileInfo[];
   file_ids: string[];
 }
+
+export interface UsageOverviewResponse {
+  chat: {
+    prompt_tokens?: number | null;
+    completion_tokens?: number | null;
+    total_tokens?: number | null;
+    status: string;
+    note?: string | null;
+  };
+  embeddings: {
+    input_tokens?: number | null;
+    total_tokens?: number | null;
+    status: string;
+    note?: string | null;
+  };
+  cost: {
+    currency?: string | null;
+    total_cost?: number | null;
+    status: string;
+    note?: string | null;
+  };
+  runtime: {
+    active_sessions: number;
+    selected_model: string;
+    embedding_model: string;
+  };
+}

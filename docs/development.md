@@ -56,10 +56,14 @@ Frontend unit-тесты запускаются через `vitest` (`frontend/s
 ## Страница «Состояние Asya» (MVP)
 На `StatusPage` отображаются:
 - backend online/offline;
+- доступность VseLLM API и base URL без API-ключа;
 - выбранная модель;
 - статус VseLLM API-ключа;
 - uptime backend;
+- статус файлового контура;
 - статус embeddings (статус + модель + последняя ошибка, если есть);
+- активные runtime-сессии;
+- usage по chat/embeddings/cost из `/api/usage` (если провайдер прислал usage);
 - статус временного хранилища (session/files + writable) и `tmp` путь.
 
 UX страницы держим максимально простым: только ключевые статусы без перегруженных технических деталей.
@@ -71,6 +75,8 @@ curl http://localhost:${ASYA_PORT}/api/health
 # открыть в браузере: http://localhost:${ASYA_PORT}/status
 docker compose down
 ```
+
+Прямые URL `/`, `/settings` и `/status` должны открывать соответствующие вкладки frontend через backend SPA fallback.
 
 ## Ручной smoke для chat/files
 ```bash

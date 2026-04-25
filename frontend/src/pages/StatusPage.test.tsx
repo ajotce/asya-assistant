@@ -1,16 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getHealth } from "../api/client";
+import { getHealth, getUsage } from "../api/client";
 import StatusPage from "./StatusPage";
 
 vi.mock("../api/client", () => ({
-  getHealth: vi.fn()
+  getHealth: vi.fn(),
+  getUsage: vi.fn(),
 }));
 
 describe("StatusPage", () => {
   beforeEach(() => {
     vi.mocked(getHealth).mockReset();
+    vi.mocked(getUsage).mockReset();
   });
 
   it("рендерит ключевые карточки состояния из /api/health", async () => {
@@ -41,20 +43,60 @@ describe("StatusPage", () => {
       session: { enabled: true, active_sessions: 0 },
       last_error: null
     });
+    vi.mocked(getUsage).mockResolvedValue({
+      chat: {
+        prompt_tokens: null,
+        completion_tokens: null,
+        total_tokens: null,
+        status: "unavailable",
+        note: "Данные usage по chat пока не собраны.",
+      },
+      embeddings: {
+        input_tokens: 122,
+        total_tokens: 122,
+        status: "available",
+        note: null,
+      },
+      cost: {
+        currency: null,
+        total_cost: null,
+        status: "unavailable",
+        note: "Стоимость не рассчитывается.",
+      },
+      runtime: {
+        active_sessions: 0,
+        selected_model: "gpt-4o",
+        embedding_model: "text-embedding-3-small",
+      },
+    });
 
     render(<StatusPage />);
 
     expect(await screen.findByText("online")).toBeInTheDocument();
     expect(screen.getByText("2 мин")).toBeInTheDocument();
+    expect(screen.getByText("доступен (https://api.vsellm.ru/v1)")).toBeInTheDocument();
     expect(screen.getByText("gpt-4o")).toBeInTheDocument();
     expect(screen.getByText("настроен")).toBeInTheDocument();
+    expect(screen.getByText("включены, готов")).toBeInTheDocument();
     expect(screen.getByText("готов (text-embedding-3-small)")).toBeInTheDocument();
+    expect(screen.getByText("включены, активных: 0")).toBeInTheDocument();
+    expect(screen.getByText("chat: unavailable, embeddings: 122 embedding tokens, cost: unavailable")).toBeInTheDocument();
     expect(screen.getByText("sessions: готов, files: готов, доступно для записи")).toBeInTheDocument();
     expect(screen.getByText("/app/tmp")).toBeInTheDocument();
   });
 
   it("показывает ошибку при недоступном /api/health", async () => {
     vi.mocked(getHealth).mockRejectedValue(new Error("Backend недоступен"));
+    vi.mocked(getUsage).mockResolvedValue({
+      chat: { status: "unavailable" },
+      embeddings: { status: "unavailable" },
+      cost: { status: "unavailable" },
+      runtime: {
+        active_sessions: 0,
+        selected_model: "",
+        embedding_model: "",
+      },
+    });
 
     render(<StatusPage />);
 
