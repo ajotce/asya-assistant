@@ -29,6 +29,29 @@ cd backend
 python3 -m pytest -q
 ```
 
+## VseLLM (этап 5: список моделей)
+Переменные окружения:
+```env
+VSELLM_API_KEY=
+VSELLM_BASE_URL=https://api.vsellm.ru/v1
+```
+
+Правила безопасности:
+- API-ключ хранится только на backend в `.env`.
+- API-ключ нельзя передавать во frontend.
+- API-ключ нельзя логировать.
+
+Проверка endpoint:
+```bash
+curl http://127.0.0.1:8000/api/models
+```
+
+Типовые ошибки:
+- не задан `VSELLM_API_KEY` -> `503`;
+- неверный ключ -> `401/403`;
+- rate limit -> `429`;
+- проблемы сети/доступности VseLLM -> `502/504`.
+
 ## Полезные make-команды
 ```bash
 make dev

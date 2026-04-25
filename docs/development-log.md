@@ -2,6 +2,33 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Добавлена интеграция VseLLM для получения списка моделей:
+    - сервис `app/services/vsellm_client.py` (OpenAI-compatible вызов `GET /models`);
+    - endpoint `GET /api/models` через `app/api/routes_models.py`.
+  - Добавлена нормализация моделей без выдуманных полей: если есть только `id`, backend возвращает только `id`.
+  - Добавлена понятная обработка ошибок VseLLM (401/403/429/5xx/timeout/network).
+  - Добавлены mock-тесты для `/api/models` и unit-тесты клиента.
+  - Обновлены `.env.example`, `docs/api.md`, `docs/development.md`.
+- Какие файлы изменены:
+  - `backend/app/main.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/services/vsellm_client.py`
+  - `backend/app/api/routes_models.py`
+  - `backend/tests/test_models.py`
+  - `backend/pyproject.toml`
+  - `.env.example`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/development-log.md`
+- Какие тесты запущены:
+  - Планируется после завершения правок: `cd backend && python3 -m pytest -q`.
+- Какие проблемы остались:
+  - Не реализован frontend экран настроек модели и получение `/api/models`.
+- Следующий рекомендуемый шаг:
+  - Этап 4/5 frontend: UI настроек и загрузка списка моделей с backend.
+
+## 2026-04-25
+- Что сделано:
   - Реализован backend skeleton этапа 1:
     - модуль конфигурации (`app/core/config.py`) на Pydantic Settings;
     - модуль логирования (`app/core/logging.py`);

@@ -8,6 +8,7 @@
 
 ## Реализованные endpoint-ы
 - `GET /api/health`
+- `GET /api/models`
 
 Пример ответа:
 ```json
@@ -26,8 +27,41 @@
 - OpenAPI schema: `GET /openapi.json`
 - Swagger UI: `GET /docs`
 
+## `GET /api/models`
+Возвращает список моделей из VseLLM через backend.
+
+Примеры ответов:
+
+Если API VseLLM вернул только ID:
+```json
+[
+  { "id": "openai/gpt-5" }
+]
+```
+
+Если API VseLLM вернул расширенные поля:
+```json
+[
+  {
+    "id": "openai/gpt-5",
+    "description": "Demo model",
+    "supports_vision": true
+  }
+]
+```
+
+Важно:
+- Backend не выдумывает цены, описания и другие поля.
+- API-ключ никогда не возвращается во frontend.
+
+Ошибки (пример):
+```json
+{
+  "detail": "Ошибка авторизации VseLLM. Проверьте API-ключ на backend."
+}
+```
+
 ## Планируемые endpoint-ы MVP
-- `GET /api/models`
 - `GET /api/settings`
 - `PUT /api/settings`
 - `POST /api/session`
