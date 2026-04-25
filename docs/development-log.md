@@ -2,6 +2,25 @@
 
 ## 2026-04-25
 - Что сделано:
+  - На frontend-странице `Состояние Asya` добавлено отображение новых полей health-ответа:
+    - `uptime_seconds` (в человекочитаемом формате),
+    - `embeddings` (статус, модель, последняя ошибка),
+    - `storage` (статус session/file store, writable, путь tmp).
+  - Расширены frontend-типы `HealthResponse` под новые поля backend health.
+- Какие файлы изменены:
+  - `frontend/src/pages/StatusPage.tsx`
+  - `frontend/src/types/api.ts`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make build-frontend` -> успешно.
+  - `make test` -> `40 passed`.
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - При необходимости добавить frontend unit-тесты для рендера новых status-полей.
+
+## 2026-04-25
+- Что сделано:
   - Расширен `GET /api/health` под требования страницы `Состояние Asya` без удаления старых полей.
   - Добавлены новые поля:
     - `uptime_seconds` (uptime backend),

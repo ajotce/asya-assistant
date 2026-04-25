@@ -33,6 +33,14 @@ export default function StatusPage() {
   const apiKeyStatus = health?.vsellm.api_key_configured ? "настроен" : "не настроен";
   const modelSelected = health?.model.selected ?? "не выбрана";
   const filesStatus = health ? (health.files.enabled ? health.files.status : "отключён") : "неизвестно";
+  const uptimeText = formatUptime(health?.uptime_seconds);
+  const embeddingsStatus = health?.embeddings?.status ?? "неизвестно";
+  const embeddingsModel = health?.embeddings?.model?.trim() ? health.embeddings.model : "не настроена";
+  const embeddingsError = health?.embeddings?.last_error ?? "нет";
+  const storageSessionStatus = health?.storage?.session_store ?? "неизвестно";
+  const storageFileStatus = health?.storage?.file_store ?? "неизвестно";
+  const storageWritable = health?.storage ? (health.storage.writable ? "да" : "нет") : "неизвестно";
+  const storageTmpDir = health?.storage?.tmp_dir ?? "неизвестно";
   const sessionStatus = health
     ? health.session.enabled
       ? `активных сессий: ${health.session.active_sessions}`
@@ -55,10 +63,18 @@ export default function StatusPage() {
       <dl className="status-grid">
         <StatusItem label="Backend" value={backendStatus} />
         <StatusItem label="Версия приложения" value={health?.version ?? "неизвестно"} />
+        <StatusItem label="Uptime backend" value={uptimeText} />
         <StatusItem label="VseLLM API-ключ" value={apiKeyStatus} />
         <StatusItem label="Доступность VseLLM API" value={vsellmReachableText} />
         <StatusItem label="Выбранная модель" value={modelSelected} />
         <StatusItem label="Файловый модуль" value={filesStatus} />
+        <StatusItem label="Embeddings статус" value={embeddingsStatus} />
+        <StatusItem label="Embeddings модель" value={embeddingsModel} />
+        <StatusItem label="Embeddings ошибка" value={embeddingsError} />
+        <StatusItem label="Session store" value={storageSessionStatus} />
+        <StatusItem label="File store" value={storageFileStatus} />
+        <StatusItem label="TMP writable" value={storageWritable} />
+        <StatusItem label="TMP путь" value={storageTmpDir} />
         <StatusItem label="Временная сессия" value={sessionStatus} />
         <StatusItem label="Последняя ошибка" value={lastError ?? "нет"} />
       </dl>
@@ -80,4 +96,20 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
   return "Не удалось получить состояние backend.";
+}
+
+function formatUptime(seconds?: number): string {
+  if (typeof seconds !== "number" || Number.isNaN(seconds) || seconds < 0) {
+    return "неизвестно";
+  }
+  if (seconds < 60) {
+    return `${Math.floor(seconds)} сек`;
+  }
+  const totalMinutes = Math.floor(seconds / 60);
+  const mins = totalMinutes % 60;
+  const hours = Math.floor(totalMinutes / 60);
+  if (hours === 0) {
+    return `${mins} мин`;
+  }
+  return `${hours} ч ${mins} мин`;
 }
