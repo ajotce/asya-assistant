@@ -2,6 +2,7 @@ import io
 import tempfile
 from pathlib import Path
 
+import httpx
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -121,12 +122,9 @@ def test_stream_chat_endpoint_streams_events(monkeypatch) -> None:
 
 
 def test_status_mapper_for_rate_limit_error() -> None:
-    try:
-        ChatService._raise_for_status(429)
-        assert False, "Expected VseLLMError"
-    except VseLLMError as exc:
-        assert exc.status_code == 429
-        assert "ограничил частоту запросов" in exc.user_message
+    error = ChatService._provider_status_error(status_code=429, model="openai/gpt-5", provider_reason=None)
+    assert error.status_code == 429
+    assert "ограничил частоту запросов" in error.user_message
 
 
 def test_chunk_text_splits_long_text() -> None:
@@ -294,6 +292,117 @@ def test_stream_chat_returns_error_when_model_has_no_vision_support() -> None:
     payload = b"".join(service.stream_chat(session_id=session_id, user_message="Опиши фото", file_ids=["img-1"])).decode("utf-8")
     assert "event: error" in payload
     assert "не поддерживает анализ изображений" in payload
+
+
+def test_stream_chat_returns_clear_provider_reason_with_selected_model(monkeypatch) -> None:
+    class FakeErrorResponse:
+        status_code = 422
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"error":{"message":"Model does not support chat/completions"}}'
+
+        def iter_lines(self):
+            return []
+
+    monkeypatch.setattr("httpx.stream", lambda *args, **kwargs: FakeErrorResponse())
+
+    store = SessionStore()
+    session_id = store.create_session().session_id
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        file_store=_build_file_store(),
+        vector_store=SessionVectorStore(),
+        vsellm_client=VseLLMClient(FakeSettings()),
+        settings_service=FakeSettingsService(),
+    )
+
+    payload = b"".join(service.stream_chat(session_id=session_id, user_message="Привет")).decode("utf-8")
+    assert "event: error" in payload
+    assert "openai/gpt-5" in payload
+    assert "Model does not support chat/completions" in payload
+    assert "выберите другую chat-модель" in payload
+
+
+def test_stream_chat_falls_back_to_non_stream_when_streaming_is_not_supported(monkeypatch) -> None:
+    class FakeStreamingUnsupportedResponse:
+        status_code = 422
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"error":{"message":"Streaming is not supported for this model"}}'
+
+        def iter_lines(self):
+            return []
+
+    captured_stream_flags: list[bool] = []
+
+    def fake_post(*args, **kwargs):
+        captured_stream_flags.append(bool(kwargs["json"].get("stream")))
+        request = httpx.Request("POST", "https://api.vsellm.ru/v1/chat/completions")
+        return httpx.Response(
+            status_code=200,
+            request=request,
+            json={
+                "choices": [{"message": {"content": "Ответ без streaming от провайдера."}}],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 5, "total_tokens": 8},
+            },
+        )
+
+    monkeypatch.setattr("httpx.stream", lambda *args, **kwargs: FakeStreamingUnsupportedResponse())
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    store = SessionStore()
+    session_id = store.create_session().session_id
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        file_store=_build_file_store(),
+        vector_store=SessionVectorStore(),
+        vsellm_client=VseLLMClient(FakeSettings()),
+        settings_service=FakeSettingsService(),
+    )
+
+    payload = b"".join(service.stream_chat(session_id=session_id, user_message="Привет")).decode("utf-8")
+    assert "event: token" in payload
+    assert "Ответ без streaming от провайдера." in payload
+    assert "event: done" in payload
+    assert "event: error" not in payload
+    assert captured_stream_flags == [False]
+
+
+def test_stream_chat_returns_error_when_model_metadata_disables_chat_support() -> None:
+    class FakeNoChatClient:
+        def get_models(self):
+            from app.models.schemas import ModelInfo
+
+            return [ModelInfo(id="openai/gpt-5", supports_chat=False)]
+
+    store = SessionStore()
+    session_id = store.create_session().session_id
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        file_store=_build_file_store(),
+        vector_store=SessionVectorStore(),
+        vsellm_client=FakeNoChatClient(),
+        settings_service=FakeSettingsService(),
+    )
+
+    payload = b"".join(service.stream_chat(session_id=session_id, user_message="Привет")).decode("utf-8")
+    assert "event: error" in payload
+    assert "не поддерживает chat/completions" in payload
 
 
 def test_build_messages_payload_allows_image_when_vision_support_unknown() -> None:

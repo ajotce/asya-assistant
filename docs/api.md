@@ -33,6 +33,17 @@
 ### `GET /api/models`
 Список моделей из VseLLM OpenAI-compatible API.
 
+`ModelInfo` может включать (если провайдер отдает metadata):
+- `id`
+- `name`, `description`, `context_window`, `input_price`, `output_price`
+- `supports_chat` (`true|false|null`)
+- `supports_stream` (`true|false|null`)
+- `supports_vision` (`true|false|null`)
+
+Примечания по совместимости:
+- если `supports_chat=false`, frontend помечает модель как неподходящую для chat/completions;
+- если metadata неполная (`null`/отсутствует), модель не блокируется заранее.
+
 Ошибки:
 - `503` если API-ключ не настроен
 - `502/504/429` при проблемах провайдера
@@ -76,6 +87,9 @@ SSE события:
 - backend использует только контекст текущей сессии;
 - для документов retrieval идет через embeddings/векторный индекс сессии;
 - запрос с изображениями блокируется заранее только если модель явно `supports_vision=false`.
+- если модель по metadata явно не поддерживает chat/completions, backend возвращает понятную ошибку с ID модели;
+- для ошибок провайдера `400/404/422` backend пытается извлечь точную причину из provider body и возвращает её пользователю без секретов;
+- если провайдер явно сообщает, что модель не поддерживает `stream=true`, backend делает безопасный fallback на non-stream completion и отдает ответ в SSE `event: token` + `event: done`.
 
 ## Session
 

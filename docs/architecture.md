@@ -20,8 +20,8 @@
 
 ### Services (`backend/app/services`)
 - `settings_service.py` -> чтение/обновление настроек
-- `vsellm_client.py` -> вызовы `/models` и `/embeddings`
-- `chat_service.py` -> сбор контекста, SSE-стриминг, vision/retrieval логика
+- `vsellm_client.py` -> вызовы `/models` и `/embeddings`, нормализация model metadata (`supports_chat`, `supports_stream`, `supports_vision`)
+- `chat_service.py` -> сбор контекста, SSE-стриминг, диагностика совместимости модели, vision/retrieval логика, fallback на non-stream при явной ошибке streaming
 - `file_service.py` -> валидация/сохранение файлов, извлечение текста, chunking, embeddings
 
 ### Storage (`backend/app/storage`)
@@ -62,6 +62,14 @@
 - при наличии документных чанков делает retrieval и добавляет контекст
 - для `file_ids` прикладывает только изображения (data URL)
 - отдает SSE события `token`, `error`, `done`
+- при provider-ошибках `400/404/422` пытается извлечь точную причину из ответа провайдера и возвращает понятное сообщение с ID модели
+- при явном указании провайдера на неподдерживаемый `stream=true` выполняет безопасный non-stream retry и маппит его в SSE
+
+## Совместимость моделей
+- `/api/models` не хардкодит whitelist моделей: используются provider metadata и эвристики по `capabilities`/`endpoints`.
+- Явное `supports_chat=false` считается сильным сигналом: такая модель не должна использоваться как chat-модель.
+- Если metadata неполная, модель не блокируется заранее; фактическая проверка происходит на chat-запросе.
+- Явное `supports_vision=false` продолжает блокировать image input заранее.
 
 ## Vision-поведение
 - Проверка идет по `/api/models` metadata

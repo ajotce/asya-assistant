@@ -1,5 +1,46 @@
 # Development Log
 
+## 2026-04-26
+- Что сделано:
+  - Улучшена диагностика совместимости моделей для chat/completions без хардкода whitelist:
+    - `ModelInfo` расширен полями `supports_chat` и `supports_stream`;
+    - `VseLLMClient` научен извлекать capability metadata из `supports_*`, `capabilities`, `endpoints`, при неполной metadata модель не блокируется заранее.
+  - Усилена устойчивость `POST /api/chat/stream`:
+    - если metadata выбранной модели явно `supports_chat=false`, backend возвращает понятную ошибку с ID модели;
+    - для provider-ошибок `400/404/422` извлекается конкретная причина из provider body (JSON/text), причина пробрасывается в пользовательское сообщение без секретов;
+    - при явной provider-ошибке неподдерживаемого `stream=true` добавлен безопасный fallback на non-stream completion с возвратом результата в SSE (`token` + `done`).
+  - Frontend `SettingsPage` обновлен под совместимость моделей:
+    - модели с явным `supports_chat=false` помечаются как неподходящие (`disabled` option + предупреждение);
+    - сохранение блокируется, если выбрана явно неподходящая chat-модель;
+    - если текущая модель отсутствует в обновленном списке, выбирается первая модель без явного `supports_chat=false`.
+  - Обновлены frontend/backend тесты по совместимости моделей, provider-error диагностике и fallback.
+  - Обновлена документация: `docs/api.md`, `docs/development.md`, `docs/architecture.md`, `docs/testing.md`.
+- Какие файлы изменены:
+  - `backend/app/models/schemas.py`
+  - `backend/app/services/vsellm_client.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/tests/test_models.py`
+  - `backend/tests/test_chat.py`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/pages/SettingsPage.tsx`
+  - `frontend/src/pages/SettingsPage.test.tsx`
+  - `frontend/src/pages/ChatPage.test.tsx`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/architecture.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make test` -> `46 passed`.
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"` -> `11 passed`.
+  - `make build-frontend` -> успешно.
+  - `make lint` -> успешно.
+- Какие проблемы остались:
+  - Для полноценной ручной проверки на реальных моделях нужен настроенный `VSELLM_API_KEY`; в текущей среде проверка выполнена тестами/сборкой/lint без реального provider-вызова.
+  - `npm audit` продолжает показывать `5 moderate severity vulnerabilities` в frontend dev-зависимостях.
+- Следующий рекомендуемый шаг:
+  - Выполнить ручной smoke в UI с реальным ключом: обновить модели в `Настройки`, выбрать несколько моделей и проверить сообщения чата/ошибки совместимости.
+
 ## 2026-04-25
 - Что сделано:
   - Реализовано сохранение runtime-состояния вкладок frontend без `localStorage`/`IndexedDB`:

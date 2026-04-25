@@ -70,9 +70,11 @@ describe("ChatPage", () => {
     expect(screen.getByRole("button", { name: "Генерация..." })).toBeInTheDocument();
   });
 
-  it("отображает ошибку, если stream вернул событие error", async () => {
+  it("отображает понятную ошибку выбранной модели, если stream вернул событие error", async () => {
     vi.mocked(streamChat).mockImplementation(async (_request, handlers) => {
-      handlers.onError("Сервис временно недоступен.");
+      handlers.onError(
+        "Модель 'openai/gpt-5' не приняла chat/completions-запрос. Причина провайдера: Model does not support chat/completions."
+      );
     });
 
     render(<ChatPage />);
@@ -82,7 +84,8 @@ describe("ChatPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Отправить" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Сервис временно недоступен.")).toBeInTheDocument();
+      expect(screen.getByText(/model does not support chat\/completions/i)).toBeInTheDocument();
+      expect(screen.getByText(/openai\/gpt-5/i)).toBeInTheDocument();
     });
   });
 });

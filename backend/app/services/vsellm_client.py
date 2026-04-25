@@ -183,6 +183,10 @@ class VseLLMClient:
         if not isinstance(model_id, str) or not model_id.strip():
             return None
 
+        supports_chat = VseLLMClient._extract_chat_support(item)
+        supports_stream = VseLLMClient._extract_stream_support(item)
+        supports_vision = VseLLMClient._extract_vision_support(item)
+
         return ModelInfo(
             id=model_id,
             name=item.get("name") if isinstance(item.get("name"), str) else None,
@@ -190,5 +194,154 @@ class VseLLMClient:
             context_window=item.get("context_window") if isinstance(item.get("context_window"), int) else None,
             input_price=float(item["input_price"]) if isinstance(item.get("input_price"), (int, float)) else None,
             output_price=float(item["output_price"]) if isinstance(item.get("output_price"), (int, float)) else None,
-            supports_vision=item.get("supports_vision") if isinstance(item.get("supports_vision"), bool) else None,
+            supports_chat=supports_chat,
+            supports_stream=supports_stream,
+            supports_vision=supports_vision,
         )
+
+    @staticmethod
+    def _extract_chat_support(item: dict[str, Any]) -> Optional[bool]:
+        explicit = VseLLMClient._first_non_none_bool(
+            VseLLMClient._to_optional_bool(item.get("supports_chat")),
+            VseLLMClient._to_optional_bool(item.get("supports_chat_completions")),
+            VseLLMClient._to_optional_bool(item.get("supports_chat_completion")),
+            VseLLMClient._to_optional_bool(item.get("chat_completions")),
+            VseLLMClient._to_optional_bool(item.get("chat_completion")),
+        )
+        if explicit is not None:
+            return explicit
+
+        capabilities = item.get("capabilities")
+        capability_support = VseLLMClient._extract_chat_support_from_capabilities(capabilities)
+        if capability_support is not None:
+            return capability_support
+
+        endpoints = item.get("endpoints")
+        endpoint_support = VseLLMClient._extract_chat_support_from_endpoints(endpoints)
+        if endpoint_support is not None:
+            return endpoint_support
+
+        return None
+
+    @staticmethod
+    def _extract_stream_support(item: dict[str, Any]) -> Optional[bool]:
+        explicit = VseLLMClient._first_non_none_bool(
+            VseLLMClient._to_optional_bool(item.get("supports_stream")),
+            VseLLMClient._to_optional_bool(item.get("supports_streaming")),
+            VseLLMClient._to_optional_bool(item.get("stream")),
+            VseLLMClient._to_optional_bool(item.get("streaming")),
+        )
+        if explicit is not None:
+            return explicit
+
+        capabilities = item.get("capabilities")
+        if isinstance(capabilities, dict):
+            stream_support = VseLLMClient._first_non_none_bool(
+                VseLLMClient._to_optional_bool(capabilities.get("stream")),
+                VseLLMClient._to_optional_bool(capabilities.get("streaming")),
+                VseLLMClient._to_optional_bool(capabilities.get("supports_stream")),
+                VseLLMClient._to_optional_bool(capabilities.get("supports_streaming")),
+            )
+            if stream_support is not None:
+                return stream_support
+        return None
+
+    @staticmethod
+    def _extract_vision_support(item: dict[str, Any]) -> Optional[bool]:
+        explicit = VseLLMClient._to_optional_bool(item.get("supports_vision"))
+        if explicit is not None:
+            return explicit
+
+        capabilities = item.get("capabilities")
+        if isinstance(capabilities, dict):
+            vision_support = VseLLMClient._first_non_none_bool(
+                VseLLMClient._to_optional_bool(capabilities.get("vision")),
+                VseLLMClient._to_optional_bool(capabilities.get("image")),
+                VseLLMClient._to_optional_bool(capabilities.get("image_input")),
+                VseLLMClient._to_optional_bool(capabilities.get("multimodal")),
+            )
+            if vision_support is not None:
+                return vision_support
+
+        modalities = item.get("modalities")
+        if isinstance(modalities, list):
+            lowered_modalities = {str(value).strip().lower() for value in modalities}
+            if {"image", "vision", "multimodal"} & lowered_modalities:
+                return True
+        return None
+
+    @staticmethod
+    def _extract_chat_support_from_capabilities(capabilities: Any) -> Optional[bool]:
+        if isinstance(capabilities, dict):
+            for key in ("chat", "chat_completions", "chat-completions", "chat_completion"):
+                parsed = VseLLMClient._to_optional_bool(capabilities.get(key))
+                if parsed is not None:
+                    return parsed
+                nested = capabilities.get(key)
+                if isinstance(nested, dict):
+                    nested_value = VseLLMClient._first_non_none_bool(
+                        VseLLMClient._to_optional_bool(nested.get("enabled")),
+                        VseLLMClient._to_optional_bool(nested.get("supported")),
+                        VseLLMClient._to_optional_bool(nested.get("available")),
+                    )
+                    if nested_value is not None:
+                        return nested_value
+
+            for key, value in capabilities.items():
+                if not isinstance(key, str):
+                    continue
+                lowered = key.strip().lower()
+                if "chat" not in lowered:
+                    continue
+                parsed = VseLLMClient._to_optional_bool(value)
+                if parsed is not None:
+                    return parsed
+
+        if isinstance(capabilities, list):
+            lowered = {str(value).strip().lower() for value in capabilities}
+            if {"chat", "chat_completions", "chat-completions", "chat_completion"} & lowered:
+                return True
+        return None
+
+    @staticmethod
+    def _extract_chat_support_from_endpoints(endpoints: Any) -> Optional[bool]:
+        if isinstance(endpoints, list):
+            for endpoint in endpoints:
+                endpoint_text = str(endpoint).strip().lower()
+                if "/chat/completions" in endpoint_text or "chat/completions" in endpoint_text:
+                    return True
+        if isinstance(endpoints, dict):
+            for key, value in endpoints.items():
+                key_text = str(key).strip().lower()
+                if "/chat/completions" in key_text or "chat/completions" in key_text or key_text in {"chat", "chat_completions"}:
+                    parsed = VseLLMClient._to_optional_bool(value)
+                    if parsed is not None:
+                        return parsed
+                    if isinstance(value, dict):
+                        nested = VseLLMClient._first_non_none_bool(
+                            VseLLMClient._to_optional_bool(value.get("enabled")),
+                            VseLLMClient._to_optional_bool(value.get("supported")),
+                        )
+                        if nested is not None:
+                            return nested
+                    return True
+        return None
+
+    @staticmethod
+    def _to_optional_bool(value: Any) -> Optional[bool]:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "yes", "enabled", "supported", "available"}:
+                return True
+            if lowered in {"false", "0", "no", "disabled", "unsupported", "unavailable"}:
+                return False
+        return None
+
+    @staticmethod
+    def _first_non_none_bool(*values: Optional[bool]) -> Optional[bool]:
+        for value in values:
+            if value is not None:
+                return value
+        return None

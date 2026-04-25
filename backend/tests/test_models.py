@@ -70,3 +70,44 @@ def test_vsellm_client_handles_auth_error(monkeypatch) -> None:
     except VseLLMError as exc:
         assert exc.status_code == 401
         assert "авторизации" in exc.user_message
+
+
+def test_vsellm_client_normalizes_chat_and_stream_capabilities_from_explicit_fields() -> None:
+    model = VseLLMClient._normalize_model(
+        {
+            "id": "model-chat",
+            "supports_chat": True,
+            "supports_stream": False,
+            "supports_vision": True,
+        }
+    )
+    assert model is not None
+    assert model.supports_chat is True
+    assert model.supports_stream is False
+    assert model.supports_vision is True
+
+
+def test_vsellm_client_marks_model_as_non_chat_when_capabilities_explicitly_disable_chat() -> None:
+    model = VseLLMClient._normalize_model(
+        {
+            "id": "model-no-chat",
+            "capabilities": {
+                "chat_completions": False,
+                "vision": True,
+            },
+        }
+    )
+    assert model is not None
+    assert model.supports_chat is False
+    assert model.supports_vision is True
+
+
+def test_vsellm_client_detects_chat_support_from_endpoints() -> None:
+    model = VseLLMClient._normalize_model(
+        {
+            "id": "model-endpoint-chat",
+            "endpoints": ["/v1/chat/completions", "/v1/embeddings"],
+        }
+    )
+    assert model is not None
+    assert model.supports_chat is True

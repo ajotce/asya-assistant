@@ -54,6 +54,8 @@ export interface ModelInfo {
   context_window?: number;
   input_price?: number;
   output_price?: number;
+  supports_chat?: boolean;
+  supports_stream?: boolean;
   supports_vision?: boolean;
 }
 

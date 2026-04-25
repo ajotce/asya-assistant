@@ -69,7 +69,8 @@ export default function SettingsPage() {
       if (list.length > 0) {
         const hasCurrent = list.some((model) => model.id === selectedModel);
         if (!hasCurrent) {
-          setForm((prev) => ({ ...prev, selected_model: list[0].id }));
+          const fallbackModel = list.find((model) => model.supports_chat !== false) ?? list[0];
+          setForm((prev) => ({ ...prev, selected_model: fallbackModel.id }));
         }
       }
     } catch (modelsLoadError) {
@@ -97,6 +98,12 @@ export default function SettingsPage() {
   function updateField<K extends keyof SettingsFormState>(key: K, value: SettingsFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
+
+  const selectedModelMeta = models.find((model) => model.id === form.selected_model);
+  const selectedModelIsChatUnsupported = selectedModelMeta?.supports_chat === false;
+  const modelCompatibilityWarning = selectedModelIsChatUnsupported
+    ? `Модель '${form.selected_model}' по metadata провайдера не поддерживает chat/completions. Выберите другую chat-модель.`
+    : null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,6 +165,7 @@ export default function SettingsPage() {
         </div>
 
         {modelsError ? <p className="status-text status-text--error">{modelsError}</p> : null}
+        {modelCompatibilityWarning ? <p className="status-text status-text--error">{modelCompatibilityWarning}</p> : null}
 
         {models.length > 0 ? (
           <select
@@ -167,8 +175,8 @@ export default function SettingsPage() {
             onChange={(event) => updateField("selected_model", event.target.value)}
           >
             {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.id}
+              <option key={model.id} value={model.id} disabled={model.supports_chat === false}>
+                {model.supports_chat === false ? `${model.id} (без chat/completions)` : model.id}
               </option>
             ))}
           </select>
@@ -193,7 +201,7 @@ export default function SettingsPage() {
           rows={6}
         />
 
-        <button type="submit" className="settings-form__submit" disabled={saving}>
+        <button type="submit" className="settings-form__submit" disabled={saving || selectedModelIsChatUnsupported}>
           {saving ? "Сохранение..." : "Сохранить"}
         </button>
       </form>

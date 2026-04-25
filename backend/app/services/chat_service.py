@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import re
 from base64 import b64encode
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
@@ -9,6 +10,7 @@ from typing import Any, Dict, Generator, List, Optional
 import httpx
 
 from app.core.config import Settings
+from app.models.schemas import ModelInfo
 from app.services.settings_service import SettingsService
 from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.file_store import SessionFileStore, StoredSessionFile
@@ -56,6 +58,7 @@ class ChatService:
             self._validate_request(session_id=session_id, user_message=user_message, file_ids=file_ids or [])
             runtime_settings = self._settings_service.get_settings()
             messages = self.build_messages_payload(session_id=session_id, user_message=user_message, file_ids=file_ids or [])
+            self._ensure_chat_supported(selected_model=runtime_settings.selected_model)
             self._session_store.append_message(session_id=session_id, role="user", content=user_message)
             model = runtime_settings.selected_model
             payload = {"model": model, "messages": messages, "stream": True}
@@ -70,7 +73,32 @@ class ChatService:
                 headers=headers,
                 timeout=httpx.Timeout(timeout=120.0, connect=10.0),
             ) as response:
-                self._raise_for_status(response.status_code)
+                if response.status_code >= 400:
+                    provider_error = self._extract_provider_error_text(response)
+                    if self._is_streaming_unsupported_error(response.status_code, provider_error):
+                        fallback_text, usage = self._request_non_stream_completion(
+                            payload=payload,
+                            headers=headers,
+                            model=model,
+                        )
+                        if fallback_text:
+                            assistant_text += fallback_text
+                            for chunk_text in self._split_text_for_sse(fallback_text):
+                                yield self._sse_event("token", {"text": chunk_text})
+                        if assistant_text:
+                            self._session_store.append_message(session_id=session_id, role="assistant", content=assistant_text)
+                        if self._usage_store is not None:
+                            self._usage_store.record_chat_usage(
+                                session_id=session_id,
+                                usage=usage if isinstance(usage, dict) else None,
+                            )
+                        yield self._sse_event("done", {"usage": usage})
+                        return
+                    raise self._provider_status_error(
+                        status_code=response.status_code,
+                        model=model,
+                        provider_reason=provider_error,
+                    )
 
                 for raw_line in response.iter_lines():
                     if not raw_line:
@@ -209,6 +237,24 @@ class ChatService:
                 ),
             )
 
+    def _ensure_chat_supported(self, selected_model: str) -> None:
+        model = self._get_selected_model_metadata(selected_model)
+        if model is not None and model.supports_chat is False:
+            raise VseLLMError(
+                status_code=400,
+                user_message=(
+                    f"Модель '{selected_model}' по metadata провайдера не поддерживает chat/completions. "
+                    "Выберите другую chat-модель в Настройках."
+                ),
+            )
+
+    def _get_selected_model_metadata(self, selected_model: str) -> Optional[ModelInfo]:
+        try:
+            models = self._vsellm_client.get_models()
+        except VseLLMError:
+            return None
+        return next((item for item in models if item.id == selected_model), None)
+
     @staticmethod
     def _extract_delta_text(chunk: Dict[str, Any]) -> str:
         choices = chunk.get("choices")
@@ -228,15 +274,189 @@ class ChatService:
         body = json.dumps(payload, ensure_ascii=False)
         return f"event: {event}\ndata: {body}\n\n".encode("utf-8")
 
+    def _request_non_stream_completion(
+        self,
+        payload: Dict[str, Any],
+        headers: Dict[str, str],
+        model: str,
+    ) -> tuple[str, Any]:
+        fallback_payload = {**payload, "stream": False}
+        response = httpx.post(
+            f"{self._settings.vsellm_base_url.rstrip('/')}/chat/completions",
+            json=fallback_payload,
+            headers=headers,
+            timeout=httpx.Timeout(timeout=120.0, connect=10.0),
+        )
+        if response.status_code >= 400:
+            provider_reason = self._extract_provider_error_text(response)
+            raise self._provider_status_error(
+                status_code=response.status_code,
+                model=model,
+                provider_reason=provider_reason,
+            )
+
+        payload_json = response.json()
+        usage = payload_json.get("usage")
+        text = self._extract_non_stream_text(payload_json)
+        return text, usage
+
     @staticmethod
-    def _raise_for_status(status_code: int) -> None:
+    def _extract_non_stream_text(payload_json: Dict[str, Any]) -> str:
+        choices = payload_json.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return ""
+        first = choices[0]
+        if not isinstance(first, dict):
+            return ""
+
+        message = first.get("message")
+        if isinstance(message, dict):
+            content = message.get("content")
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                chunks: list[str] = []
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+                    text_value = block.get("text")
+                    if isinstance(text_value, str):
+                        chunks.append(text_value)
+                return "".join(chunks)
+
+        text = first.get("text")
+        if isinstance(text, str):
+            return text
+        return ""
+
+    @staticmethod
+    def _split_text_for_sse(text: str, chunk_size: int = 800) -> list[str]:
+        if len(text) <= chunk_size:
+            return [text]
+        chunks: list[str] = []
+        start = 0
+        while start < len(text):
+            end = min(start + chunk_size, len(text))
+            chunks.append(text[start:end])
+            start = end
+        return chunks
+
+    @staticmethod
+    def _is_streaming_unsupported_error(status_code: int, provider_reason: Optional[str]) -> bool:
+        if status_code not in (400, 404, 405, 409, 422):
+            return False
+        if not provider_reason:
+            return False
+
+        reason = provider_reason.lower()
+        mentions_stream = "stream" in reason or "streaming" in reason
+        explicit_markers = (
+            "not support",
+            "unsupported",
+            "not available",
+            "disabled",
+            "must be false",
+            "should be false",
+            "unknown field",
+        )
+        return mentions_stream and any(marker in reason for marker in explicit_markers)
+
+    @staticmethod
+    def _extract_provider_error_text(response: httpx.Response) -> Optional[str]:
+        body_text = ""
+        try:
+            body_text = response.read().decode("utf-8", errors="ignore").strip()
+        except Exception:
+            body_text = ""
+
+        if not body_text:
+            return None
+
+        message = None
+        try:
+            payload = json.loads(body_text)
+            message = ChatService._extract_message_from_payload(payload)
+        except json.JSONDecodeError:
+            message = body_text
+
+        if not message:
+            message = body_text
+        return ChatService._sanitize_provider_message(message)
+
+    @staticmethod
+    def _extract_message_from_payload(payload: Any) -> Optional[str]:
+        if isinstance(payload, str):
+            return payload
+        if isinstance(payload, list):
+            for item in payload:
+                nested = ChatService._extract_message_from_payload(item)
+                if nested:
+                    return nested
+            return None
+        if not isinstance(payload, dict):
+            return None
+
+        for key in ("message", "detail", "error_description"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+        error = payload.get("error")
+        if error is not None:
+            nested = ChatService._extract_message_from_payload(error)
+            if nested:
+                return nested
+
+        errors = payload.get("errors")
+        if isinstance(errors, list):
+            for item in errors:
+                nested = ChatService._extract_message_from_payload(item)
+                if nested:
+                    return nested
+        return None
+
+    @staticmethod
+    def _sanitize_provider_message(message: str) -> str:
+        sanitized = re.sub(r"Bearer\s+[A-Za-z0-9._\-]+", "Bearer ***", message, flags=re.IGNORECASE)
+        sanitized = re.sub(r"sk-[A-Za-z0-9_\-]{8,}", "sk-***", sanitized)
+        sanitized = sanitized.strip()
+        if len(sanitized) > 500:
+            return f"{sanitized[:500]}..."
+        return sanitized
+
+    @staticmethod
+    def _provider_status_error(status_code: int, model: str, provider_reason: Optional[str]) -> VseLLMError:
+        reason_suffix = f" Причина провайдера: {provider_reason}." if provider_reason else ""
+        action_suffix = (
+            f" Проверьте модель '{model}' в Настройках: выберите другую chat-модель "
+            "или проверьте параметры провайдера."
+        )
+
         if status_code in (401, 403):
-            raise VseLLMError(status_code=status_code, user_message="Ошибка авторизации VseLLM. Проверьте API-ключ на backend.")
-        if status_code == 404:
-            raise VseLLMError(status_code=502, user_message="Модель или endpoint VseLLM не найдены. Проверьте настройки.")
+            return VseLLMError(
+                status_code=status_code,
+                user_message="Ошибка авторизации VseLLM. Проверьте API-ключ на backend.",
+            )
+        if status_code in (400, 404, 422):
+            return VseLLMError(
+                status_code=400,
+                user_message=(
+                    f"Модель '{model}' не приняла chat/completions-запрос.{reason_suffix}{action_suffix}"
+                ),
+            )
         if status_code == 429:
-            raise VseLLMError(status_code=429, user_message="Сервис временно ограничил частоту запросов. Попробуйте позже.")
+            return VseLLMError(
+                status_code=429,
+                user_message=f"Сервис временно ограничил частоту запросов. Попробуйте позже.{reason_suffix}",
+            )
         if status_code >= 500:
-            raise VseLLMError(status_code=502, user_message="Сервис VseLLM временно недоступен. Попробуйте позже.")
+            return VseLLMError(
+                status_code=502,
+                user_message=f"Сервис VseLLM временно недоступен. Попробуйте позже.{reason_suffix}",
+            )
         if status_code >= 400:
-            raise VseLLMError(status_code=502, user_message="Ошибка запроса к VseLLM.")
+            return VseLLMError(
+                status_code=502,
+                user_message=f"Ошибка запроса к VseLLM.{reason_suffix}{action_suffix}",
+            )
+        return VseLLMError(status_code=502, user_message="Неизвестная ошибка запроса к VseLLM.")

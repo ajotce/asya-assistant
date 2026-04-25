@@ -18,7 +18,7 @@ docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci 
 - покрыты минимальные MVP-сценарии:
   - `App` (прямое открытие `/status`, сохранение runtime-состояния чата при `Чат -> Настройки -> Чат`, отсутствие повторного создания сессии при возврате на вкладку чата)
   - `ChatPage` (рендер, отправка, streaming, ошибки)
-  - `SettingsPage` (модель, системный промт)
+  - `SettingsPage` (модель, системный промт, предупреждение и disabled option для моделей с явным `supports_chat=false`)
   - `StatusPage` (состояние, ошибки)
 
 ## 2) Lint
@@ -40,6 +40,10 @@ make test
 Ожидаемый результат:
 - `pytest` завершается без падений
 - текущий baseline: `40 passed` (возможны предупреждения, не блокирующие запуск)
+- для совместимости моделей покрыты сценарии:
+  - нормализация `supports_chat`/`supports_stream` из provider metadata (`supports_*`, `capabilities`, `endpoints`);
+  - понятная маппинга provider body ошибок в chat;
+  - fallback non-stream при явной provider-ошибке streaming.
 
 ## 4) Frontend сборка
 Команда:

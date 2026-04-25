@@ -58,6 +58,8 @@ class ModelInfo(BaseModel):
     context_window: Optional[int] = None
     input_price: Optional[float] = None
     output_price: Optional[float] = None
+    supports_chat: Optional[bool] = None
+    supports_stream: Optional[bool] = None
     supports_vision: Optional[bool] = None
 
 

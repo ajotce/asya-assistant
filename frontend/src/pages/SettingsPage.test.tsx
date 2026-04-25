@@ -39,7 +39,7 @@ describe("SettingsPage", () => {
 
   it("позволяет изменить системный промт и сохранить настройки", async () => {
     render(<SettingsPage />);
-    await screen.findByRole("heading", { name: "Настройки" });
+    await screen.findByLabelText("Глобально выбранная модель");
 
     fireEvent.change(screen.getByLabelText("Глобально выбранная модель"), { target: { value: "openai/gpt-5" } });
     fireEvent.change(screen.getByLabelText("Системный промт"), { target: { value: "Новый системный промт" } });
@@ -53,5 +53,25 @@ describe("SettingsPage", () => {
       });
     });
     expect(await screen.findByText("Настройки сохранены.")).toBeInTheDocument();
+  });
+
+  it("показывает предупреждение и disabled option для модели без chat/completions", async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      assistant_name: "Asya",
+      selected_model: "embed-only",
+      system_prompt: "Базовый промт",
+      api_key_configured: true,
+    });
+    vi.mocked(getModels).mockResolvedValue([
+      { id: "embed-only", supports_chat: false },
+      { id: "openai/gpt-5", supports_chat: true },
+    ]);
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByText(/не поддерживает chat\/completions/i)).toBeInTheDocument();
+    const unsupportedOption = await screen.findByRole("option", { name: "embed-only (без chat/completions)" });
+    expect(unsupportedOption).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
   });
 });
