@@ -10,12 +10,14 @@ make test
 ### Frontend
 ```bash
 make build-frontend
+docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm test"
 ```
 
 ## Что проверяем
 - Базовая структура проекта присутствует.
 - Конфигурационные файлы заполнены без секретов.
 - Сборка frontend выполняется.
+- Frontend unit-тест `StatusPage` проходит.
 - Backend-тесты проходят (если окружение готово).
 - Usage endpoints возвращают ожидаемый формат и корректно обрабатывают отсутствие данных.
 - Health endpoint содержит uptime и статусы embeddings/storage для страницы `Состояние Asya`.

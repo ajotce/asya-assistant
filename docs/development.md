@@ -37,11 +37,14 @@ docker compose down
 ```bash
 make test
 make build-frontend
+docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm test"
 ```
 
 `make build-frontend` работает в двух режимах:
 - если локально доступен `npm`, используется локальная сборка;
 - если `npm` не установлен, автоматически используется `node:20-alpine` контейнер.
+
+Frontend unit-тесты запускаются через `vitest` (`frontend/src/pages/StatusPage.test.tsx` проверяет ключевые карточки страницы состояния).
 
 ## Frontend Chat + Files (MVP)
 - В `ChatPage` поддержан выбор до 10 файлов перед отправкой сообщения.

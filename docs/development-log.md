@@ -2,6 +2,32 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Добавлен frontend unit-тест для страницы `Состояние Asya`:
+    - новый файл `frontend/src/pages/StatusPage.test.tsx`;
+    - тест проверяет рендер ключевых карточек (`backend`, `uptime`, `модель`, `API-ключ`, `embeddings`, `временное хранилище`) на мок-ответе `GET /api/health`.
+  - Подключена минимальная frontend тестовая инфраструктура:
+    - `vitest` + `@testing-library/react` + `@testing-library/jest-dom` + `jsdom`;
+    - обновлены `frontend/package.json`, `frontend/vite.config.ts`, добавлен `frontend/src/test/setup.ts`.
+  - Обновлена документация по запуску frontend тестов (`docs/development.md`, `docs/testing.md`).
+- Какие файлы изменены:
+  - `frontend/src/pages/StatusPage.test.tsx`
+  - `frontend/src/test/setup.ts`
+  - `frontend/vite.config.ts`
+  - `frontend/package.json`
+  - `frontend/package-lock.json`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `docker run --rm -v "$PWD:/work" -w /work node:20-alpine sh -lc "npm test"` (в `frontend`) -> `1 passed`.
+  - `make build-frontend` -> успешно.
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - Добавить unit-тесты для других экранов MVP (`SettingsPage`, базовый рендер `ChatPage`) по такому же шаблону.
+
+## 2026-04-25
+- Что сделано:
   - Обновлена frontend-страница `Состояние Asya` под фактический расширенный `GET /api/health` с простым UX на русском.
   - На странице оставлены ключевые блоки:
     - backend online/offline;
