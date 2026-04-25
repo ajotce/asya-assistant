@@ -2,6 +2,54 @@
 
 ## 2026-04-26
 - Что сделано:
+  - Проведена финальная приёмка после серии доработок №1–№4.
+  - Закрыта доработка №3 (streaming размышления) в этой же сессии:
+    - backend `chat_service.py` извлекает provider reasoning из delta (`reasoning_content`/`reasoning`/`thinking`) и из `message.*` для non-stream fallback;
+    - эмитится отдельный SSE `event: thinking` с тем же shape, что и `event: token`;
+    - reasoning не дублируется в `event: token` и не сохраняется в истории сессии (не отправляется обратно провайдеру в следующих запросах);
+    - frontend `client.ts` поддерживает опциональный `onThinking` handler;
+    - `ChatPage` рендерит `<details>`-блок «Размышления модели» для assistant-сообщений с непустым reasoning, развёрнутый во время `streaming` и сворачивающийся после `done`; для обычных моделей блок не отображается.
+  - Backend и frontend тесты расширены покрытием reasoning-сценариев (stream + non-stream fallback на бэке, рендер/отсутствие блока на фронте).
+  - Документация обновлена под новый SSE-контракт и UX чата.
+  - Реальный smoke против VseLLM подтвердил, что для текущих моделей провайдер не отдаёт `reasoning_content` через OpenAI-compat (deepseek-r1-distill, qwen3-thinking — пишут только `delta.content`); код корректно остаётся «тихим» в этом случае. Для синтетических ответов (юнит-тесты с `reasoning_content`) `event: thinking` эмитится правильно.
+- Какие файлы изменены:
+  - `backend/app/services/chat_service.py`
+  - `backend/tests/test_chat.py`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/pages/ChatPage.tsx`
+  - `frontend/src/pages/ChatPage.test.tsx`
+  - `frontend/src/styles/app.css`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `48 passed` (46 + 2 новых thinking-теста).
+  - `docker run ... node:20-alpine ... npm test` -> `14 passed` (12 + 2 новых ChatPage-теста).
+  - `make lint` -> код 0.
+  - `make build-frontend` -> код 0, новый `dist`.
+  - `docker compose up -d --build` (на `ASYA_PORT=8021`, чтобы не пересекаться со сторонним контейнером на 8000):
+    - `GET /api/health` -> 200, `vsellm.reachable=true`;
+    - `GET /api/models` -> 200, корректный список;
+    - `PUT /api/settings` -> 200 (выбраны и обычная `gpt-5-mini`, и reasoning `deepseek-r1-distill-llama-70b`);
+    - `POST /api/session` -> 201, `GET` -> 200, `DELETE` -> 204, повторный `GET` -> 404;
+    - `POST /api/chat/stream` против `gpt-5-mini` -> SSE только `token` + `done`, без `thinking`;
+    - `POST /api/chat/stream` против `deepseek-r1-distill-llama-70b` -> SSE только `token` + `done` (провайдер не вернул `reasoning_content`); ошибок и регрессий нет;
+    - прямые URL `/`, `/settings` -> 200 через SPA fallback.
+  - `docker compose down` -> контейнер остановлен и удалён, `.env` (gitignored, использовался только для smoke с реальным ключом) удалён.
+- Безопасность:
+  - `.env` не отслеживается, в репозитории остался только `.env.example` без секретов.
+  - В коде нет логирования API-ключа; provider-error санитайзер (`_sanitize_provider_message`) маскирует `Bearer …` и `sk-…`.
+  - История чатов хранится только в runtime `SessionStore` и удаляется при `DELETE /api/session/{id}` или перезапуске процесса.
+- Какие проблемы остались:
+  - VseLLM-провайдер не пробрасывает `reasoning_content` для протестированных моделей (deepseek-r1-distill, qwen3-thinking). Это ограничение upstream-провайдера; backend и frontend готовы отобразить reasoning, как только provider начнёт его отдавать.
+  - `npm audit` продолжает показывать `5 moderate severity vulnerabilities` в frontend dev-зависимостях (тесты/lint/build проходят).
+- Следующий рекомендуемый шаг:
+  - Отдельной задачей подсветить кнопку «Развернуть/скрыть размышления» в чате (UX-полировка), без изменения SSE-контракта.
+
+## 2026-04-26
+- Что сделано:
   - Реализована доработка №4 страницы `Состояние Asya` с интерактивными индикаторами.
   - `StatusPage` переведена со статичного `dl` на карточки с severity:
     - `ok`, `warning`, `error`, `unknown`;
