@@ -7,8 +7,9 @@ import httpx
 
 from app.core.config import Settings
 from app.services.settings_service import SettingsService
-from app.services.vsellm_client import VseLLMError
+from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.session_store import SessionStore
+from app.storage.vector_store import SessionVectorStore, StoredChunkVector
 
 
 class ChatService:
@@ -16,16 +17,23 @@ class ChatService:
         self,
         settings: Settings,
         session_store: SessionStore,
+        vector_store: SessionVectorStore,
+        vsellm_client: VseLLMClient,
         settings_service: Optional[SettingsService] = None,
     ) -> None:
         self._settings = settings
         self._session_store = session_store
+        self._vector_store = vector_store
+        self._vsellm_client = vsellm_client
         self._settings_service = settings_service or SettingsService(settings)
 
     def build_messages_payload(self, session_id: str, user_message: str) -> List[Dict[str, str]]:
         runtime_settings = self._settings_service.get_settings()
         history = self._session_store.get_messages(session_id)
         messages: List[Dict[str, str]] = [{"role": "system", "content": runtime_settings.system_prompt}]
+        file_context = self._build_retrieval_context(session_id=session_id, user_message=user_message)
+        if file_context:
+            messages.append({"role": "system", "content": file_context})
         messages.extend(history)
         messages.append({"role": "user", "content": user_message})
         return messages
@@ -92,6 +100,30 @@ class ChatService:
             raise VseLLMError(status_code=503, user_message="VseLLM API-ключ не настроен на backend.")
         if not self._settings_service.get_settings().selected_model.strip():
             raise VseLLMError(status_code=503, user_message="Глобальная модель не настроена на backend.")
+
+    def _build_retrieval_context(self, session_id: str, user_message: str) -> str:
+        session = self._session_store.get_session(session_id)
+        if session is None or not session.file_ids:
+            return ""
+        if not self._vector_store.has_session_chunks(session_id):
+            return ""
+
+        query_vector = self._vsellm_client.get_embeddings([user_message])[0]
+        hits = self._vector_store.search(session_id=session_id, query_embedding=query_vector, top_k=4)
+        if not hits:
+            return ""
+
+        return self._format_retrieval_context(hits)
+
+    @staticmethod
+    def _format_retrieval_context(hits: List[StoredChunkVector]) -> str:
+        lines = [
+            "Контекст из загруженных файлов (используй как справочную информацию, если релевантно):",
+        ]
+        for index, hit in enumerate(hits, start=1):
+            lines.append(f"{index}. Файл: {hit.filename}")
+            lines.append(f"   Фрагмент: {hit.text}")
+        return "\n".join(lines)
 
     @staticmethod
     def _extract_delta_text(chunk: Dict[str, Any]) -> str:

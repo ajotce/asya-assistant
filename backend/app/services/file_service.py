@@ -8,8 +8,10 @@ from fastapi import UploadFile
 
 from app.core.config import Settings
 from app.models.schemas import SessionUploadedFileInfo
+from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.file_store import SessionFileStore, StoredSessionFile
 from app.storage.session_store import SessionStore
+from app.storage.vector_store import SessionVectorStore, StoredChunkVector
 
 _ALLOWED_DOC_EXTENSIONS = {".pdf", ".docx", ".xlsx"}
 _ALLOWED_IMAGE_EXTENSIONS = {
@@ -26,6 +28,8 @@ _ALLOWED_IMAGE_EXTENSIONS = {
 _ALLOWED_IMAGE_CONTENT_PREFIX = "image/"
 _READ_CHUNK_SIZE = 1024 * 1024
 _MAX_PREVIEW_CHARS = 200_000
+_CHUNK_SIZE_CHARS = 1200
+_CHUNK_OVERLAP_CHARS = 200
 
 
 class FileValidationError(Exception):
@@ -36,10 +40,19 @@ class FileValidationError(Exception):
 
 
 class FileService:
-    def __init__(self, settings: Settings, session_store: SessionStore, file_store: SessionFileStore) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        session_store: SessionStore,
+        file_store: SessionFileStore,
+        vector_store: SessionVectorStore,
+        vsellm_client: VseLLMClient,
+    ) -> None:
         self._settings = settings
         self._session_store = session_store
         self._file_store = file_store
+        self._vector_store = vector_store
+        self._vsellm_client = vsellm_client
 
     async def upload_files(self, session_id: str, files: List[UploadFile]) -> List[SessionUploadedFileInfo]:
         if not self._session_store.has_session(session_id):
@@ -56,9 +69,12 @@ class FileService:
             for upload in files:
                 pending = await self._save_single_upload(session_id=session_id, upload=upload)
                 pending_files.append(pending)
-        except FileValidationError:
-            self._cleanup_pending_files(pending_files)
-            raise
+                self._index_document_chunks(session_id=session_id, stored_file=pending)
+        except (FileValidationError, VseLLMError) as exc:
+            self._cleanup_pending_files(session_id=session_id, files=pending_files)
+            if isinstance(exc, FileValidationError):
+                raise
+            raise FileValidationError(user_message=exc.user_message, status_code=exc.status_code) from exc
         finally:
             for upload in files:
                 await upload.close()
@@ -127,10 +143,36 @@ class FileService:
             extracted_text=extracted_text,
         )
 
-    @staticmethod
-    def _cleanup_pending_files(files: List[StoredSessionFile]) -> None:
+    def _index_document_chunks(self, session_id: str, stored_file: StoredSessionFile) -> None:
+        if not stored_file.extracted_text:
+            self._vector_store.upsert_file_chunks(session_id=session_id, file_id=stored_file.file_id, chunks=[])
+            return
+
+        chunks_text = self._chunk_text(stored_file.extracted_text)
+        if not chunks_text:
+            raise FileValidationError(f"Файл '{stored_file.filename}' не содержит данных для индексирования.")
+
+        vectors = self._vsellm_client.get_embeddings(chunks_text)
+        indexed_chunks = [
+            StoredChunkVector(
+                chunk_id=f"{stored_file.file_id}:{index}",
+                file_id=stored_file.file_id,
+                filename=stored_file.filename,
+                text=chunk_text,
+                embedding=vector,
+            )
+            for index, (chunk_text, vector) in enumerate(zip(chunks_text, vectors), start=1)
+        ]
+        self._vector_store.upsert_file_chunks(
+            session_id=session_id,
+            file_id=stored_file.file_id,
+            chunks=indexed_chunks,
+        )
+
+    def _cleanup_pending_files(self, session_id: str, files: List[StoredSessionFile]) -> None:
         for file in files:
             Path(file.path).unlink(missing_ok=True)
+            self._vector_store.delete_file_chunks(session_id=session_id, file_id=file.file_id)
 
     @staticmethod
     def _validate_supported_type(filename: str, content_type: str) -> None:
@@ -257,3 +299,23 @@ class FileService:
                 return str(int(value))
             return str(value)
         return str(value).strip()
+
+    @staticmethod
+    def _chunk_text(text: str, chunk_size: int = _CHUNK_SIZE_CHARS, overlap: int = _CHUNK_OVERLAP_CHARS) -> list[str]:
+        normalized = " ".join(text.split())
+        if not normalized:
+            return []
+        if len(normalized) <= chunk_size:
+            return [normalized]
+
+        chunks: list[str] = []
+        start = 0
+        while start < len(normalized):
+            end = min(start + chunk_size, len(normalized))
+            chunk = normalized[start:end].strip()
+            if chunk:
+                chunks.append(chunk)
+            if end >= len(normalized):
+                break
+            start = max(0, end - overlap)
+        return chunks

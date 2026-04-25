@@ -60,6 +60,9 @@ def test_upload_rejects_file_over_size_limit() -> None:
 def test_extract_text_from_pdf_docx_xlsx() -> None:
     client = TestClient(app)
     session_id = _create_session(client)
+    settings = get_settings()
+    old_key = settings.vsellm_api_key
+    settings.vsellm_api_key = "test-key"
 
     files = [
         ("files", ("sample.pdf", _make_pdf_bytes("PDF hello"), "application/pdf")),
@@ -80,7 +83,25 @@ def test_extract_text_from_pdf_docx_xlsx() -> None:
             ),
         ),
     ]
-    response = client.post(f"/api/session/{session_id}/files", files=files)
+    try:
+        from app.services import vsellm_client as vsellm_client_module
+
+        old_post = vsellm_client_module.httpx.post
+
+        def fake_post(*args, **kwargs):
+            inputs = kwargs["json"]["input"]
+            data = [{"embedding": [float(i + 1), 0.0, 0.0]} for i in range(len(inputs))]
+            import httpx
+
+            request = httpx.Request("POST", "https://api.vsellm.ru/v1/embeddings")
+            return httpx.Response(status_code=200, request=request, json={"data": data})
+
+        vsellm_client_module.httpx.post = fake_post
+        response = client.post(f"/api/session/{session_id}/files", files=files)
+    finally:
+        vsellm_client_module.httpx.post = old_post
+        settings.vsellm_api_key = old_key
+
     assert response.status_code == 201
 
     stored = file_store.get_session_files(session_id)
@@ -115,6 +136,36 @@ def test_upload_rejects_empty_xlsx() -> None:
     )
     assert response.status_code == 400
     assert "не содержит данных" in response.json()["detail"]
+
+
+def test_upload_returns_clear_error_when_embeddings_api_unavailable() -> None:
+    client = TestClient(app)
+    session_id = _create_session(client)
+    settings = get_settings()
+    old_key = settings.vsellm_api_key
+    settings.vsellm_api_key = "test-key"
+    try:
+        from app.services import vsellm_client as vsellm_client_module
+
+        old_post = vsellm_client_module.httpx.post
+
+        def fake_post(*args, **kwargs):
+            import httpx
+
+            request = httpx.Request("POST", "https://api.vsellm.ru/v1/embeddings")
+            return httpx.Response(status_code=503, request=request, json={"error": "down"})
+
+        vsellm_client_module.httpx.post = fake_post
+        response = client.post(
+            f"/api/session/{session_id}/files",
+            files=[("files", ("sample.docx", _make_docx_bytes("text"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))],
+        )
+    finally:
+        vsellm_client_module.httpx.post = old_post
+        settings.vsellm_api_key = old_key
+
+    assert response.status_code == 502
+    assert "embeddings" in response.json()["detail"].lower()
 
 
 def _make_pdf_bytes(text: str) -> bytes:

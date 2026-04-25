@@ -3,7 +3,8 @@ from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
 from app.core.config import get_settings
 from app.models.schemas import SessionCreateResponse, SessionFilesUploadResponse, SessionStateResponse
 from app.services.file_service import FileService, FileValidationError
-from app.storage.runtime import file_store, session_store
+from app.services.vsellm_client import VseLLMClient
+from app.storage.runtime import file_store, session_store, vector_store
 
 router = APIRouter(tags=["session"])
 
@@ -32,6 +33,7 @@ def delete_session(session_id: str) -> Response:
     if not session_store.has_session(session_id):
         raise HTTPException(status_code=404, detail="Сессия не найдена.")
     file_store.delete_session_files(session_id)
+    vector_store.delete_session(session_id)
     deleted = session_store.delete_session(session_id)
     if not deleted:  # pragma: no cover
         raise HTTPException(status_code=404, detail="Сессия не найдена.")
@@ -39,7 +41,14 @@ def delete_session(session_id: str) -> Response:
 
 
 def get_file_service() -> FileService:
-    return FileService(settings=get_settings(), session_store=session_store, file_store=file_store)
+    settings = get_settings()
+    return FileService(
+        settings=settings,
+        session_store=session_store,
+        file_store=file_store,
+        vector_store=vector_store,
+        vsellm_client=VseLLMClient(settings),
+    )
 
 
 @router.post("/session/{session_id}/files", response_model=SessionFilesUploadResponse, status_code=status.HTTP_201_CREATED)

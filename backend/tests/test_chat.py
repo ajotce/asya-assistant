@@ -2,14 +2,16 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services.chat_service import ChatService
-from app.services.vsellm_client import VseLLMError
+from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.session_store import SessionStore
+from app.storage.vector_store import SessionVectorStore, StoredChunkVector
 
 
 class FakeSettings:
     vsellm_api_key = "test-key"
     vsellm_base_url = "https://api.vsellm.ru/v1"
     default_chat_model = "openai/gpt-5"
+    default_embedding_model = "text-embedding-3-small"
     default_system_prompt = "System prompt"
     sqlite_path = "/tmp/asya-test.sqlite3"
 
@@ -26,11 +28,18 @@ class FakeSettingsService:
 
 def test_build_messages_payload_uses_system_prompt_and_session_context() -> None:
     store = SessionStore()
+    vector_store = SessionVectorStore()
     session = store.create_session()
     session_id = session.session_id
     store.append_message(session_id, "user", "old user")
     store.append_message(session_id, "assistant", "old assistant")
-    service = ChatService(settings=FakeSettings(), session_store=store, settings_service=FakeSettingsService())
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        vector_store=vector_store,
+        vsellm_client=VseLLMClient(FakeSettings()),
+        settings_service=FakeSettingsService(),
+    )
 
     messages = service.build_messages_payload(session_id=session_id, user_message="new message")
 
@@ -45,8 +54,15 @@ def test_stream_chat_returns_error_event_on_vsellm_validation_error() -> None:
         vsellm_api_key = ""
 
     store = SessionStore()
+    vector_store = SessionVectorStore()
     session_id = store.create_session().session_id
-    service = ChatService(settings=NoKeySettings(), session_store=store, settings_service=FakeSettingsService())
+    service = ChatService(
+        settings=NoKeySettings(),
+        session_store=store,
+        vector_store=vector_store,
+        vsellm_client=VseLLMClient(NoKeySettings()),
+        settings_service=FakeSettingsService(),
+    )
     chunks = list(service.stream_chat(session_id=session_id, user_message="Hello"))
     payload = b"".join(chunks).decode("utf-8")
 
@@ -55,7 +71,13 @@ def test_stream_chat_returns_error_event_on_vsellm_validation_error() -> None:
 
 
 def test_stream_chat_returns_error_when_session_missing() -> None:
-    service = ChatService(settings=FakeSettings(), session_store=SessionStore(), settings_service=FakeSettingsService())
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=SessionStore(),
+        vector_store=SessionVectorStore(),
+        vsellm_client=VseLLMClient(FakeSettings()),
+        settings_service=FakeSettingsService(),
+    )
     chunks = list(service.stream_chat(session_id="missing", user_message="Hello"))
     payload = b"".join(chunks).decode("utf-8")
     assert "event: error" in payload
@@ -84,3 +106,76 @@ def test_status_mapper_for_rate_limit_error() -> None:
     except VseLLMError as exc:
         assert exc.status_code == 429
         assert "ограничил частоту запросов" in exc.user_message
+
+
+def test_chunk_text_splits_long_text() -> None:
+    text = " ".join(["token"] * 1200)
+    from app.services.file_service import FileService
+
+    chunked = FileService._chunk_text(text=text, chunk_size=500, overlap=100)
+    assert len(chunked) > 1
+    assert all(chunk.strip() for chunk in chunked)
+
+
+def test_build_messages_payload_includes_retrieved_file_context() -> None:
+    class FakeEmbeddingsClient:
+        def get_embeddings(self, texts, model=None):
+            return [[1.0, 0.0]]
+
+    store = SessionStore()
+    vector_store = SessionVectorStore()
+    session = store.create_session()
+    session_id = session.session_id
+    store.bind_file(session_id=session_id, file_id="file-1")
+    vector_store.upsert_file_chunks(
+        session_id=session_id,
+        file_id="file-1",
+        chunks=[
+            StoredChunkVector(
+                chunk_id="c1",
+                file_id="file-1",
+                filename="doc.pdf",
+                text="Нужный фрагмент про договор.",
+                embedding=[1.0, 0.0],
+            )
+        ],
+    )
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        vector_store=vector_store,
+        vsellm_client=FakeEmbeddingsClient(),
+        settings_service=FakeSettingsService(),
+    )
+
+    messages = service.build_messages_payload(session_id=session_id, user_message="Что по договору?")
+    assert messages[1]["role"] == "system"
+    assert "Контекст из загруженных файлов" in messages[1]["content"]
+    assert "doc.pdf" in messages[1]["content"]
+
+
+def test_stream_chat_returns_embeddings_error_for_retrieval() -> None:
+    class FakeEmbeddingsClient:
+        def get_embeddings(self, texts, model=None):
+            raise VseLLMError(status_code=502, user_message="Embeddings API недоступен.")
+
+    store = SessionStore()
+    vector_store = SessionVectorStore()
+    session_id = store.create_session().session_id
+    store.bind_file(session_id=session_id, file_id="file-1")
+    vector_store.upsert_file_chunks(
+        session_id=session_id,
+        file_id="file-1",
+        chunks=[StoredChunkVector(chunk_id="c1", file_id="file-1", filename="doc.pdf", text="x", embedding=[1.0])],
+    )
+
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        vector_store=vector_store,
+        vsellm_client=FakeEmbeddingsClient(),
+        settings_service=FakeSettingsService(),
+    )
+    payload = b"".join(service.stream_chat(session_id=session_id, user_message="question")).decode("utf-8")
+    assert "event: error" in payload
+    assert "Embeddings API недоступен." in payload

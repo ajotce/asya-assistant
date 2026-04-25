@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, List, Optional
 
 import httpx
 
@@ -78,6 +78,87 @@ class VseLLMClient:
             if normalized is not None:
                 models.append(normalized)
         return models
+
+    def get_embeddings(self, texts: List[str], model: Optional[str] = None) -> List[List[float]]:
+        api_key = self._settings.vsellm_api_key.strip()
+        if not api_key:
+            raise VseLLMError(status_code=503, user_message="VseLLM API-ключ не настроен на backend.")
+        cleaned = [text.strip() for text in texts if text and text.strip()]
+        if not cleaned:
+            raise VseLLMError(status_code=400, user_message="Не удалось подготовить текст для embeddings.")
+
+        embedding_model = (model or self._settings.default_embedding_model or self._settings.default_chat_model).strip()
+        if not embedding_model:
+            raise VseLLMError(status_code=503, user_message="Embedding-модель не настроена на backend.")
+
+        base_url = self._settings.vsellm_base_url.rstrip("/")
+        headers = {"Authorization": f"Bearer {api_key}"}
+        payload = {"model": embedding_model, "input": cleaned}
+
+        try:
+            response = httpx.post(
+                f"{base_url}/embeddings",
+                headers=headers,
+                json=payload,
+                timeout=httpx.Timeout(timeout=60.0, connect=10.0),
+            )
+        except httpx.TimeoutException as exc:
+            raise VseLLMError(
+                status_code=504,
+                user_message="Сервис embeddings VseLLM не ответил вовремя. Попробуйте позже.",
+            ) from exc
+        except httpx.RequestError as exc:
+            raise VseLLMError(
+                status_code=502,
+                user_message="Не удалось подключиться к embeddings API VseLLM.",
+            ) from exc
+
+        if response.status_code in (401, 403):
+            raise VseLLMError(
+                status_code=response.status_code,
+                user_message="Ошибка авторизации VseLLM. Проверьте API-ключ на backend.",
+            )
+        if response.status_code == 404:
+            raise VseLLMError(
+                status_code=502,
+                user_message="Embeddings endpoint VseLLM не найден. Проверьте настройки.",
+            )
+        if response.status_code == 429:
+            raise VseLLMError(
+                status_code=429,
+                user_message="Сервис embeddings VseLLM временно ограничил запросы. Попробуйте позже.",
+            )
+        if response.status_code >= 500:
+            raise VseLLMError(
+                status_code=502,
+                user_message="Сервис embeddings VseLLM временно недоступен. Попробуйте позже.",
+            )
+        if response.status_code >= 400:
+            raise VseLLMError(status_code=502, user_message="Ошибка запроса к embeddings API VseLLM.")
+
+        payload = response.json()
+        raw_data = payload.get("data")
+        if not isinstance(raw_data, list) or not raw_data:
+            raise VseLLMError(status_code=502, user_message="Некорректный формат ответа embeddings API.")
+
+        vectors: List[List[float]] = []
+        for item in raw_data:
+            if not isinstance(item, dict):
+                raise VseLLMError(status_code=502, user_message="Некорректный элемент embeddings в ответе API.")
+            vector = item.get("embedding")
+            if not isinstance(vector, list) or not vector:
+                raise VseLLMError(status_code=502, user_message="Embeddings API вернул пустой вектор.")
+            try:
+                vectors.append([float(value) for value in vector])
+            except (TypeError, ValueError) as exc:
+                raise VseLLMError(status_code=502, user_message="Embeddings API вернул некорректный вектор.") from exc
+
+        if len(vectors) != len(cleaned):
+            raise VseLLMError(
+                status_code=502,
+                user_message="Embeddings API вернул неполный набор векторов. Повторите попытку.",
+            )
+        return vectors
 
     @staticmethod
     def _normalize_model(item: Any) -> ModelInfo | None:

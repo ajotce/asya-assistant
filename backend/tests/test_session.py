@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.storage.runtime import file_store
+from app.storage.runtime import file_store, vector_store
 
 
 def test_session_create_and_read_and_delete() -> None:
@@ -53,3 +53,4 @@ def test_upload_file_to_session_and_cleanup_on_delete() -> None:
     delete_resp = client.delete(f"/api/session/{session_id}")
     assert delete_resp.status_code == 204
     assert not saved_path.exists()
+    assert vector_store.search(session_id=session_id, query_embedding=[1.0, 0.0]) == []

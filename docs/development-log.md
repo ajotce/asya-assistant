@@ -2,6 +2,50 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализован embeddings pipeline для загруженных документов:
+    - нарезка извлечённого текста на чанки;
+    - создание embeddings через VseLLM OpenAI-compatible `/embeddings`;
+    - сохранение чанков и векторов в локальном временном in-memory индексе `SessionVectorStore`.
+  - Индекс привязан к `session_id` и удаляется при `DELETE /api/session/{session_id}` вместе с файлами.
+  - Реализован retrieval в `POST /api/chat/stream`:
+    - embedding вопроса пользователя;
+    - поиск релевантных чанков в локальном индексе сессии;
+    - добавление найденных фрагментов в контекст запроса к модели.
+  - Добавлены понятные ошибки при недоступности embeddings API.
+  - Добавлены тесты:
+    - chunking;
+    - mock retrieval в chat;
+    - ошибка embeddings API;
+    - mock-тесты embeddings на загрузке документов.
+  - Выполнена ручная e2e-проверка сценария:
+    - загрузка документа -> вопрос по документу -> ответ со streaming и retrieval-контекстом.
+- Какие файлы изменены:
+  - `backend/app/core/config.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/api/routes_session.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/services/file_service.py`
+  - `backend/app/services/vsellm_client.py`
+  - `backend/app/storage/runtime.py`
+  - `backend/app/storage/vector_store.py`
+  - `backend/pyproject.toml`
+  - `backend/tests/test_chat.py`
+  - `backend/tests/test_files.py`
+  - `backend/tests/test_session.py`
+  - `docs/architecture.md`
+  - `docs/api.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `cd backend && python3 -m pytest -q` -> `28 passed`.
+  - Ручная проверка через `TestClient` (upload XLSX -> chat question) -> `upload 201`, `chat 200`, retrieval context подтверждён.
+- Какие проблемы остались:
+  - Пока нет отдельного usage endpoint для стоимости embeddings.
+- Следующий рекомендуемый шаг:
+  - Добавить `/usage` по сессии (токены chat + embeddings) и вывести это в страницу `Состояние Asya`.
+
+## 2026-04-25
+- Что сделано:
   - Реализовано извлечение текста из документов в файловом пайплайне сессии:
     - PDF через `PyMuPDF`;
     - DOCX через `python-docx`;

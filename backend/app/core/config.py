@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     vsellm_api_key: str = Field(default="", alias="VSELLM_API_KEY")
     vsellm_base_url: str = Field(default="https://api.vsellm.ru/v1", alias="VSELLM_BASE_URL")
     default_chat_model: str = Field(default="openai/gpt-5", alias="DEFAULT_CHAT_MODEL")
+    default_embedding_model: str = Field(default="", alias="DEFAULT_EMBEDDING_MODEL")
     default_assistant_name: str = Field(default="Asya", alias="DEFAULT_ASSISTANT_NAME")
     default_system_prompt: str = Field(
         default=(
