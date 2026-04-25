@@ -2,6 +2,31 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализована страница чата Asya на frontend:
+    - отправка сообщения в backend (`/api/chat/stream`);
+    - потоковое отображение ответа;
+    - отображение сообщений пользователя и Asya;
+    - редактирование сообщения пользователя с регенерацией ответа;
+    - очистка текущей backend-сессии (`DELETE /api/session/{session_id}`).
+  - Добавлены API-функции frontend для сессий и streaming.
+  - Обновлены стили и UI-элементы чата.
+  - Обновлён `docs/development.md` для ручной проверки chat flow.
+- Какие файлы изменены:
+  - `frontend/src/pages/ChatPage.tsx`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/styles/app.css`
+  - `docs/development.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `npm run build` (через Docker) — успешно.
+- Какие проблемы остались:
+  - Нет frontend авто-тестов для chat page (будут добавлены отдельным этапом).
+- Следующий рекомендуемый шаг:
+  - Добавить frontend тесты для chat-flow (streaming, edit, clear session).
+
+## 2026-04-25
+- Что сделано:
   - Реализован базовый frontend skeleton (React + Vite + TypeScript).
   - Добавлены базовые страницы:
     - `Чат`

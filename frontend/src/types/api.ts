@@ -33,6 +33,11 @@ export interface SessionStateResponse {
   file_ids: string[];
 }
 
+export interface ChatStreamRequest {
+  session_id: string;
+  message: string;
+}
+
 export type ChatStreamEvent =
   | { event: "token"; data: { text: string } }
   | { event: "error"; data: { message: string } }

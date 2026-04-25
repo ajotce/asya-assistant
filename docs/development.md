@@ -74,9 +74,13 @@ curl http://127.0.0.1:8000/api/models
 ## Streaming chat (этап 8)
 Проверка streaming endpoint:
 ```bash
+SESSION_ID=$(curl -s -X POST http://127.0.0.1:8000/api/session | python3 -c 'import sys,json; print(json.load(sys.stdin)["session_id"])')
+
 curl -N -X POST http://127.0.0.1:8000/api/chat/stream \
   -H "Content-Type: application/json" \
-  -d '{"session_id":"session-1","message":"Привет"}'
+  -d "{\"session_id\":\"$SESSION_ID\",\"message\":\"Привет\"}"
+
+curl -X DELETE http://127.0.0.1:8000/api/session/$SESSION_ID -i
 ```
 
 Ожидается `text/event-stream` с событиями `token`, `error` (если есть проблема), `done`.
