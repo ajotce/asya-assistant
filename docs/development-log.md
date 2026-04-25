@@ -2,6 +2,32 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Добавлен минимальный рабочий frontend lint:
+    - подключен `ESLint` для `TypeScript + React` (без избыточных плагинов);
+    - добавлен `frontend/eslint.config.js` (flat config);
+    - добавлен `npm script` `lint` в `frontend/package.json`.
+  - Обновлен `Makefile`: `make lint` теперь реально запускает frontend lint (локально через `npm`, либо через Docker fallback).
+  - Исправлений кода под lint не потребовалось: после подключения конфигурации нарушения не найдены.
+  - Обновлены `README.md` и `docs/testing.md` по новым lint-командам.
+- Какие файлы изменены:
+  - `frontend/eslint.config.js`
+  - `frontend/package.json`
+  - `frontend/package-lock.json`
+  - `Makefile`
+  - `docs/testing.md`
+  - `README.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make lint` -> успешно.
+  - `make build-frontend` -> успешно.
+  - `make test` -> `40 passed`.
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - При необходимости добавить точечные custom-правила lint для проекта Asya (например, для импортов и соглашений по именованию), не усложняя базовую конфигурацию.
+
+## 2026-04-25
+- Что сделано:
   - Добавлен frontend unit-тест для страницы `Состояние Asya`:
     - новый файл `frontend/src/pages/StatusPage.test.tsx`;
     - тест проверяет рендер ключевых карточек (`backend`, `uptime`, `модель`, `API-ключ`, `embeddings`, `временное хранилище`) на мок-ответе `GET /api/health`.

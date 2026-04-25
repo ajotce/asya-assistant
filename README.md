@@ -47,7 +47,7 @@ docker compose down
 make dev             # локальный запуск через docker compose
 make test            # backend тесты (pytest)
 make build-frontend  # сборка frontend (через npm или через docker, если npm не установлен)
-make lint            # пока заглушка для будущей lint-конфигурации
+make lint            # frontend lint (ESLint для TypeScript + React)
 ```
 
 ## Обязательные документы
