@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
 
-from app.models.schemas import SessionCreateResponse, SessionFileBindRequest, SessionStateResponse
-from app.storage.runtime import session_store
+from app.core.config import get_settings
+from app.models.schemas import SessionCreateResponse, SessionFilesUploadResponse, SessionStateResponse
+from app.services.file_service import FileService, FileValidationError
+from app.storage.runtime import file_store, session_store
 
 router = APIRouter(tags=["session"])
 
@@ -27,24 +29,32 @@ def get_session(session_id: str) -> SessionStateResponse:
 
 @router.delete("/session/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_session(session_id: str) -> Response:
+    if not session_store.has_session(session_id):
+        raise HTTPException(status_code=404, detail="Сессия не найдена.")
+    file_store.delete_session_files(session_id)
     deleted = session_store.delete_session(session_id)
-    if not deleted:
+    if not deleted:  # pragma: no cover
         raise HTTPException(status_code=404, detail="Сессия не найдена.")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/session/{session_id}/files", response_model=SessionStateResponse)
-def bind_file_to_session(session_id: str, request: SessionFileBindRequest) -> SessionStateResponse:
-    file_id = request.file_id.strip()
-    if not file_id:
-        raise HTTPException(status_code=400, detail="file_id обязателен.")
+def get_file_service() -> FileService:
+    return FileService(settings=get_settings(), session_store=session_store, file_store=file_store)
 
-    session = session_store.bind_file(session_id=session_id, file_id=file_id)
-    if session is None:
+
+@router.post("/session/{session_id}/files", response_model=SessionFilesUploadResponse, status_code=status.HTTP_201_CREATED)
+async def upload_files_to_session(session_id: str, files: list[UploadFile] = File(...)) -> SessionFilesUploadResponse:
+    service = get_file_service()
+    try:
+        uploaded = await service.upload_files(session_id=session_id, files=files)
+    except FileValidationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.user_message) from exc
+
+    session = session_store.get_session(session_id)
+    if session is None:  # pragma: no cover
         raise HTTPException(status_code=404, detail="Сессия не найдена.")
-    return SessionStateResponse(
-        session_id=session.session_id,
-        created_at=session.created_at,
-        message_count=len(session.messages),
+    return SessionFilesUploadResponse(
+        session_id=session_id,
+        files=uploaded,
         file_ids=session.file_ids,
     )

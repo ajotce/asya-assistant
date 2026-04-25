@@ -61,8 +61,17 @@ class SessionStateResponse(BaseModel):
     file_ids: list[str]
 
 
-class SessionFileBindRequest(BaseModel):
+class SessionUploadedFileInfo(BaseModel):
     file_id: str
+    filename: str
+    content_type: str
+    size_bytes: int
+
+
+class SessionFilesUploadResponse(BaseModel):
+    session_id: str
+    files: list[SessionUploadedFileInfo]
+    file_ids: list[str]
 
 
 class SettingsResponse(BaseModel):

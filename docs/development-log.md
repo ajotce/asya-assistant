@@ -2,6 +2,40 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализована загрузка файлов в текущую временную сессию через `POST /api/session/{session_id}/files` (`multipart/form-data`).
+  - Добавлена валидация:
+    - поддерживаемых типов (PDF, DOCX, XLSX, изображения);
+    - количества файлов за сообщение (до 10);
+    - размера файла (до 256 МБ).
+  - Добавлены понятные ошибки для пользователя при нарушении ограничений.
+  - Реализовано временное хранение файлов только в рамках backend-сессии:
+    - физические файлы пишутся во временную директорию;
+    - метаданные файлов хранятся в runtime in-memory store.
+  - Добавлена очистка физических временных файлов при `DELETE /api/session/{session_id}`.
+  - Добавлены тесты на ограничения загрузки файлов и проверка очистки после удаления сессии.
+  - Обновлены `docs/api.md` и `docs/architecture.md`.
+- Какие файлы изменены:
+  - `backend/app/core/config.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/api/routes_session.py`
+  - `backend/app/services/file_service.py`
+  - `backend/app/storage/file_store.py`
+  - `backend/app/storage/runtime.py`
+  - `backend/tests/test_files.py`
+  - `backend/tests/test_session.py`
+  - `backend/pyproject.toml`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `cd backend && python3 -m pytest -q` -> `21 passed`.
+- Какие проблемы остались:
+  - Извлечение текста из документов и embeddings pipeline пока не входят в этот шаг.
+- Следующий рекомендуемый шаг:
+  - Реализовать обработку содержимого файлов (extract/chunk/embed) в рамках текущей сессии.
+
+## 2026-04-25
+- Что сделано:
   - Проверена базовая структура репозитория `ajotce/asya-assistant` и актуальность ветки `main`.
   - Актуализированы базовые документы каркасного этапа:
     - `README.md`;

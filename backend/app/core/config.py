@@ -26,6 +26,9 @@ class Settings(BaseSettings):
         alias="DEFAULT_SYSTEM_PROMPT",
     )
     sqlite_path: str = Field(default="./data/asya.sqlite3", alias="SQLITE_PATH")
+    tmp_dir: str = Field(default="./tmp", alias="TMP_DIR")
+    max_files_per_message: int = Field(default=10, alias="MAX_FILES_PER_MESSAGE")
+    max_file_size_mb: int = Field(default=256, alias="MAX_FILE_SIZE_MB")
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
