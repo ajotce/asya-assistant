@@ -2,6 +2,40 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализованы временные backend-сессии:
+    - `POST /api/session` (создание `session_id`);
+    - `GET /api/session/{session_id}` (чтение состояния);
+    - `DELETE /api/session/{session_id}` (очистка/удаление);
+    - `POST /api/session/{session_id}/files` (привязка `file_id` к сессии).
+  - `SessionStore` расширен до хранения:
+    - `session_id`, `created_at`;
+    - сообщений текущей сессии;
+    - привязанных `file_ids`.
+  - Chat streaming обновлён: теперь работает только с существующей временной сессией.
+  - Добавлены тесты на создание/чтение/очистку сессий и привязку файлов.
+  - Добавлен `docs/architecture.md`.
+- Какие файлы изменены:
+  - `backend/app/storage/session_store.py`
+  - `backend/app/storage/runtime.py`
+  - `backend/app/api/routes_session.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/main.py`
+  - `backend/tests/test_session.py`
+  - `backend/tests/test_chat.py`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие тесты запущены:
+  - План: `cd backend && python3 -m pytest -q`.
+- Какие проблемы остались:
+  - Пока отсутствуют отдельные endpoints загрузки/обработки файлов.
+- Следующий рекомендуемый шаг:
+  - Этап file upload pipeline (`/api/files`) с фактическим хранением и валидацией файлов.
+
+## 2026-04-25
+- Что сделано:
   - Реализован streaming chat endpoint `POST /api/chat/stream` (SSE).
   - Добавлены:
     - `app/api/routes_chat.py`;

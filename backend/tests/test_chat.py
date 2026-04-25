@@ -15,11 +15,13 @@ class FakeSettings:
 
 def test_build_messages_payload_uses_system_prompt_and_session_context() -> None:
     store = SessionStore()
-    store.append_message("s-1", "user", "old user")
-    store.append_message("s-1", "assistant", "old assistant")
+    session = store.create_session()
+    session_id = session.session_id
+    store.append_message(session_id, "user", "old user")
+    store.append_message(session_id, "assistant", "old assistant")
     service = ChatService(settings=FakeSettings(), session_store=store)
 
-    messages = service.build_messages_payload(session_id="s-1", user_message="new message")
+    messages = service.build_messages_payload(session_id=session_id, user_message="new message")
 
     assert messages[0] == {"role": "system", "content": "System prompt"}
     assert messages[1] == {"role": "user", "content": "old user"}
@@ -31,12 +33,22 @@ def test_stream_chat_returns_error_event_on_vsellm_validation_error() -> None:
     class NoKeySettings(FakeSettings):
         vsellm_api_key = ""
 
-    service = ChatService(settings=NoKeySettings(), session_store=SessionStore())
-    chunks = list(service.stream_chat(session_id="s-1", user_message="Hello"))
+    store = SessionStore()
+    session_id = store.create_session().session_id
+    service = ChatService(settings=NoKeySettings(), session_store=store)
+    chunks = list(service.stream_chat(session_id=session_id, user_message="Hello"))
     payload = b"".join(chunks).decode("utf-8")
 
     assert "event: error" in payload
     assert "VseLLM API-ключ не настроен на backend." in payload
+
+
+def test_stream_chat_returns_error_when_session_missing() -> None:
+    service = ChatService(settings=FakeSettings(), session_store=SessionStore())
+    chunks = list(service.stream_chat(session_id="missing", user_message="Hello"))
+    payload = b"".join(chunks).decode("utf-8")
+    assert "event: error" in payload
+    assert "Сессия не найдена" in payload
 
 
 def test_stream_chat_endpoint_streams_events(monkeypatch) -> None:

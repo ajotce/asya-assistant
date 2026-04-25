@@ -1,6 +1,6 @@
 # API (MVP Draft)
 
-Текущий статус: реализован backend skeleton этапа 1 с базовым health-check.
+Текущий статус: реализованы базовые endpoints health/models/chat stream/session.
 
 ## Базовые принципы
 - Все endpoint-ы используют префикс `/api`.
@@ -9,6 +9,10 @@
 ## Реализованные endpoint-ы
 - `GET /api/health`
 - `GET /api/models`
+- `POST /api/session`
+- `GET /api/session/{session_id}`
+- `DELETE /api/session/{session_id}`
+- `POST /api/session/{session_id}/files`
 - `POST /api/chat/stream`
 
 Пример ответа:
@@ -93,16 +97,52 @@ data: {"usage":null}
 
 Типовые ошибки:
 - отсутствует `VSELLM_API_KEY` -> `event:error` с сообщением;
+- отсутствует или удалена `session_id` -> `event:error` с сообщением;
 - ошибка авторизации/лимитов/доступности модели -> `event:error` с понятным текстом;
 - сетевой timeout -> `event:error` и завершение потока.
+
+## Session endpoints
+
+### `POST /api/session`
+Создаёт новую временную backend-сессию.
+
+Response:
+```json
+{
+  "session_id": "uuid",
+  "created_at": "2026-04-25T09:00:00.000000+00:00"
+}
+```
+
+### `GET /api/session/{session_id}`
+Возвращает текущее состояние временной сессии.
+
+Response:
+```json
+{
+  "session_id": "uuid",
+  "created_at": "2026-04-25T09:00:00.000000+00:00",
+  "message_count": 2,
+  "file_ids": ["file-123"]
+}
+```
+
+### `DELETE /api/session/{session_id}`
+Очищает и удаляет временную сессию (контекст сообщений и file bindings).
+
+### `POST /api/session/{session_id}/files`
+Привязывает `file_id` к текущей сессии.
+
+Request:
+```json
+{
+  "file_id": "file-123"
+}
+```
 
 ## Планируемые endpoint-ы MVP
 - `GET /api/settings`
 - `PUT /api/settings`
-- `POST /api/session`
-- `GET /api/session/{session_id}`
-- `DELETE /api/session/{session_id}`
-- `POST /api/chat/stream`
 - `POST /api/files`
 - `GET /api/files/{file_id}`
 - `DELETE /api/files/{file_id}`

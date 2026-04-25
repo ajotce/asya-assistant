@@ -4,10 +4,9 @@ from fastapi.responses import StreamingResponse
 from app.core.config import get_settings
 from app.models.schemas import ChatStreamRequest
 from app.services.chat_service import ChatService
-from app.storage.session_store import SessionStore
+from app.storage.runtime import session_store
 
 router = APIRouter(tags=["chat"])
-session_store = SessionStore()
 
 
 def get_chat_service() -> ChatService:

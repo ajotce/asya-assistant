@@ -75,6 +75,8 @@ class ChatService:
     def _validate_request(self, session_id: str, user_message: str) -> None:
         if not session_id.strip():
             raise VseLLMError(status_code=400, user_message="session_id обязателен.")
+        if not self._session_store.has_session(session_id):
+            raise VseLLMError(status_code=404, user_message="Сессия не найдена. Создайте новую сессию.")
         if not user_message.strip():
             raise VseLLMError(status_code=400, user_message="Сообщение не должно быть пустым.")
         if not self._settings.vsellm_api_key.strip():

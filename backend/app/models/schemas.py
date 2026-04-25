@@ -28,3 +28,19 @@ class ModelInfo(BaseModel):
 class ChatStreamRequest(BaseModel):
     session_id: str
     message: str
+
+
+class SessionCreateResponse(BaseModel):
+    session_id: str
+    created_at: str
+
+
+class SessionStateResponse(BaseModel):
+    session_id: str
+    created_at: str
+    message_count: int
+    file_ids: list[str]
+
+
+class SessionFileBindRequest(BaseModel):
+    file_id: str
