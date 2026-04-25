@@ -1,6 +1,8 @@
 from pathlib import Path
+import io
 
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app.main import app
 from app.storage.runtime import file_store, vector_store
@@ -33,10 +35,14 @@ def test_session_create_and_read_and_delete() -> None:
 def test_upload_file_to_session_and_cleanup_on_delete() -> None:
     client = TestClient(app)
     session_id = client.post("/api/session").json()["session_id"]
+    image = Image.new("RGB", (2, 2), color=(0, 255, 0))
+    out = io.BytesIO()
+    image.save(out, format="PNG")
+    valid_png = out.getvalue()
 
     upload_resp = client.post(
         f"/api/session/{session_id}/files",
-        files=[("files", ("sample.png", b"\x89PNG\r\n\x1a\n", "image/png"))],
+        files=[("files", ("sample.png", valid_png, "image/png"))],
     )
     assert upload_resp.status_code == 201
     payload = upload_resp.json()

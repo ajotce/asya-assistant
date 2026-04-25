@@ -2,6 +2,46 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализована базовая поддержка изображений в рамках текущей backend-сессии:
+    - загрузка и хранение изображений во временном session storage;
+    - валидация изображений через `Pillow` при upload;
+    - прикрепление изображений к сообщению через `file_ids` в `POST /api/chat/stream`.
+  - Реализована проверка поддержки vision у выбранной модели:
+    - если модель не поддерживает vision, пользователь получает понятную ошибку в SSE `event: error`.
+  - Изображения передаются в запрос модели как image input (без OCR как основного механизма).
+  - Добавлены тесты:
+    - успешная сборка payload с изображением для vision-модели;
+    - ошибка при отсутствии vision-поддержки;
+    - проверка endpoint c `file_ids`;
+    - регрессия на upload/cleanup.
+  - Выполнена ручная проверка двух сценариев:
+    - изображение + vision support -> ответ приходит;
+    - изображение + no vision support -> понятная ошибка пользователю.
+  - Обновлены `docs/api.md` и `docs/architecture.md`.
+- Какие файлы изменены:
+  - `backend/app/models/schemas.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/services/file_service.py`
+  - `backend/app/storage/file_store.py`
+  - `backend/pyproject.toml`
+  - `backend/tests/test_chat.py`
+  - `backend/tests/test_session.py`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `cd backend && python3 -m pytest -q` -> `30 passed`.
+  - Ручной e2e через `TestClient`:
+    - scenario1 (vision=true): upload `201`, chat `200`, ответ stream получен;
+    - scenario2 (vision=false): upload `201`, chat `200`, SSE `error` с понятным сообщением.
+- Какие проблемы остались:
+  - Frontend UI для передачи `file_ids` в `chat/stream` пока не реализован отдельным шагом.
+- Следующий рекомендуемый шаг:
+  - Добавить frontend отправку выбранных `image file_id` вместе с сообщением и UX-индикатор vision-ошибок.
+
+## 2026-04-25
+- Что сделано:
   - Реализован embeddings pipeline для загруженных документов:
     - нарезка извлечённого текста на чанки;
     - создание embeddings через VseLLM OpenAI-compatible `/embeddings`;

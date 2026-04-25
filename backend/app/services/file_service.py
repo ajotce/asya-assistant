@@ -127,6 +127,12 @@ class FileService:
             target_path.unlink(missing_ok=True)
             raise FileValidationError(f"Файл '{filename}' пустой.")
 
+        self._validate_image_payload_if_needed(
+            filename=filename,
+            content_type=content_type,
+            target_path=target_path,
+        )
+
         try:
             extracted_text = self._extract_text(filename=filename, target_path=target_path)
         except FileValidationError:
@@ -196,6 +202,22 @@ class FileService:
         if suffix == ".xlsx":
             return self._extract_xlsx_text(filename=filename, target_path=target_path)
         return None
+
+    def _validate_image_payload_if_needed(self, filename: str, content_type: str, target_path: Path) -> None:
+        suffix = target_path.suffix.lower()
+        if suffix not in _ALLOWED_IMAGE_EXTENSIONS and not content_type.lower().startswith(_ALLOWED_IMAGE_CONTENT_PREFIX):
+            return
+        try:
+            from PIL import Image
+        except ImportError as exc:  # pragma: no cover
+            raise FileValidationError("Сервис временно не готов к валидации изображений.", status_code=503) from exc
+
+        try:
+            with Image.open(target_path) as img:
+                img.verify()
+        except Exception as exc:
+            target_path.unlink(missing_ok=True)
+            raise FileValidationError(f"Изображение '{filename}' повреждено или имеет некорректный формат.") from exc
 
     def _extract_pdf_text(self, filename: str, target_path: Path) -> str:
         try:

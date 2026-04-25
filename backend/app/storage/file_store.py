@@ -43,6 +43,14 @@ class SessionFileStore:
             files = self._files_by_session.get(session_id, [])
             return list(files)
 
+    def get_session_file(self, session_id: str, file_id: str) -> StoredSessionFile | None:
+        with self._lock:
+            files = self._files_by_session.get(session_id, [])
+            for file in files:
+                if file.file_id == file_id:
+                    return file
+            return None
+
     def delete_session_files(self, session_id: str) -> int:
         with self._lock:
             files = self._files_by_session.pop(session_id, [])

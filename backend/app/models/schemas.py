@@ -47,6 +47,7 @@ class ModelInfo(BaseModel):
 class ChatStreamRequest(BaseModel):
     session_id: str
     message: str
+    file_ids: list[str] = Field(default_factory=list)
 
 
 class SessionCreateResponse(BaseModel):
