@@ -2,6 +2,30 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Добавлен минимальный набор frontend тестов в рамках MVP-требований AGENTS:
+    - `ChatPage`: рендер главного экрана, отправка сообщения, streaming-состояние, отображение ошибки;
+    - `SettingsPage`: загрузка/отображение настроек модели, редактирование системного промта и сохранение;
+    - `StatusPage`: рендер страницы состояния и отображение ошибки при недоступном `/api/health`.
+  - Использован лёгкий тестовый стек `vitest + @testing-library/react` (без усложнения архитектуры).
+  - `frontend/package.json` уже содержит реальный `test` script (`vitest run`), используется для запуска набора.
+  - Обновлена документация по frontend проверкам (`docs/testing.md`).
+- Какие файлы изменены:
+  - `frontend/src/pages/ChatPage.test.tsx`
+  - `frontend/src/pages/SettingsPage.test.tsx`
+  - `frontend/src/pages/StatusPage.test.tsx`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `docker run --rm -v "$PWD:/work" -w /work node:20-alpine sh -lc "npm test"` (в `frontend`) -> `8 passed`.
+  - `make test` -> `40 passed`.
+  - `make build-frontend` -> успешно.
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - Добавить тест навигации между вкладками в `App` (чат/настройки/состояние), чтобы закрыть базовый пользовательский маршрут end-to-end на уровне UI.
+
+## 2026-04-25
+- Что сделано:
   - Добавлен минимальный рабочий frontend lint:
     - подключен `ESLint` для `TypeScript + React` (без избыточных плагинов);
     - добавлен `frontend/eslint.config.js` (flat config);

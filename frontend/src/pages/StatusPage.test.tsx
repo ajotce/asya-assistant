@@ -52,4 +52,12 @@ describe("StatusPage", () => {
     expect(screen.getByText("sessions: готов, files: готов, доступно для записи")).toBeInTheDocument();
     expect(screen.getByText("/app/tmp")).toBeInTheDocument();
   });
+
+  it("показывает ошибку при недоступном /api/health", async () => {
+    vi.mocked(getHealth).mockRejectedValue(new Error("Backend недоступен"));
+
+    render(<StatusPage />);
+
+    expect(await screen.findByText("Backend недоступен")).toBeInTheDocument();
+  });
 });
