@@ -13,6 +13,7 @@ from app.services.settings_service import SettingsService
 from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.file_store import SessionFileStore, StoredSessionFile
 from app.storage.session_store import SessionStore
+from app.storage.usage_store import UsageStore
 from app.storage.vector_store import SessionVectorStore, StoredChunkVector
 
 
@@ -25,6 +26,7 @@ class ChatService:
         vector_store: SessionVectorStore,
         vsellm_client: VseLLMClient,
         settings_service: Optional[SettingsService] = None,
+        usage_store: Optional[UsageStore] = None,
     ) -> None:
         self._settings = settings
         self._session_store = session_store
@@ -32,6 +34,7 @@ class ChatService:
         self._vector_store = vector_store
         self._vsellm_client = vsellm_client
         self._settings_service = settings_service or SettingsService(settings)
+        self._usage_store = usage_store
 
     def build_messages_payload(self, session_id: str, user_message: str, file_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         runtime_settings = self._settings_service.get_settings()
@@ -88,6 +91,8 @@ class ChatService:
 
             if assistant_text:
                 self._session_store.append_message(session_id=session_id, role="assistant", content=assistant_text)
+            if self._usage_store is not None:
+                self._usage_store.record_chat_usage(session_id=session_id, usage=usage if isinstance(usage, dict) else None)
             yield self._sse_event("done", {"usage": usage})
         except VseLLMError as exc:
             yield self._sse_event("error", {"message": exc.user_message})
@@ -122,8 +127,11 @@ class ChatService:
         if not self._vector_store.has_session_chunks(session_id):
             return ""
 
-        query_vector = self._vsellm_client.get_embeddings([user_message])[0]
-        hits = self._vector_store.search(session_id=session_id, query_embedding=query_vector, top_k=4)
+        query_vector, embeddings_usage = self._get_embeddings_with_usage([user_message])
+        if self._usage_store is not None and embeddings_usage is not None:
+            self._usage_store.record_embeddings_usage(session_id=session_id, usage=embeddings_usage)
+        query_embedding = query_vector[0]
+        hits = self._vector_store.search(session_id=session_id, query_embedding=query_embedding, top_k=4)
         if not hits:
             return ""
 
@@ -154,6 +162,12 @@ class ChatService:
                 )
             files.append(file)
         return files
+
+    def _get_embeddings_with_usage(self, texts: list[str]) -> tuple[list[list[float]], dict | None]:
+        if hasattr(self._vsellm_client, "get_embeddings_with_usage"):
+            result = self._vsellm_client.get_embeddings_with_usage(texts)
+            return result.vectors, result.usage
+        return self._vsellm_client.get_embeddings(texts), None
 
     @staticmethod
     def _is_image_file(file: StoredSessionFile) -> bool:

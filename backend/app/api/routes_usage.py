@@ -11,27 +11,43 @@ from app.models.schemas import (
     UsageTokensInfo,
 )
 from app.services.settings_service import SettingsService
-from app.storage.runtime import session_store, vector_store
+from app.storage.runtime import session_store, usage_store, vector_store
+from app.storage.usage_store import ChatUsageAggregate, EmbeddingsUsageAggregate
 
 router = APIRouter(tags=["usage"])
 
 
-def _unavailable_chat_usage() -> UsageTokensInfo:
+def _chat_usage_to_schema(usage: ChatUsageAggregate) -> UsageTokensInfo:
+    if usage.requests_count == 0:
+        return UsageTokensInfo(
+            prompt_tokens=None,
+            completion_tokens=None,
+            total_tokens=None,
+            status="unavailable",
+            note="Данные usage по chat пока не собраны.",
+        )
     return UsageTokensInfo(
-        prompt_tokens=None,
-        completion_tokens=None,
-        total_tokens=None,
-        status="unavailable",
-        note="Данные usage по chat не сохраняются в текущем MVP.",
+        prompt_tokens=usage.prompt_tokens,
+        completion_tokens=usage.completion_tokens,
+        total_tokens=usage.total_tokens,
+        status="available",
+        note=None,
     )
 
 
-def _unavailable_embeddings_usage() -> UsageEmbeddingsInfo:
+def _embeddings_usage_to_schema(usage: EmbeddingsUsageAggregate) -> UsageEmbeddingsInfo:
+    if usage.requests_count == 0:
+        return UsageEmbeddingsInfo(
+            input_tokens=None,
+            total_tokens=None,
+            status="unavailable",
+            note="Данные usage по embeddings пока не собраны.",
+        )
     return UsageEmbeddingsInfo(
-        input_tokens=None,
-        total_tokens=None,
-        status="unavailable",
-        note="Данные usage по embeddings не сохраняются в текущем MVP.",
+        input_tokens=usage.input_tokens,
+        total_tokens=usage.total_tokens,
+        status="available",
+        note=None,
     )
 
 
@@ -49,8 +65,8 @@ def get_usage_overview() -> UsageOverviewResponse:
     settings = get_settings()
     runtime_settings = SettingsService(settings).get_settings()
     return UsageOverviewResponse(
-        chat=_unavailable_chat_usage(),
-        embeddings=_unavailable_embeddings_usage(),
+        chat=_chat_usage_to_schema(usage_store.get_chat_total()),
+        embeddings=_embeddings_usage_to_schema(usage_store.get_embeddings_total()),
         cost=_unavailable_cost(),
         runtime=UsageRuntimeInfo(
             active_sessions=session_store.active_sessions_count(),
@@ -70,8 +86,8 @@ def get_usage_for_session(session_id: str) -> UsageSessionResponse:
     assistant_messages = sum(1 for message in session.messages if message.get("role") == "assistant")
 
     return UsageSessionResponse(
-        chat=_unavailable_chat_usage(),
-        embeddings=_unavailable_embeddings_usage(),
+        chat=_chat_usage_to_schema(usage_store.get_chat_for_session(session_id)),
+        embeddings=_embeddings_usage_to_schema(usage_store.get_embeddings_for_session(session_id)),
         cost=_unavailable_cost(),
         runtime=UsageSessionRuntimeInfo(
             session_id=session.session_id,

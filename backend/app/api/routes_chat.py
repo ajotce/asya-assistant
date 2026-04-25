@@ -5,7 +5,7 @@ from app.core.config import get_settings
 from app.models.schemas import ChatStreamRequest
 from app.services.chat_service import ChatService
 from app.services.vsellm_client import VseLLMClient
-from app.storage.runtime import file_store, session_store, vector_store
+from app.storage.runtime import file_store, session_store, usage_store, vector_store
 
 router = APIRouter(tags=["chat"])
 
@@ -18,6 +18,7 @@ def get_chat_service() -> ChatService:
         file_store=file_store,
         vector_store=vector_store,
         vsellm_client=VseLLMClient(settings),
+        usage_store=usage_store,
     )
 
 

@@ -2,6 +2,48 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Добавлен фактический сбор usage в runtime/storage для chat и embeddings:
+    - новый in-memory `UsageStore` (глобальный и по сессиям);
+    - сбор `chat` usage из `chat/stream`, если провайдер возвращает `usage`;
+    - сбор `embeddings` usage из upload/retrieval pipeline.
+  - `/api/usage` и `/api/usage/session/{session_id}` обновлены:
+    - возвращают реальные токены при наличии данных (`status=available`);
+    - при отсутствии данных возвращают `status=unavailable` и `null`-поля.
+  - Добавлена очистка usage-данных при удалении сессии.
+  - Добавлены и обновлены backend-тесты на формат и фактические usage-данные.
+  - Обновлена документация (`docs/api.md`, `docs/architecture.md`, `docs/testing.md`).
+- Какие файлы изменены:
+  - `backend/app/storage/usage_store.py`
+  - `backend/app/storage/runtime.py`
+  - `backend/app/services/vsellm_client.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/services/file_service.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/api/routes_session.py`
+  - `backend/app/api/routes_usage.py`
+  - `backend/tests/test_chat.py`
+  - `backend/tests/test_usage.py`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make test` -> `39 passed`.
+  - `docker compose up -d --build backend`
+  - `curl http://localhost:8010/api/usage`
+  - дополнительный runtime smoke:
+    - `POST /api/session`
+    - `POST /api/session/{session_id}/files` (embeddings usage стал `available`)
+    - `POST /api/chat/stream`
+    - `GET /api/usage` и `GET /api/usage/session/{session_id}`
+  - `docker compose down`
+- Какие проблемы остались:
+  - Для `chat/stream` usage зависит от провайдера: если stream-ответ не содержит `usage`, блок `chat` остается `unavailable`.
+- Следующий рекомендуемый шаг:
+  - Добавить fallback-оценку chat-токенов (локальный token estimator) для случаев, когда провайдер не возвращает `usage` в stream.
+
+## 2026-04-25
+- Что сделано:
   - Реализована минимальная группа endpoint'ов `/usage` в backend (MVP):
     - добавлен роутер `routes_usage.py`;
     - роутер подключен в `main.py` с префиксом `/api`;

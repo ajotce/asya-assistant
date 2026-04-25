@@ -15,6 +15,13 @@ class VseLLMError(Exception):
     user_message: str
 
 
+@dataclass
+class EmbeddingsResult:
+    vectors: List[List[float]]
+    usage: Optional[dict]
+    model: str
+
+
 class VseLLMClient:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -80,6 +87,9 @@ class VseLLMClient:
         return models
 
     def get_embeddings(self, texts: List[str], model: Optional[str] = None) -> List[List[float]]:
+        return self.get_embeddings_with_usage(texts=texts, model=model).vectors
+
+    def get_embeddings_with_usage(self, texts: List[str], model: Optional[str] = None) -> EmbeddingsResult:
         api_key = self._settings.vsellm_api_key.strip()
         if not api_key:
             raise VseLLMError(status_code=503, user_message="VseLLM API-ключ не настроен на backend.")
@@ -136,8 +146,8 @@ class VseLLMClient:
         if response.status_code >= 400:
             raise VseLLMError(status_code=502, user_message="Ошибка запроса к embeddings API VseLLM.")
 
-        payload = response.json()
-        raw_data = payload.get("data")
+        response_payload = response.json()
+        raw_data = response_payload.get("data")
         if not isinstance(raw_data, list) or not raw_data:
             raise VseLLMError(status_code=502, user_message="Некорректный формат ответа embeddings API.")
 
@@ -158,7 +168,9 @@ class VseLLMClient:
                 status_code=502,
                 user_message="Embeddings API вернул неполный набор векторов. Повторите попытку.",
             )
-        return vectors
+        usage_raw = response_payload.get("usage")
+        usage = usage_raw if isinstance(usage_raw, dict) else None
+        return EmbeddingsResult(vectors=vectors, usage=usage, model=embedding_model)
 
     @staticmethod
     def _normalize_model(item: Any) -> ModelInfo | None:

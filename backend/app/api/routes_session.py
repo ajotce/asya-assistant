@@ -4,7 +4,7 @@ from app.core.config import get_settings
 from app.models.schemas import SessionCreateResponse, SessionFilesUploadResponse, SessionStateResponse
 from app.services.file_service import FileService, FileValidationError
 from app.services.vsellm_client import VseLLMClient
-from app.storage.runtime import file_store, session_store, vector_store
+from app.storage.runtime import file_store, session_store, usage_store, vector_store
 
 router = APIRouter(tags=["session"])
 
@@ -34,6 +34,7 @@ def delete_session(session_id: str) -> Response:
         raise HTTPException(status_code=404, detail="Сессия не найдена.")
     file_store.delete_session_files(session_id)
     vector_store.delete_session(session_id)
+    usage_store.delete_session(session_id)
     deleted = session_store.delete_session(session_id)
     if not deleted:  # pragma: no cover
         raise HTTPException(status_code=404, detail="Сессия не найдена.")
@@ -48,6 +49,7 @@ def get_file_service() -> FileService:
         file_store=file_store,
         vector_store=vector_store,
         vsellm_client=VseLLMClient(settings),
+        usage_store=usage_store,
     )
 
 

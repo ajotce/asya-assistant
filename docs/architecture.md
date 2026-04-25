@@ -93,6 +93,9 @@ Asya MVP состоит из:
 ## Usage в MVP
 Группа `/api/usage` дает минимальный слой наблюдаемости:
 - текущие runtime-данные (`active_sessions`, выбранная chat-модель, embedding-модель);
-- структура usage по `chat` и `embeddings` с явным `status=unavailable`, если данные пока не сохраняются;
+- сбор usage в runtime-store:
+  - `chat` usage берется из streaming-ответов `chat/completions`, если провайдер присылает `usage`;
+  - `embeddings` usage собирается из embeddings pipeline (upload/retrieval);
+- структура usage по `chat` и `embeddings` возвращает `status=available` при наличии данных и `status=unavailable` при отсутствии;
 - структура стоимости с `status=unavailable` и `null`, без хардкода цен моделей;
 - сессионный endpoint `/api/usage/session/{session_id}` с доступными счетчиками сообщений/файлов/чанков.

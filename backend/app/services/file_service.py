@@ -11,6 +11,7 @@ from app.models.schemas import SessionUploadedFileInfo
 from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.file_store import SessionFileStore, StoredSessionFile
 from app.storage.session_store import SessionStore
+from app.storage.usage_store import UsageStore
 from app.storage.vector_store import SessionVectorStore, StoredChunkVector
 
 _ALLOWED_DOC_EXTENSIONS = {".pdf", ".docx", ".xlsx"}
@@ -47,12 +48,14 @@ class FileService:
         file_store: SessionFileStore,
         vector_store: SessionVectorStore,
         vsellm_client: VseLLMClient,
+        usage_store: UsageStore | None = None,
     ) -> None:
         self._settings = settings
         self._session_store = session_store
         self._file_store = file_store
         self._vector_store = vector_store
         self._vsellm_client = vsellm_client
+        self._usage_store = usage_store
 
     async def upload_files(self, session_id: str, files: List[UploadFile]) -> List[SessionUploadedFileInfo]:
         if not self._session_store.has_session(session_id):
@@ -158,7 +161,9 @@ class FileService:
         if not chunks_text:
             raise FileValidationError(f"Файл '{stored_file.filename}' не содержит данных для индексирования.")
 
-        vectors = self._vsellm_client.get_embeddings(chunks_text)
+        vectors, embeddings_usage = self._get_embeddings_with_usage(chunks_text)
+        if self._usage_store is not None and embeddings_usage is not None:
+            self._usage_store.record_embeddings_usage(session_id=session_id, usage=embeddings_usage)
         indexed_chunks = [
             StoredChunkVector(
                 chunk_id=f"{stored_file.file_id}:{index}",
@@ -174,6 +179,12 @@ class FileService:
             file_id=stored_file.file_id,
             chunks=indexed_chunks,
         )
+
+    def _get_embeddings_with_usage(self, texts: list[str]) -> tuple[list[list[float]], dict | None]:
+        if hasattr(self._vsellm_client, "get_embeddings_with_usage"):
+            result = self._vsellm_client.get_embeddings_with_usage(texts)
+            return result.vectors, result.usage
+        return self._vsellm_client.get_embeddings(texts), None
 
     def _cleanup_pending_files(self, session_id: str, files: List[StoredSessionFile]) -> None:
         for file in files:

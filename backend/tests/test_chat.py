@@ -9,6 +9,7 @@ from app.main import app
 from app.services.chat_service import ChatService
 from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.file_store import SessionFileStore, StoredSessionFile
+from app.storage.runtime import usage_store
 from app.storage.session_store import SessionStore
 from app.storage.vector_store import SessionVectorStore, StoredChunkVector
 
@@ -387,3 +388,90 @@ def test_build_messages_payload_allows_image_when_model_is_not_found() -> None:
     assert user_message["role"] == "user"
     assert isinstance(user_message["content"], list)
     assert user_message["content"][1]["type"] == "image_url"
+
+
+def test_stream_chat_collects_usage_in_runtime_store(monkeypatch) -> None:
+    usage_store.reset()
+
+    class FakeStreamResponse:
+        status_code = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def iter_lines(self):
+            yield 'data: {"choices":[{"delta":{"content":"Привет"}}]}'
+            yield 'data: {"usage":{"prompt_tokens":4,"completion_tokens":3,"total_tokens":7}}'
+            yield "data: [DONE]"
+
+    monkeypatch.setattr("httpx.stream", lambda *args, **kwargs: FakeStreamResponse())
+
+    store = SessionStore()
+    session_id = store.create_session().session_id
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        file_store=_build_file_store(),
+        vector_store=SessionVectorStore(),
+        vsellm_client=VseLLMClient(FakeSettings()),
+        settings_service=FakeSettingsService(),
+        usage_store=usage_store,
+    )
+
+    payload = b"".join(service.stream_chat(session_id=session_id, user_message="Привет")).decode("utf-8")
+    assert "event: done" in payload
+    collected = usage_store.get_chat_for_session(session_id)
+    assert collected.prompt_tokens == 4
+    assert collected.completion_tokens == 3
+    assert collected.total_tokens == 7
+    assert collected.requests_count == 1
+
+
+def test_build_messages_payload_collects_embeddings_usage_for_retrieval() -> None:
+    usage_store.reset()
+
+    class FakeEmbeddingResult:
+        vectors = [[1.0, 0.0]]
+        usage = {"prompt_tokens": 6, "total_tokens": 6}
+
+    class FakeEmbeddingsWithUsageClient:
+        def get_embeddings_with_usage(self, texts, model=None):
+            return FakeEmbeddingResult()
+
+    store = SessionStore()
+    vector_store = SessionVectorStore()
+    session = store.create_session()
+    session_id = session.session_id
+    store.bind_file(session_id=session_id, file_id="file-1")
+    vector_store.upsert_file_chunks(
+        session_id=session_id,
+        file_id="file-1",
+        chunks=[
+            StoredChunkVector(
+                chunk_id="c1",
+                file_id="file-1",
+                filename="doc.pdf",
+                text="Нужный фрагмент про договор.",
+                embedding=[1.0, 0.0],
+            )
+        ],
+    )
+
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        file_store=_build_file_store(),
+        vector_store=vector_store,
+        vsellm_client=FakeEmbeddingsWithUsageClient(),
+        settings_service=FakeSettingsService(),
+        usage_store=usage_store,
+    )
+    messages = service.build_messages_payload(session_id=session_id, user_message="Что по договору?")
+    assert messages[1]["role"] == "system"
+    collected = usage_store.get_embeddings_for_session(session_id)
+    assert collected.input_tokens == 6
+    assert collected.total_tokens == 6
+    assert collected.requests_count == 1

@@ -43,9 +43,16 @@ make build-frontend
 - успешный ответ `GET /api/usage`;
 - формат и поля ответов `GET /api/usage` и `GET /api/usage/session/{session_id}`;
 - поведение при недоступных usage-данных (явные `null` + `status=unavailable`);
+- отражение собранных usage-данных в `GET /api/usage` (`status=available` при наличии токенов);
 - `404` для несуществующей сессии в `GET /api/usage/session/{session_id}`.
 
 Ручной smoke:
 1. `docker compose up -d backend`
 2. `curl http://localhost:${ASYA_PORT}/api/usage`
 3. `docker compose down`
+
+Дополнительно для фактического usage:
+1. создать сессию `POST /api/session`;
+2. загрузить документ `POST /api/session/{session_id}/files` (собирается embeddings usage);
+3. отправить сообщение в `POST /api/chat/stream` (если провайдер возвращает usage для stream, соберется chat usage);
+4. проверить `GET /api/usage` и `GET /api/usage/session/{session_id}`.
