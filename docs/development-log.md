@@ -2,6 +2,33 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Доведена PWA-часть до минимальной готовности MVP:
+    - обновлен `manifest.webmanifest`;
+    - добавлены базовые PNG-иконки-заглушки (`192x192`, `512x512`, `apple-touch-icon 180x180`);
+    - в `index.html` добавлены iPhone Safari meta/link для корректного открытия и добавления на домашний экран.
+  - Сохранены ограничения MVP:
+    - не добавлен сложный offline-режим;
+    - не добавлено долгосрочное хранение сообщений в браузере;
+    - service worker не используется.
+  - Обновлен `docs/development.md` с шагами минимальной PWA-проверки.
+- Какие файлы изменены:
+  - `frontend/public/manifest.webmanifest`
+  - `frontend/public/icons/icon-192.png`
+  - `frontend/public/icons/icon-512.png`
+  - `frontend/public/icons/apple-touch-icon-180.png`
+  - `frontend/index.html`
+  - `docs/development.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `docker run ... node:20-alpine ... npm run build`
+  - Проверка файлов в `frontend/dist` (`manifest.webmanifest`, `icons/*`).
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - Выполнить ручную проверку установки PWA на iPhone Safari из локального URL backend.
+
+## 2026-04-25
+- Что сделано:
   - Реализован локальный режим MVP, где backend отдает собранный frontend:
     - добавлена раздача `index.html`, `manifest.webmanifest`, `assets/*`, `icons/*` из `frontend/dist`;
     - добавлен SPA fallback на `index.html`;

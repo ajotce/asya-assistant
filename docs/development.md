@@ -39,6 +39,20 @@ make test
 make build-frontend
 ```
 
+## Минимальная PWA-проверка (MVP)
+```bash
+# после сборки frontend
+ls -la frontend/dist
+ls -la frontend/dist/icons
+cat frontend/dist/manifest.webmanifest
+```
+
+Критерии:
+- в `dist` присутствуют `manifest.webmanifest` и иконки;
+- приложение открывается через backend URL того же origin, что и `/api/*`;
+- интерфейс корректно адаптируется для iPhone Safari и Mac;
+- offline-режим и долгосрочное хранение чатов в браузере не добавляются.
+
 ## Правила этапа
 - Не добавлять функции вне MVP.
 - Не менять архитектуру без отдельного запроса.
