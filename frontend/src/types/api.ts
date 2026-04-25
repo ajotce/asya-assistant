@@ -5,7 +5,20 @@ export interface HealthResponse {
   vsellm: {
     api_key_configured: boolean;
     base_url: string;
+    reachable?: boolean | null;
   };
+  model: {
+    selected: string;
+  };
+  files: {
+    enabled: boolean;
+    status: string;
+  };
+  session: {
+    enabled: boolean;
+    active_sessions: number;
+  };
+  last_error?: string | null;
 }
 
 export interface SettingsResponse {

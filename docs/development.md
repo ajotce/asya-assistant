@@ -103,6 +103,19 @@ curl -X DELETE http://127.0.0.1:8000/api/session/$SESSION_ID -i
 
 Ожидается `text/event-stream` с событиями `token`, `error` (если есть проблема), `done`.
 
+## Состояние Asya (health-check)
+Проверка расширенного health-check:
+```bash
+curl http://127.0.0.1:8000/api/health
+```
+
+Проверка сценария недоступного backend:
+```bash
+curl --max-time 2 http://127.0.0.1:65535/api/health
+```
+
+Ожидается ошибка соединения; на frontend страница `Состояние Asya` должна показать backend `offline` и сообщение об ошибке.
+
 ## Полезные make-команды
 ```bash
 make dev

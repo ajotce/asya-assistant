@@ -9,51 +9,59 @@ export default function StatusPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let active = true;
-
-    async function loadStatus() {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getHealth();
-        if (!active) {
-          return;
-        }
-        setHealth(data);
-      } catch (statusError) {
-        if (!active) {
-          return;
-        }
-        setError(getErrorMessage(statusError));
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadStatus();
-    return () => {
-      active = false;
-    };
+    refreshStatus();
   }, []);
+
+  async function refreshStatus() {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getHealth();
+      setHealth(data);
+    } catch (statusError) {
+      setHealth(null);
+      setError(getErrorMessage(statusError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const backendStatus = health ? (health.status === "ok" ? "online" : "offline") : "offline";
+  const vsellmReachable = health?.vsellm.reachable;
+  const vsellmReachableText =
+    vsellmReachable === true ? "доступен" : vsellmReachable === false ? "недоступен" : "не проверялся";
+  const apiKeyStatus = health?.vsellm.api_key_configured ? "настроен" : "не настроен";
+  const modelSelected = health?.model.selected ?? "не выбрана";
+  const filesStatus = health ? (health.files.enabled ? health.files.status : "отключён") : "неизвестно";
+  const sessionStatus = health
+    ? health.session.enabled
+      ? `активных сессий: ${health.session.active_sessions}`
+      : "отключены"
+    : "неизвестно";
+  const lastError = health?.last_error ?? null;
 
   return (
     <section className="page" aria-label="Состояние Asya">
-      <h2 className="page__title">Состояние Asya</h2>
+      <div className="page__row">
+        <h2 className="page__title">Состояние Asya</h2>
+        <button type="button" className="chat-action-button" onClick={refreshStatus} disabled={loading}>
+          {loading ? "Обновление..." : "Обновить"}
+        </button>
+      </div>
 
       {loading ? <p className="status-text">Проверка состояния...</p> : null}
       {error ? <p className="status-text status-text--error">{error}</p> : null}
 
-      {health ? (
-        <dl className="status-grid">
-          <StatusItem label="Backend" value={health.status === "ok" ? "online" : "offline"} />
-          <StatusItem label="Версия" value={health.version} />
-          <StatusItem label="Окружение" value={health.environment} />
-          <StatusItem label="VseLLM base URL" value={health.vsellm.base_url} />
-          <StatusItem label="VseLLM API-ключ" value={health.vsellm.api_key_configured ? "настроен" : "не настроен"} />
-        </dl>
-      ) : null}
+      <dl className="status-grid">
+        <StatusItem label="Backend" value={backendStatus} />
+        <StatusItem label="Версия приложения" value={health?.version ?? "неизвестно"} />
+        <StatusItem label="VseLLM API-ключ" value={apiKeyStatus} />
+        <StatusItem label="Доступность VseLLM API" value={vsellmReachableText} />
+        <StatusItem label="Выбранная модель" value={modelSelected} />
+        <StatusItem label="Файловый модуль" value={filesStatus} />
+        <StatusItem label="Временная сессия" value={sessionStatus} />
+        <StatusItem label="Последняя ошибка" value={lastError ?? "нет"} />
+      </dl>
     </section>
   );
 }

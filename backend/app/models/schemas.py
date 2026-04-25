@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class VseLLMHealth(BaseModel):
     api_key_configured: bool
     base_url: str
+    reachable: Optional[bool] = None
 
 
 class HealthResponse(BaseModel):
@@ -13,6 +14,24 @@ class HealthResponse(BaseModel):
     version: str
     environment: str
     vsellm: VseLLMHealth
+    model: "HealthModelInfo"
+    files: "HealthFilesInfo"
+    session: "HealthSessionInfo"
+    last_error: Optional[str] = None
+
+
+class HealthModelInfo(BaseModel):
+    selected: str
+
+
+class HealthFilesInfo(BaseModel):
+    enabled: bool
+    status: str
+
+
+class HealthSessionInfo(BaseModel):
+    enabled: bool
+    active_sessions: int
 
 
 class ModelInfo(BaseModel):

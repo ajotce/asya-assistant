@@ -2,6 +2,39 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Расширен backend health-check для страницы `Состояние Asya`:
+    - `vsellm.reachable`;
+    - `model.selected`;
+    - `files.status`;
+    - `session.active_sessions`;
+    - `last_error` (безопасное сообщение).
+  - Обновлена frontend-страница `Состояние Asya`:
+    - понятные пользовательские статусы;
+    - кнопка `Обновить`;
+    - корректный сценарий при недоступном backend (показывается `offline` и сообщение об ошибке).
+  - Обновлены backend-тесты `/api/health`.
+  - Обновлён `docs/api.md` под новый формат health-check.
+- Какие файлы изменены:
+  - `backend/app/api/routes_health.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/storage/session_store.py`
+  - `backend/tests/test_health.py`
+  - `frontend/src/pages/StatusPage.tsx`
+  - `frontend/src/types/api.ts`
+  - `docs/api.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `cd backend && python3 -m pytest -q` -> `18 passed`.
+  - `npm run build` (frontend, через Docker) -> успешно.
+  - Проверка расширенного health-check через backend test client -> `200` и ожидаемый payload.
+  - Проверка сценария недоступного backend -> соединение отклонено, frontend-путь обработки ошибки подтверждён.
+- Какие проблемы остались:
+  - Отдельные frontend-тесты для `StatusPage` пока не добавлены.
+- Следующий рекомендуемый шаг:
+  - Добавить frontend тесты для сценариев online/offline на странице статуса.
+
+## 2026-04-25
+- Что сделано:
   - Доработана страница `Настройки`:
     - список моделей загружается с backend (`GET /api/models`);
     - глобальная модель выбирается из списка (если доступен) или вручную (fallback при ошибке);

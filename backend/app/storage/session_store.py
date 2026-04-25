@@ -75,3 +75,7 @@ class SessionStore:
                 messages=list(session.messages),
                 file_ids=list(session.file_ids),
             )
+
+    def active_sessions_count(self) -> int:
+        with self._lock:
+            return len(self._sessions)

@@ -25,14 +25,34 @@
   "environment": "local",
   "vsellm": {
     "api_key_configured": false,
-    "base_url": "https://api.vsellm.ru/v1"
-  }
+    "base_url": "https://api.vsellm.ru/v1",
+    "reachable": null
+  },
+  "model": {
+    "selected": "openai/gpt-5-mini"
+  },
+  "files": {
+    "enabled": true,
+    "status": "готов"
+  },
+  "session": {
+    "enabled": true,
+    "active_sessions": 0
+  },
+  "last_error": null
 }
 ```
 
 ## OpenAPI / Swagger
 - OpenAPI schema: `GET /openapi.json`
 - Swagger UI: `GET /docs`
+
+`GET /api/health` дополнительно возвращает:
+- `vsellm.reachable` — доступность VseLLM API (если проверка выполнена);
+- `model.selected` — текущая глобальная модель из backend settings;
+- `files` — статус файлового модуля;
+- `session.active_sessions` — количество активных временных сессий;
+- `last_error` — безопасное текстовое описание последней ошибки проверки (если есть).
 
 ## `GET /api/models`
 Возвращает список моделей из VseLLM через backend.
