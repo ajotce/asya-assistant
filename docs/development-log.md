@@ -2,6 +2,41 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализован базовый frontend skeleton (React + Vite + TypeScript).
+  - Добавлены базовые страницы:
+    - `Чат`
+    - `Настройки`
+    - `Состояние Asya`
+  - Добавлена простая структура компонентов (`AppHeader`, `NavTabs`) и адаптивная вёрстка для iPhone/Mac.
+  - Подготовлены базовые TypeScript-типы API и клиент (`frontend/src/types/api.ts`, `frontend/src/api/client.ts`).
+  - Обновлён PWA manifest и добавлена иконка.
+  - Обновлен `docs/development.md` с командами frontend.
+- Какие файлы изменены:
+  - `frontend/src/App.tsx`
+  - `frontend/src/pages/ChatPage.tsx`
+  - `frontend/src/pages/SettingsPage.tsx`
+  - `frontend/src/pages/StatusPage.tsx`
+  - `frontend/src/components/AppHeader.tsx`
+  - `frontend/src/components/NavTabs.tsx`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/styles/app.css`
+  - `frontend/public/manifest.webmanifest`
+  - `frontend/public/icons/asya-icon.svg`
+  - `frontend/index.html`
+  - `frontend/package.json`
+  - `docs/development.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - Сборка frontend: `npm run build` (в контейнере `node:20-bookworm`) — успешно.
+- Какие проблемы остались:
+  - Локально в окружении отсутствует `npm`; сборка выполнена через Docker.
+  - Frontend пока не подключает реальный streaming UI.
+- Следующий рекомендуемый шаг:
+  - Подключить UI чата к `/api/chat/stream` с потоковым отображением токенов.
+
+## 2026-04-25
+- Что сделано:
   - Реализован backend API настроек:
     - `GET /api/settings`;
     - `PUT /api/settings`.

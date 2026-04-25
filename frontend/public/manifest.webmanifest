@@ -1,9 +1,20 @@
 {
   "name": "Asya",
   "short_name": "Asya",
+  "lang": "ru",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#ffffff",
-  "theme_color": "#f5f5f5",
-  "icons": []
+  "theme_color": "#1c4fa3",
+  "description": "Локальный PWA-интерфейс Asya MVP",
+  "icons": [
+    {
+      "src": "/icons/asya-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }

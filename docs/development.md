@@ -11,6 +11,25 @@ cp .env.example .env
 docker compose up --build
 ```
 
+## Frontend (React + Vite + TypeScript)
+Установка зависимостей:
+```bash
+cd frontend
+npm install
+```
+
+Запуск dev-сервера:
+```bash
+cd frontend
+npm run dev
+```
+
+Сборка frontend:
+```bash
+cd frontend
+npm run build
+```
+
 ## Backend skeleton (этап 1)
 Локальный запуск backend:
 ```bash
