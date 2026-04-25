@@ -4,7 +4,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -15,6 +15,7 @@ class StoredSessionFile:
     content_type: str
     size_bytes: int
     path: str
+    extracted_text: Optional[str] = None
 
 
 class SessionFileStore:

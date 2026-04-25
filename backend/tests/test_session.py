@@ -36,7 +36,7 @@ def test_upload_file_to_session_and_cleanup_on_delete() -> None:
 
     upload_resp = client.post(
         f"/api/session/{session_id}/files",
-        files=[("files", ("sample.pdf", b"%PDF-1.7", "application/pdf"))],
+        files=[("files", ("sample.png", b"\x89PNG\r\n\x1a\n", "image/png"))],
     )
     assert upload_resp.status_code == 201
     payload = upload_resp.json()

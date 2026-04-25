@@ -2,6 +2,38 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализовано извлечение текста из документов в файловом пайплайне сессии:
+    - PDF через `PyMuPDF`;
+    - DOCX через `python-docx`;
+    - XLSX через `openpyxl`.
+  - Извлечённый текст привязан к текущей временной сессии и хранится только в runtime `SessionFileStore` (in-memory).
+  - Для XLSX добавлен текстовый формат по листам: имя листа, строки, ячейки.
+  - Добавана обработка ошибок для пустых/повреждённых документов и превышения размера.
+  - Добавлены тесты:
+    - успешное извлечение из простых PDF/DOCX/XLSX;
+    - ошибки для повреждённого DOCX и пустого XLSX;
+    - существующие ограничения по количеству/типу/размеру файлов.
+  - Выполнена ручная проверка через `TestClient` на тестовых файлах (PDF/DOCX/XLSX), извлечённый текст подтверждён.
+  - Обновлены `docs/architecture.md` и `docs/testing.md`.
+- Какие файлы изменены:
+  - `backend/app/services/file_service.py`
+  - `backend/app/storage/file_store.py`
+  - `backend/pyproject.toml`
+  - `backend/tests/test_files.py`
+  - `backend/tests/test_session.py`
+  - `docs/architecture.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `cd backend && python3 -m pytest -q` -> `24 passed`.
+  - Ручная проверка upload/extract через `TestClient` -> `201`, текст извлечён для PDF/DOCX/XLSX.
+- Какие проблемы остались:
+  - Пока не реализованы chunking/embeddings и использование извлечённого текста в ответах модели.
+- Следующий рекомендуемый шаг:
+  - Добавить этап chunking + embeddings для извлечённого текста и retrieval в chat pipeline.
+
+## 2026-04-25
+- Что сделано:
   - Реализована загрузка файлов в текущую временную сессию через `POST /api/session/{session_id}/files` (`multipart/form-data`).
   - Добавлена валидация:
     - поддерживаемых типов (PDF, DOCX, XLSX, изображения);
