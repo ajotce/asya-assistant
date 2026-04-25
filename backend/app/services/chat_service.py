@@ -184,7 +184,9 @@ class ChatService:
     def _ensure_vision_supported(self, selected_model: str) -> None:
         models = self._vsellm_client.get_models()
         model = next((item for item in models if item.id == selected_model), None)
-        if model is None or model.supports_vision is not True:
+        # Block only when the API explicitly marks the selected model as non-vision.
+        # If model metadata is missing/unknown, try the request and surface provider error.
+        if model is not None and model.supports_vision is False:
             raise VseLLMError(
                 status_code=400,
                 user_message=(

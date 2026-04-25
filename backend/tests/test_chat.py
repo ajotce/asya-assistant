@@ -293,3 +293,97 @@ def test_stream_chat_returns_error_when_model_has_no_vision_support() -> None:
     payload = b"".join(service.stream_chat(session_id=session_id, user_message="Опиши фото", file_ids=["img-1"])).decode("utf-8")
     assert "event: error" in payload
     assert "не поддерживает анализ изображений" in payload
+
+
+def test_build_messages_payload_allows_image_when_vision_support_unknown() -> None:
+    class FakeUnknownVisionClient:
+        def get_models(self):
+            from app.models.schemas import ModelInfo
+
+            return [ModelInfo(id="openai/gpt-5", supports_vision=None)]
+
+        def get_embeddings(self, texts, model=None):
+            return [[0.0, 1.0]]
+
+    store = SessionStore()
+    session_id = store.create_session().session_id
+    file_store = _build_file_store()
+    session_dir = file_store.session_dir(session_id)
+    session_dir.mkdir(parents=True, exist_ok=True)
+    image_path = session_dir / "img.png"
+    image_path.write_bytes(_make_png_bytes())
+    file_store.register_files(
+        session_id,
+        [
+            StoredSessionFile(
+                file_id="img-1",
+                session_id=session_id,
+                filename="img.png",
+                content_type="image/png",
+                size_bytes=image_path.stat().st_size,
+                path=str(image_path),
+            )
+        ],
+    )
+    store.bind_file(session_id, "img-1")
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        file_store=file_store,
+        vector_store=SessionVectorStore(),
+        vsellm_client=FakeUnknownVisionClient(),
+        settings_service=FakeSettingsService(),
+    )
+
+    messages = service.build_messages_payload(session_id=session_id, user_message="Опиши фото", file_ids=["img-1"])
+    user_message = messages[-1]
+    assert user_message["role"] == "user"
+    assert isinstance(user_message["content"], list)
+    assert user_message["content"][1]["type"] == "image_url"
+
+
+def test_build_messages_payload_allows_image_when_model_is_not_found() -> None:
+    class FakeNoMatchingModelClient:
+        def get_models(self):
+            from app.models.schemas import ModelInfo
+
+            return [ModelInfo(id="another-model", supports_vision=True)]
+
+        def get_embeddings(self, texts, model=None):
+            return [[0.0, 1.0]]
+
+    store = SessionStore()
+    session_id = store.create_session().session_id
+    file_store = _build_file_store()
+    session_dir = file_store.session_dir(session_id)
+    session_dir.mkdir(parents=True, exist_ok=True)
+    image_path = session_dir / "img.png"
+    image_path.write_bytes(_make_png_bytes())
+    file_store.register_files(
+        session_id,
+        [
+            StoredSessionFile(
+                file_id="img-1",
+                session_id=session_id,
+                filename="img.png",
+                content_type="image/png",
+                size_bytes=image_path.stat().st_size,
+                path=str(image_path),
+            )
+        ],
+    )
+    store.bind_file(session_id, "img-1")
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        file_store=file_store,
+        vector_store=SessionVectorStore(),
+        vsellm_client=FakeNoMatchingModelClient(),
+        settings_service=FakeSettingsService(),
+    )
+
+    messages = service.build_messages_payload(session_id=session_id, user_message="Опиши фото", file_ids=["img-1"])
+    user_message = messages[-1]
+    assert user_message["role"] == "user"
+    assert isinstance(user_message["content"], list)
+    assert user_message["content"][1]["type"] == "image_url"

@@ -2,6 +2,31 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Исправлена backend-проверка vision для `POST /api/chat/stream` без изменения API-контракта.
+  - Логика `ChatService` обновлена:
+    - блокировка выполняется только при явном `supports_vision=false`;
+    - при `supports_vision=null` или отсутствии модели в metadata запрос с изображением не блокируется заранее.
+  - Добавлены тесты:
+    - разрешение image payload при `supports_vision=None`;
+    - разрешение image payload, когда выбранная модель отсутствует в списке metadata.
+  - Повторный image E2E smoke после фикса выполнен успешно (streaming-ответ получен).
+- Какие файлы изменены:
+  - `backend/app/services/chat_service.py`
+  - `backend/tests/test_chat.py`
+  - `docs/api.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make test` -> `33 passed`.
+  - Ручной smoke image:
+    - upload изображения в сессию -> `201`;
+    - `POST /api/chat/stream` с `file_ids` -> получены `event: token` и `event: done`.
+- Какие проблемы остались:
+  - `supports_vision` в `/api/models` для ряда моделей приходит как `null`, поэтому окончательная проверка vision-поддержки для них делегируется провайдеру.
+- Следующий рекомендуемый шаг:
+  - При желании добавить в `VseLLMClient` более точную нормализацию vision capability из provider-specific metadata.
+
+## 2026-04-25
+- Что сделано:
   - Доработан frontend-чат под MVP-требования по файлам без изменения backend API-контракта.
   - В `ChatPage` добавлены:
     - выбор до 10 файлов;
