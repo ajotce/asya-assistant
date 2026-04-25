@@ -2,6 +2,34 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Выполнена baseline-подготовка перед финальным этапом без функциональных изменений кода.
+  - Проверен репозиторий и git-состояние:
+    - подтвержден `origin=https://github.com/ajotce/asya-assistant.git`;
+    - текущая ветка `main`;
+    - после `git fetch origin` ветка не отстаёт от `origin/main` (`ahead 11`, `behind 0`);
+    - рабочее дерево чистое.
+  - Прочитаны обязательные документы этапа:
+    - `AGENTS.md`;
+    - `asya-mvp-tech-spec.md`;
+    - `asya-mvp-development-plan.md`.
+- Какие файлы изменены:
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make test` -> успешно, `31 passed, 5 warnings`.
+  - `make build-frontend` -> успешно.
+  - `docker compose build` -> успешно.
+  - `docker compose up -d backend` -> успешно.
+  - `curl http://localhost:8000/api/health` -> неуспешно (порт в compose проброшен на `8010`).
+  - `curl http://localhost:8010/api/health` -> успешно, `status: ok`.
+  - `docker compose down` -> успешно.
+- Какие проблемы остались:
+  - Функциональных проблем по baseline-проверкам не обнаружено.
+  - Для части docker/curl-команд в текущей среде потребовался запуск вне sandbox.
+- Следующий рекомендуемый шаг:
+  - Переходить к финальному этапу приёмки MVP (чек-лист из плана, раздел `Этап 21`).
+
+## 2026-04-25
+- Что сделано:
   - Проведена сверка текущего состояния проекта с `AGENTS.md`, `asya-mvp-tech-spec.md`, `asya-mvp-development-plan.md`.
   - Актуализированы команды проверки и документация под реальное окружение:
     - `Makefile`: `make build-frontend` теперь автоматически использует Docker-сборку, если локальный `npm` отсутствует;
