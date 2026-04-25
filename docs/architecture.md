@@ -1,101 +1,87 @@
 # Architecture (MVP)
 
-## Общее
-Asya MVP состоит из:
-- Frontend (PWA, React/Vite) — клиентский интерфейс.
-- Backend (FastAPI) — API, интеграция с VseLLM, временные сессии.
+Документ описывает фактическую архитектуру текущего кода MVP Asya.
 
-## Backend API
-Все endpoints используют префикс `/api`.
-Текущие ключевые группы:
-- health (`/api/health`)
-- models (`/api/models`)
-- settings (`/api/settings`)
-- session (`/api/session*`)
-- chat streaming (`/api/chat/stream`)
-- usage (`/api/usage`, `/api/usage/session/{session_id}`)
+## Состав системы
+- Frontend: `React + Vite + TypeScript` (`frontend/`)
+- Backend: `FastAPI` (`backend/`)
+- Интеграция моделей/embeddings: VseLLM OpenAI-compatible API
+- Локальный запуск: Docker Compose
 
-## Временные backend-сессии
-Сессии реализованы in-memory в `SessionStore`:
-- при `POST /api/session` создается `session_id`;
-- контекст сообщений хранится только внутри этой сессии;
-- `file_id` привязываются только к текущей сессии;
-- `DELETE /api/session/{session_id}` удаляет контекст и file bindings.
+## Backend слои
 
-Ограничения MVP:
-- долговременная история чатов не создается;
-- долговременная память пользователя не создается;
-- при перезапуске backend in-memory сессии теряются (допустимо для MVP).
+### API routes (`backend/app/api`)
+- `routes_health.py` -> `/api/health`
+- `routes_models.py` -> `/api/models`
+- `routes_settings.py` -> `/api/settings`
+- `routes_chat.py` -> `/api/chat/stream`
+- `routes_session.py` -> `/api/session*`, `/api/session/{session_id}/files`
+- `routes_usage.py` -> `/api/usage*`
 
-## Streaming chat
+### Services (`backend/app/services`)
+- `settings_service.py` -> чтение/обновление настроек
+- `vsellm_client.py` -> вызовы `/models` и `/embeddings`
+- `chat_service.py` -> сбор контекста, SSE-стриминг, vision/retrieval логика
+- `file_service.py` -> валидация/сохранение файлов, извлечение текста, chunking, embeddings
+
+### Storage (`backend/app/storage`)
+- `session_store.py` -> in-memory сессии и сообщения
+- `file_store.py` -> in-memory метаданные файлов + пути к временным файлам
+- `vector_store.py` -> in-memory векторный индекс по сессии
+- `usage_store.py` -> in-memory usage (chat/embeddings)
+- `sqlite.py` -> SQLite для persisted settings
+
+## Данные и жизненный цикл
+
+### Настройки
+- Хранятся в SQLite (`assistant_name`, `system_prompt`, `selected_model`)
+- Загружаются/обновляются через `/api/settings`
+- `VSELLM_API_KEY` хранится только в `.env` backend
+
+### Сессии
+- Создаются через `POST /api/session`
+- Сообщения живут только в runtime (`SessionStore`)
+- При `DELETE /api/session/{session_id}` удаляются:
+  - сообщения сессии
+  - file bindings
+  - временные файлы
+  - векторные чанки
+  - usage сессии
+
+### Файлы и retrieval
+`POST /api/session/{session_id}/files`:
+- валидирует лимиты и формат
+- сохраняет файл во временный каталог `TMP_DIR`
+- для PDF/DOCX/XLSX извлекает текст
+- режет текст на чанки
+- получает embeddings и сохраняет в `SessionVectorStore`
+
 `POST /api/chat/stream`:
-- принимает `session_id` и сообщение;
-- поддерживает опциональные `file_ids` изображений, прикреплённых к текущему сообщению;
-- добавляет системный промт;
-- использует глобальную модель из backend-настроек;
-- учитывает только сообщения текущей сессии;
-- отдает SSE (`token`, `error`, `done`).
+- берет историю только текущей сессии
+- добавляет системный промт
+- при наличии документных чанков делает retrieval и добавляет контекст
+- для `file_ids` прикладывает только изображения (data URL)
+- отдает SSE события `token`, `error`, `done`
 
-## Хранение настроек (MVP)
-Настройки (`assistant_name`, `system_prompt`, `selected_model`) хранятся в локальной SQLite БД
-как служебное хранилище backend (singleton запись).
-
-Важно:
-- это не история чатов;
-- это не долговременная память пользователя;
-- `VSELLM_API_KEY` не хранится в этой таблице и не принимается из frontend.
-
-## Файлы (временное хранение в рамках сессии)
-Загрузка файлов выполняется через `POST /api/session/{session_id}/files` (`multipart/form-data`).
-
-Техническая схема:
-- `FileService` валидирует количество, размер и тип файлов;
-- для изображений выполняется валидация через `Pillow`;
-- файлы записываются в локальную временную директорию `TMP_DIR/session-files/{session_id}/...`;
-- для документов `PDF`/`DOCX`/`XLSX` выполняется извлечение текста на backend;
-- извлечённый текст хранится только в runtime-store `SessionFileStore` (in-memory), привязан к `session_id`;
-- для `XLSX` текст формируется по листам в формате: имя листа, строки, ячейки;
-- извлечённый текст режется на чанки фиксированного размера с overlap;
-- для чанков создаются embeddings через VseLLM OpenAI-compatible endpoint `/embeddings`;
-- векторы и чанки хранятся только в `SessionVectorStore` (in-memory), привязаны к `session_id`;
-- `SessionStore` хранит только `file_id` для связи файла с сессией;
-- при `DELETE /api/session/{session_id}` удаляются физические файлы, директория сессии и векторный индекс сессии.
-
-## Поиск по файлам в чате
-При `POST /api/chat/stream` backend:
-1. строит embedding вопроса пользователя;
-2. выполняет локальный векторный поиск по чанкам текущей сессии;
-3. добавляет релевантные фрагменты в системный контекст запроса к модели;
-4. отправляет запрос в VseLLM chat completions.
-
-Для изображений:
-1. backend проверяет, что `file_ids` принадлежат текущей сессии;
-2. backend проверяет поддержку vision у выбранной модели через список моделей VseLLM;
-3. если vision поддерживается, изображения передаются модели в составе user-message;
-4. если vision не поддерживается, backend возвращает понятную ошибку пользователю.
-
-Если embeddings API недоступен, пользователь получает понятную ошибку в streaming-событии `error`.
-
-Ограничения MVP:
-- максимум 10 файлов за одно сообщение;
-- максимум 256 МБ на файл;
-- поддерживаемые типы: PDF, DOCX, XLSX и изображения;
-- для пустых/повреждённых документов backend возвращает понятные ошибки;
-- не используется облачная векторная база;
-- отсутствует долговременное файловое хранилище;
-- отсутствует облачное хранилище.
-
-## Безопасность
-- `VSELLM_API_KEY` хранится только на backend в `.env`.
-- API-ключ не возвращается в API-ответах.
-- API-ключ не логируется.
+## Vision-поведение
+- Проверка идет по `/api/models` metadata
+- Предзапрет только при явном `supports_vision=false`
+- Если capability неизвестен, backend пробует запрос и возвращает ошибку провайдера, если он отклонит image input
 
 ## Usage в MVP
-Группа `/api/usage` дает минимальный слой наблюдаемости:
-- текущие runtime-данные (`active_sessions`, выбранная chat-модель, embedding-модель);
-- сбор usage в runtime-store:
-  - `chat` usage берется из streaming-ответов `chat/completions`, если провайдер присылает `usage`;
-  - `embeddings` usage собирается из embeddings pipeline (upload/retrieval);
-- структура usage по `chat` и `embeddings` возвращает `status=available` при наличии данных и `status=unavailable` при отсутствии;
-- структура стоимости с `status=unavailable` и `null`, без хардкода цен моделей;
-- сессионный endpoint `/api/usage/session/{session_id}` с доступными счетчиками сообщений/файлов/чанков.
+- `/api/usage` и `/api/usage/session/{session_id}`
+- Chat usage собирается из stream-ответов, если провайдер присылает `usage`
+- Embeddings usage собирается из upload/retrieval pipeline
+- Стоимость не рассчитывается (`cost.status=unavailable`)
+
+## Frontend и раздача
+- Frontend собирается в `frontend/dist`
+- В local-режиме backend может раздавать frontend из `FRONTEND_DIST_PATH`
+- SPA fallback включен для не-API путей
+
+## Ограничения MVP (по текущей реализации)
+- Один пользователь
+- Нет долговременной памяти/истории чатов
+- Нет авторизации
+- Нет внешних интеграций (Todoist/Calendar/CRM)
+- Нет web search

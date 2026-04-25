@@ -2,6 +2,32 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Документация приведена к финальному фактическому состоянию MVP:
+    - `README.md` — один рабочий сценарий запуска с нуля;
+    - `docs/api.md` — актуальные endpoint-группы `/health`, `/models`, `/settings`, `/chat`, `/session`, `/files`, `/usage`;
+    - `docs/architecture.md` — реальная архитектура backend/frontend без расхождений с кодом;
+    - `docs/testing.md` — точные команды и ожидаемые результаты.
+  - Команды в документации синхронизированы с реальным окружением:
+    - порт берется из `.env` (`ASYA_PORT`), так как в текущем окружении используется `8010`;
+    - проверки `/` и `manifest` переведены на `GET` (вместо `HEAD`, который дает `405` на `/`).
+- Какие файлы изменены:
+  - `README.md`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"` -> `8 passed`.
+  - `make test` -> `40 passed`.
+  - `make build-frontend` -> успешно.
+  - `docker compose up -d --build` + `curl http://localhost:${ASYA_PORT}/api/health` + `curl http://localhost:${ASYA_PORT}/` + `curl http://localhost:${ASYA_PORT}/manifest.webmanifest` + `docker compose down` -> успешно.
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - При необходимости сделать отдельный раздел «Release checklist MVP» в `docs/testing.md` на основе текущих проверок.
+
+## 2026-04-25
+- Что сделано:
   - Добавлен минимальный набор frontend тестов в рамках MVP-требований AGENTS:
     - `ChatPage`: рендер главного экрана, отправка сообщения, streaming-состояние, отображение ошибки;
     - `SettingsPage`: загрузка/отображение настроек модели, редактирование системного промта и сохранение;
