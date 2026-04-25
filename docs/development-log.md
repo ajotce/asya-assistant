@@ -2,6 +2,48 @@
 
 ## 2026-04-26
 - Что сделано:
+  - Реализована доработка №4 страницы `Состояние Asya` с интерактивными индикаторами.
+  - `StatusPage` переведена со статичного `dl` на карточки с severity:
+    - `ok`, `warning`, `error`, `unknown`;
+    - короткий итог по каждому модулю;
+    - раскрываемые технические детали по клику/тапу.
+  - Добавлены карточки для:
+    - Backend;
+    - VseLLM доступность;
+    - VseLLM API-ключ (без показа секрета);
+    - выбранная модель;
+    - файлы;
+    - embeddings;
+    - session/runtime;
+    - usage;
+    - временное хранилище.
+  - Добавлены:
+    - `Последнее обновление`;
+    - кнопка `Обновить` (сохранена);
+    - toggle `Автообновление (15 сек)` с корректной очисткой таймера при unmount.
+  - Ошибка `/api/usage` теперь не ломает страницу: health-карточки продолжают показываться, usage-карточка уходит в `error`.
+  - Обновлены стили под responsive карточки (iPhone/Mac) без сторонних UI-библиотек.
+  - Обновлены frontend-тесты `StatusPage` под новые UX-сценарии.
+  - Обновлена документация `docs/development.md` и `docs/testing.md`.
+- Какие файлы изменены:
+  - `frontend/src/pages/StatusPage.tsx`
+  - `frontend/src/pages/StatusPage.test.tsx`
+  - `frontend/src/styles/app.css`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make test` -> `46 passed`.
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"` -> `12 passed`.
+  - `make build-frontend` -> успешно.
+  - `make lint` -> успешно.
+- Какие проблемы остались:
+  - `npm audit` по frontend зависимостям показывает `5 moderate severity vulnerabilities`.
+- Следующий рекомендуемый шаг:
+  - При необходимости добавить UX-полировку карточек (иконки severity/сортировку карточек по важности) отдельной задачей без изменения API-контрактов.
+
+## 2026-04-26
+- Что сделано:
   - Улучшена диагностика совместимости моделей для chat/completions без хардкода whitelist:
     - `ModelInfo` расширен полями `supports_chat` и `supports_stream`;
     - `VseLLMClient` научен извлекать capability metadata из `supports_*`, `capabilities`, `endpoints`, при неполной metadata модель не блокируется заранее.

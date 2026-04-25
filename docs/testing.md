@@ -19,7 +19,7 @@ docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci 
   - `App` (прямое открытие `/status`, сохранение runtime-состояния чата при `Чат -> Настройки -> Чат`, отсутствие повторного создания сессии при возврате на вкладку чата)
   - `ChatPage` (рендер, отправка, streaming, ошибки)
   - `SettingsPage` (модель, системный промт, предупреждение и disabled option для моделей с явным `supports_chat=false`)
-  - `StatusPage` (состояние, ошибки)
+  - `StatusPage` (интерактивные статус-карточки, раскрытие деталей, понятная ошибка `/api/health`, graceful-деградация при ошибке `/api/usage`, наличие toggle автообновления)
 
 ## 2) Lint
 Команда:

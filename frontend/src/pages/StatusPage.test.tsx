@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getHealth, getUsage } from "../api/client";
@@ -15,7 +15,7 @@ describe("StatusPage", () => {
     vi.mocked(getUsage).mockReset();
   });
 
-  it("рендерит ключевые карточки состояния из /api/health", async () => {
+  it("показывает карточки с понятными статусами и раскрывает детали", async () => {
     vi.mocked(getHealth).mockResolvedValue({
       status: "ok",
       version: "0.1.0",
@@ -24,7 +24,7 @@ describe("StatusPage", () => {
       vsellm: {
         api_key_configured: true,
         base_url: "https://api.vsellm.ru/v1",
-        reachable: true
+        reachable: true,
       },
       model: { selected: "gpt-4o" },
       files: { enabled: true, status: "готов" },
@@ -32,16 +32,16 @@ describe("StatusPage", () => {
         enabled: true,
         model: "text-embedding-3-small",
         status: "готов",
-        last_error: null
+        last_error: null,
       },
       storage: {
         session_store: "готов",
         file_store: "готов",
         tmp_dir: "/app/tmp",
-        writable: true
+        writable: true,
       },
       session: { enabled: true, active_sessions: 0 },
-      last_error: null
+      last_error: null,
     });
     vi.mocked(getUsage).mockResolvedValue({
       chat: {
@@ -72,20 +72,24 @@ describe("StatusPage", () => {
 
     render(<StatusPage />);
 
-    expect(await screen.findByText("online")).toBeInTheDocument();
-    expect(screen.getByText("2 мин")).toBeInTheDocument();
-    expect(screen.getByText("доступен (https://api.vsellm.ru/v1)")).toBeInTheDocument();
+    expect(await screen.findByText("Работает")).toBeInTheDocument();
+    expect(screen.getByText("Доступен")).toBeInTheDocument();
+    expect(screen.getByText("Настроен")).toBeInTheDocument();
     expect(screen.getByText("gpt-4o")).toBeInTheDocument();
-    expect(screen.getByText("настроен")).toBeInTheDocument();
-    expect(screen.getByText("включены, готов")).toBeInTheDocument();
-    expect(screen.getByText("готов (text-embedding-3-small)")).toBeInTheDocument();
-    expect(screen.getByText("включены, активных: 0")).toBeInTheDocument();
-    expect(screen.getByText("chat: unavailable, embeddings: 122 embedding tokens, cost: unavailable")).toBeInTheDocument();
-    expect(screen.getByText("sessions: готов, files: готов, доступно для записи")).toBeInTheDocument();
-    expect(screen.getByText("/app/tmp")).toBeInTheDocument();
+    expect(screen.getByText("Модуль: готов")).toBeInTheDocument();
+    expect(screen.getByText("готов")).toBeInTheDocument();
+    expect(screen.getByText("Активных сессий: 0")).toBeInTheDocument();
+    expect(screen.getByText("Данные usage доступны")).toBeInTheDocument();
+    expect(screen.getByText("Готово к записи")).toBeInTheDocument();
+    expect(screen.getByTestId("status-last-updated")).toHaveTextContent("Последнее обновление:");
+    expect(screen.getByLabelText("Автообновление (15 сек)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Backend: Работает/i }));
+    expect(await screen.findByText("Версия: 0.1.0")).toBeInTheDocument();
+    expect(screen.getByText("Окружение: local")).toBeInTheDocument();
   });
 
-  it("показывает ошибку при недоступном /api/health", async () => {
+  it("показывает понятную ошибку при недоступном /api/health", async () => {
     vi.mocked(getHealth).mockRejectedValue(new Error("Backend недоступен"));
     vi.mocked(getUsage).mockResolvedValue({
       chat: { status: "unavailable" },
@@ -100,6 +104,46 @@ describe("StatusPage", () => {
 
     render(<StatusPage />);
 
-    expect(await screen.findByText("Backend недоступен")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Backend: Недоступен/i })).toBeInTheDocument();
+    expect(screen.getByText("Недоступен")).toBeInTheDocument();
+  });
+
+  it("не ломает health-карточки, если /api/usage вернул ошибку", async () => {
+    vi.mocked(getHealth).mockResolvedValue({
+      status: "ok",
+      version: "0.1.0",
+      environment: "local",
+      uptime_seconds: 125,
+      vsellm: {
+        api_key_configured: true,
+        base_url: "https://api.vsellm.ru/v1",
+        reachable: true,
+      },
+      model: { selected: "gpt-4o" },
+      files: { enabled: true, status: "готов" },
+      embeddings: {
+        enabled: true,
+        model: "text-embedding-3-small",
+        status: "готов",
+        last_error: null,
+      },
+      storage: {
+        session_store: "готов",
+        file_store: "готов",
+        tmp_dir: "/app/tmp",
+        writable: true,
+      },
+      session: { enabled: true, active_sessions: 0 },
+      last_error: null,
+    });
+    vi.mocked(getUsage).mockRejectedValue(new Error("Usage endpoint недоступен"));
+
+    render(<StatusPage />);
+
+    expect(await screen.findByText("Работает")).toBeInTheDocument();
+    expect(screen.getByText("Ошибка получения usage")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Usage: Ошибка получения usage/i }));
+    expect(await screen.findByText("Usage endpoint недоступен")).toBeInTheDocument();
   });
 });

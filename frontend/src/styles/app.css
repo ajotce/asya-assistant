@@ -291,25 +291,117 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 10px;
-  margin: 0;
 }
 
-.status-grid__item {
+.status-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: #3b4c68;
+}
+
+.status-card {
   border: 1px solid #dce8ff;
   border-radius: 10px;
-  padding: 10px;
   background: #fbfdff;
+  overflow: hidden;
 }
 
-.status-grid__label {
+.status-card__button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 10px;
+}
+
+.status-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.status-card__label {
   margin: 0;
-  color: #5d6f8e;
-  font-size: 0.82rem;
+  font-size: 0.92rem;
+  color: #22324c;
 }
 
-.status-grid__value {
-  margin: 4px 0 0;
+.status-card__summary {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
   font-weight: 600;
+}
+
+.status-badge {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-badge--ok {
+  background: #d1fadf;
+  color: #067647;
+}
+
+.status-badge--warning {
+  background: #fef0c7;
+  color: #b54708;
+}
+
+.status-badge--error {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.status-badge--unknown {
+  background: #e4e7ec;
+  color: #344054;
+}
+
+.status-card--ok {
+  border-color: #b7ebc6;
+}
+
+.status-card--warning {
+  border-color: #f3d38a;
+}
+
+.status-card--error {
+  border-color: #f3b4ae;
+}
+
+.status-card--unknown {
+  border-color: #d0d5dd;
+}
+
+.status-card__details {
+  border-top: 1px dashed #dce8ff;
+  padding: 8px 10px 10px;
+}
+
+.status-card__details-list {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.83rem;
+  color: #4f6180;
 }
 
 .status-text {
