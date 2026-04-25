@@ -70,6 +70,46 @@ describe("ChatPage", () => {
     expect(screen.getByRole("button", { name: "Генерация..." })).toBeInTheDocument();
   });
 
+  it("отображает блок размышлений, когда модель прислала reasoning", async () => {
+    vi.mocked(streamChat).mockImplementation(async (_request, handlers) => {
+      handlers.onThinking?.("шаг рассуждения");
+      handlers.onToken("Ответ");
+      handlers.onDone();
+    });
+
+    render(<ChatPage />);
+    await screen.findByRole("heading", { name: "Чат" });
+
+    fireEvent.change(screen.getByPlaceholderText("Введите сообщение"), {
+      target: { value: "Запрос с размышлением" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Отправить" }));
+
+    const summary = await screen.findByText("Размышления модели");
+    expect(summary).toBeInTheDocument();
+    fireEvent.click(summary);
+    expect(await screen.findByText("шаг рассуждения")).toBeInTheDocument();
+    expect(await screen.findByText("Ответ")).toBeInTheDocument();
+  });
+
+  it("не показывает блок размышлений, если модель не прислала reasoning", async () => {
+    vi.mocked(streamChat).mockImplementation(async (_request, handlers) => {
+      handlers.onToken("Обычный ответ");
+      handlers.onDone();
+    });
+
+    render(<ChatPage />);
+    await screen.findByRole("heading", { name: "Чат" });
+
+    fireEvent.change(screen.getByPlaceholderText("Введите сообщение"), {
+      target: { value: "Без размышлений" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Отправить" }));
+
+    expect(await screen.findByText("Обычный ответ")).toBeInTheDocument();
+    expect(screen.queryByText("Размышления модели")).not.toBeInTheDocument();
+  });
+
   it("отображает понятную ошибку выбранной модели, если stream вернул событие error", async () => {
     vi.mocked(streamChat).mockImplementation(async (_request, handlers) => {
       handlers.onError(

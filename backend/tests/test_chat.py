@@ -499,6 +499,108 @@ def test_build_messages_payload_allows_image_when_model_is_not_found() -> None:
     assert user_message["content"][1]["type"] == "image_url"
 
 
+def test_stream_chat_emits_thinking_events_when_provider_returns_reasoning_delta(monkeypatch) -> None:
+    class FakeReasoningStreamResponse:
+        status_code = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def iter_lines(self):
+            yield 'data: {"choices":[{"delta":{"reasoning_content":"шаг 1"}}]}'
+            yield 'data: {"choices":[{"delta":{"reasoning_content":" шаг 2"}}]}'
+            yield 'data: {"choices":[{"delta":{"content":"Ответ"}}]}'
+            yield "data: [DONE]"
+
+    monkeypatch.setattr("httpx.stream", lambda *args, **kwargs: FakeReasoningStreamResponse())
+
+    store = SessionStore()
+    session_id = store.create_session().session_id
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        file_store=_build_file_store(),
+        vector_store=SessionVectorStore(),
+        vsellm_client=VseLLMClient(FakeSettings()),
+        settings_service=FakeSettingsService(),
+    )
+
+    payload = b"".join(service.stream_chat(session_id=session_id, user_message="Привет")).decode("utf-8")
+    assert "event: thinking" in payload
+    assert "шаг 1" in payload
+    assert "шаг 2" in payload
+    assert "event: token" in payload
+    assert "Ответ" in payload
+    assert payload.find("event: thinking") < payload.find("event: token")
+
+    history = store.get_messages(session_id)
+    assistant_messages = [item for item in history if item["role"] == "assistant"]
+    assert assistant_messages == [{"role": "assistant", "content": "Ответ"}]
+
+
+def test_stream_chat_falls_back_to_non_stream_with_reasoning_content(monkeypatch) -> None:
+    class FakeStreamingUnsupportedResponse:
+        status_code = 422
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"error":{"message":"Streaming is not supported for this model"}}'
+
+        def iter_lines(self):
+            return []
+
+    def fake_post(*args, **kwargs):
+        request = httpx.Request("POST", "https://api.vsellm.ru/v1/chat/completions")
+        return httpx.Response(
+            status_code=200,
+            request=request,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "reasoning_content": "Размышляю об ответе.",
+                            "content": "Финальный ответ.",
+                        }
+                    }
+                ],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3},
+            },
+        )
+
+    monkeypatch.setattr("httpx.stream", lambda *args, **kwargs: FakeStreamingUnsupportedResponse())
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    store = SessionStore()
+    session_id = store.create_session().session_id
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        file_store=_build_file_store(),
+        vector_store=SessionVectorStore(),
+        vsellm_client=VseLLMClient(FakeSettings()),
+        settings_service=FakeSettingsService(),
+    )
+
+    payload = b"".join(service.stream_chat(session_id=session_id, user_message="Привет")).decode("utf-8")
+    assert "event: thinking" in payload
+    assert "Размышляю об ответе." in payload
+    assert "event: token" in payload
+    assert "Финальный ответ." in payload
+    assert payload.find("event: thinking") < payload.find("event: token")
+
+    history = store.get_messages(session_id)
+    assistant_messages = [item for item in history if item["role"] == "assistant"]
+    assert assistant_messages == [{"role": "assistant", "content": "Финальный ответ."}]
+
+
 def test_stream_chat_collects_usage_in_runtime_store(monkeypatch) -> None:
     usage_store.reset()
 

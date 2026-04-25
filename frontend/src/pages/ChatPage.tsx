@@ -6,6 +6,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   text: string;
+  thinking?: string;
   streaming?: boolean;
 }
 
@@ -143,7 +144,7 @@ export default function ChatPage() {
     setMessages((prev) => [
       ...prev,
       { id: userId, role: "user", text },
-      { id: assistantId, role: "assistant", text: "", streaming: true },
+      { id: assistantId, role: "assistant", text: "", thinking: "", streaming: true },
     ]);
 
     let streamFailed = false;
@@ -161,6 +162,15 @@ export default function ChatPage() {
               prev.map((message) =>
                 message.id === assistantId
                   ? { ...message, text: `${message.text}${token}`, streaming: true }
+                  : message
+              )
+            );
+          },
+          onThinking: (chunk) => {
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId
+                  ? { ...message, thinking: `${message.thinking ?? ""}${chunk}`, streaming: true }
                   : message
               )
             );
@@ -294,7 +304,7 @@ export default function ChatPage() {
     setMessages((prev) => [
       ...prev,
       { id: userId, role: "user", text },
-      { id: assistantId, role: "assistant", text: "", streaming: true },
+      { id: assistantId, role: "assistant", text: "", thinking: "", streaming: true },
     ]);
 
     await streamChat(
@@ -305,6 +315,15 @@ export default function ChatPage() {
             prev.map((message) =>
               message.id === assistantId
                 ? { ...message, text: `${message.text}${token}`, streaming: true }
+                : message
+            )
+          );
+        },
+        onThinking: (chunk) => {
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId
+                ? { ...message, thinking: `${message.thinking ?? ""}${chunk}`, streaming: true }
                 : message
             )
           );
@@ -366,6 +385,12 @@ export default function ChatPage() {
                 </button>
               ) : null}
             </div>
+            {message.role === "assistant" && message.thinking?.trim() ? (
+              <details className="chat-bubble__thinking" open={Boolean(message.streaming)}>
+                <summary className="chat-bubble__thinking-summary">Размышления модели</summary>
+                <p className="chat-bubble__thinking-text">{message.thinking}</p>
+              </details>
+            ) : null}
             <p className="chat-bubble__text">{message.text}</p>
             {message.streaming ? <p className="chat-bubble__streaming">Печатает...</p> : null}
           </article>

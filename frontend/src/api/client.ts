@@ -78,6 +78,7 @@ export async function uploadSessionFiles(sessionId: string, files: File[]): Prom
 
 interface StreamHandlers {
   onToken: (text: string) => void;
+  onThinking?: (text: string) => void;
   onError: (message: string) => void;
   onDone: () => void;
 }
@@ -150,6 +151,10 @@ function parseSseEvent(rawEvent: string, handlers: StreamHandlers) {
     const payload = JSON.parse(dataValue) as { text?: string; message?: string };
     if (eventName === "token" && typeof payload.text === "string") {
       handlers.onToken(payload.text);
+      return;
+    }
+    if (eventName === "thinking" && typeof payload.text === "string") {
+      handlers.onThinking?.(payload.text);
       return;
     }
     if (eventName === "error" && typeof payload.message === "string") {

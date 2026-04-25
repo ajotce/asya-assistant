@@ -80,6 +80,7 @@ Streaming chat через SSE (`text/event-stream`).
 
 SSE события:
 - `event: token` -> `{ "text": "..." }`
+- `event: thinking` -> `{ "text": "..." }` (только если provider реально присылает reasoning)
 - `event: error` -> `{ "message": "..." }`
 - `event: done` -> `{ "usage": ... }`
 
@@ -90,6 +91,7 @@ SSE события:
 - если модель по metadata явно не поддерживает chat/completions, backend возвращает понятную ошибку с ID модели;
 - для ошибок провайдера `400/404/422` backend пытается извлечь точную причину из provider body и возвращает её пользователю без секретов;
 - если провайдер явно сообщает, что модель не поддерживает `stream=true`, backend делает безопасный fallback на non-stream completion и отдает ответ в SSE `event: token` + `event: done`.
+- `event: thinking` эмитится, если в delta провайдера есть `reasoning_content` / `reasoning` / `thinking` (для stream) или соответствующие поля в `message.*` (для non-stream fallback). Reasoning не дублируется в `event: token`, не сохраняется в истории сессии и не отправляется обратно провайдеру в последующих сообщениях.
 
 ## Session
 

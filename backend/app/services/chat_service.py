@@ -76,11 +76,13 @@ class ChatService:
                 if response.status_code >= 400:
                     provider_error = self._extract_provider_error_text(response)
                     if self._is_streaming_unsupported_error(response.status_code, provider_error):
-                        fallback_text, usage = self._request_non_stream_completion(
+                        fallback_text, fallback_thinking, usage = self._request_non_stream_completion(
                             payload=payload,
                             headers=headers,
                             model=model,
                         )
+                        if fallback_thinking:
+                            yield self._sse_event("thinking", {"text": fallback_thinking})
                         if fallback_text:
                             assistant_text += fallback_text
                             for chunk_text in self._split_text_for_sse(fallback_text):
@@ -112,6 +114,9 @@ class ChatService:
 
                     chunk = json.loads(raw_data)
                     usage = chunk.get("usage", usage)
+                    thinking = self._extract_delta_thinking(chunk)
+                    if thinking:
+                        yield self._sse_event("thinking", {"text": thinking})
                     delta = self._extract_delta_text(chunk)
                     if delta:
                         assistant_text += delta
@@ -270,6 +275,23 @@ class ChatService:
         return text if isinstance(text, str) else ""
 
     @staticmethod
+    def _extract_delta_thinking(chunk: Dict[str, Any]) -> str:
+        choices = chunk.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return ""
+        first = choices[0]
+        if not isinstance(first, dict):
+            return ""
+        delta = first.get("delta")
+        if not isinstance(delta, dict):
+            return ""
+        for key in ("reasoning_content", "reasoning", "thinking"):
+            value = delta.get(key)
+            if isinstance(value, str) and value:
+                return value
+        return ""
+
+    @staticmethod
     def _sse_event(event: str, payload: Dict[str, Any]) -> bytes:
         body = json.dumps(payload, ensure_ascii=False)
         return f"event: {event}\ndata: {body}\n\n".encode("utf-8")
@@ -279,7 +301,7 @@ class ChatService:
         payload: Dict[str, Any],
         headers: Dict[str, str],
         model: str,
-    ) -> tuple[str, Any]:
+    ) -> tuple[str, str, Any]:
         fallback_payload = {**payload, "stream": False}
         response = httpx.post(
             f"{self._settings.vsellm_base_url.rstrip('/')}/chat/completions",
@@ -298,7 +320,8 @@ class ChatService:
         payload_json = response.json()
         usage = payload_json.get("usage")
         text = self._extract_non_stream_text(payload_json)
-        return text, usage
+        thinking = self._extract_non_stream_thinking(payload_json)
+        return text, thinking, usage
 
     @staticmethod
     def _extract_non_stream_text(payload_json: Dict[str, Any]) -> str:
@@ -327,6 +350,23 @@ class ChatService:
         text = first.get("text")
         if isinstance(text, str):
             return text
+        return ""
+
+    @staticmethod
+    def _extract_non_stream_thinking(payload_json: Dict[str, Any]) -> str:
+        choices = payload_json.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return ""
+        first = choices[0]
+        if not isinstance(first, dict):
+            return ""
+        message = first.get("message")
+        if not isinstance(message, dict):
+            return ""
+        for key in ("reasoning_content", "reasoning", "thinking"):
+            value = message.get(key)
+            if isinstance(value, str) and value:
+                return value
         return ""
 
     @staticmethod
