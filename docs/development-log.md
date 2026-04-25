@@ -2,6 +2,27 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Доработан frontend `ChatPage` под backend-контракт файлов:
+    - после `POST /api/session/{session_id}/files` в `POST /api/chat/stream` передаются `file_ids` только для изображений;
+    - для документов (`PDF/DOCX/XLSX`) запрос в chat отправляется без `file_ids`, чтобы работал retrieval по данным сессии.
+  - Обновлена документация API по frontend flow.
+- Какие файлы изменены:
+  - `frontend/src/pages/ChatPage.tsx`
+  - `docs/api.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make build-frontend` -> успешно.
+  - `make test` -> `33 passed`.
+  - Ручной smoke:
+    - документный сценарий (`upload` + `chat` без `file_ids`) -> streaming токены получены;
+    - image-сценарий (`upload` + `chat` с `file_ids`) -> streaming токены получены.
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - По желанию добавить frontend unit/integration тест для функции отбора `file_ids` только для изображений.
+
+## 2026-04-25
+- Что сделано:
   - Исправлена backend-проверка vision для `POST /api/chat/stream` без изменения API-контракта.
   - Логика `ChatService` обновлена:
     - блокировка выполняется только при явном `supports_vision=false`;

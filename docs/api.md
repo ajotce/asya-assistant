@@ -78,7 +78,8 @@
 
 ### Использование во frontend (ChatPage)
 - Перед отправкой сообщения с файлами frontend делает `POST /api/session/{session_id}/files`.
-- В `POST /api/chat/stream` frontend передает `file_ids`, полученные из `response.files[*].file_id` текущей загрузки.
+- В `POST /api/chat/stream` frontend передает `file_ids` только для изображений из текущей загрузки.
+- Для документов (`PDF/DOCX/XLSX`) frontend не передает `file_ids`: backend использует их через retrieval по данным сессии.
 - Если файлов нет, frontend отправляет `POST /api/chat/stream` без `file_ids`.
 - После успешной отправки сообщения frontend очищает локальный список выбранных файлов.
 

@@ -122,11 +122,14 @@ export default function ChatPage() {
     setError(null);
     setIsGenerating(true);
 
-    let uploadedFileIds: string[] = [];
+    let uploadedImageFileIds: string[] = [];
     if (filesToUpload.length > 0) {
       try {
         const uploaded = await uploadSessionFiles(currentSessionId, filesToUpload);
-        uploadedFileIds = uploaded.files.map((file) => file.file_id);
+        uploadedImageFileIds = uploaded.files
+          .map((uploadedFile, index) => ({ uploadedFile, sourceFile: filesToUpload[index] }))
+          .filter(({ uploadedFile, sourceFile }) => isImageUpload(sourceFile, uploadedFile.content_type))
+          .map(({ uploadedFile }) => uploadedFile.file_id);
       } catch (uploadError) {
         setError(normalizeUploadError(uploadError));
         setIsGenerating(false);
@@ -147,7 +150,11 @@ export default function ChatPage() {
 
     try {
       await streamChat(
-        { session_id: currentSessionId, message: text, file_ids: uploadedFileIds },
+        {
+          session_id: currentSessionId,
+          message: text,
+          file_ids: uploadedImageFileIds.length > 0 ? uploadedImageFileIds : undefined,
+        },
         {
           onToken: (token) => {
             setMessages((prev) =>
@@ -519,6 +526,17 @@ function getFileExtension(filename: string): string {
     return "";
   }
   return filename.slice(dotIndex).toLowerCase();
+}
+
+function isImageUpload(file: File | undefined, uploadedContentType: string): boolean {
+  if (uploadedContentType.toLowerCase().startsWith("image/")) {
+    return true;
+  }
+  if (!file) {
+    return false;
+  }
+  const extension = getFileExtension(file.name);
+  return ALLOWED_IMAGE_EXTENSIONS.has(extension) || file.type.toLowerCase().startsWith("image/");
 }
 
 function getErrorMessage(error: unknown): string {
