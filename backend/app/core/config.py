@@ -14,6 +14,16 @@ class Settings(BaseSettings):
 
     vsellm_api_key: str = Field(default="", alias="VSELLM_API_KEY")
     vsellm_base_url: str = Field(default="https://api.vsellm.ru/v1", alias="VSELLM_BASE_URL")
+    default_chat_model: str = Field(default="openai/gpt-5", alias="DEFAULT_CHAT_MODEL")
+    default_system_prompt: str = Field(
+        default=(
+            "Ты — Asya, персональный ИИ-ассистент пользователя. "
+            "Общайся на русском языке, но можешь использовать английский при необходимости. "
+            "Стиль: деловой, дружелюбный, понятный. "
+            "Работай только в рамках текущей сессии и загруженных в ней файлов."
+        ),
+        alias="DEFAULT_SYSTEM_PROMPT",
+    )
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 

@@ -23,3 +23,8 @@ class ModelInfo(BaseModel):
     input_price: Optional[float] = None
     output_price: Optional[float] = None
     supports_vision: Optional[bool] = None
+
+
+class ChatStreamRequest(BaseModel):
+    session_id: str
+    message: str

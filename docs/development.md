@@ -52,6 +52,16 @@ curl http://127.0.0.1:8000/api/models
 - rate limit -> `429`;
 - проблемы сети/доступности VseLLM -> `502/504`.
 
+## Streaming chat (этап 8)
+Проверка streaming endpoint:
+```bash
+curl -N -X POST http://127.0.0.1:8000/api/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"session-1","message":"Привет"}'
+```
+
+Ожидается `text/event-stream` с событиями `token`, `error` (если есть проблема), `done`.
+
 ## Полезные make-команды
 ```bash
 make dev

@@ -9,6 +9,7 @@
 ## Реализованные endpoint-ы
 - `GET /api/health`
 - `GET /api/models`
+- `POST /api/chat/stream`
 
 Пример ответа:
 ```json
@@ -60,6 +61,40 @@
   "detail": "Ошибка авторизации VseLLM. Проверьте API-ключ на backend."
 }
 ```
+
+## `POST /api/chat/stream`
+Потоковый endpoint чата (SSE).
+
+Request body:
+```json
+{
+  "session_id": "session-123",
+  "message": "Привет, Ася"
+}
+```
+
+Принципы работы:
+- использует глобальную модель из `DEFAULT_CHAT_MODEL`;
+- добавляет системный промт из `DEFAULT_SYSTEM_PROMPT`;
+- использует только временный контекст текущей backend-сессии (in-memory);
+- не хранит долгосрочную историю чатов.
+
+Формат SSE-событий:
+```text
+event: token
+data: {"text":"Привет"}
+
+event: error
+data: {"message":"Понятное сообщение об ошибке"}
+
+event: done
+data: {"usage":null}
+```
+
+Типовые ошибки:
+- отсутствует `VSELLM_API_KEY` -> `event:error` с сообщением;
+- ошибка авторизации/лимитов/доступности модели -> `event:error` с понятным текстом;
+- сетевой timeout -> `event:error` и завершение потока.
 
 ## Планируемые endpoint-ы MVP
 - `GET /api/settings`

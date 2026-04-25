@@ -2,6 +2,38 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализован streaming chat endpoint `POST /api/chat/stream` (SSE).
+  - Добавлены:
+    - `app/api/routes_chat.py`;
+    - `app/services/chat_service.py`;
+    - `app/storage/session_store.py` (временный in-memory контекст сессий).
+  - В payload к VseLLM добавляются:
+    - системный промт (`DEFAULT_SYSTEM_PROMPT`);
+    - временный контекст текущей `session_id`;
+    - новое сообщение пользователя.
+  - Добавлена обработка ошибок VseLLM с понятными сообщениями в SSE `event:error`.
+  - Добавлены тесты для сборки payload и обработки ошибок стриминга.
+  - Обновлены `.env.example`, `docs/api.md`, `docs/development.md`.
+- Какие файлы изменены:
+  - `backend/app/main.py`
+  - `backend/app/core/config.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/storage/session_store.py`
+  - `backend/tests/test_chat.py`
+  - `.env.example`
+  - `docs/api.md`
+  - `docs/development.md`
+- Какие тесты запущены:
+  - План: `cd backend && python3 -m pytest -q`.
+- Какие проблемы остались:
+  - Пока не реализованы endpoints управления сессиями и настройками модели.
+- Следующий рекомендуемый шаг:
+  - Этапы 4/6: settings + session endpoints, чтобы управлять глобальной моделью и жизненным циклом сессий через API.
+
+## 2026-04-25
+- Что сделано:
   - Добавлена интеграция VseLLM для получения списка моделей:
     - сервис `app/services/vsellm_client.py` (OpenAI-compatible вызов `GET /models`);
     - endpoint `GET /api/models` через `app/api/routes_models.py`.
