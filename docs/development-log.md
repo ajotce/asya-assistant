@@ -2,6 +2,35 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Обновлена frontend-страница `Состояние Asya` под фактический расширенный `GET /api/health` с простым UX на русском.
+  - На странице оставлены ключевые блоки:
+    - backend online/offline;
+    - выбранная модель;
+    - статус VseLLM API-ключа;
+    - uptime backend;
+    - статус embeddings (со встроенной моделью и последней ошибкой при наличии);
+    - статус временного хранилища (session/files/writable + tmp path).
+  - Уточнены frontend-типы health-ответа: `uptime_seconds`, `embeddings`, `storage` теперь обязательные.
+  - Обновлен `docs/development.md` по текущему UX страницы состояния.
+- Какие файлы изменены:
+  - `frontend/src/pages/StatusPage.tsx`
+  - `frontend/src/types/api.ts`
+  - `docs/development.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make build-frontend` -> успешно.
+  - Ручной smoke страницы состояния:
+    - `docker compose up -d backend`;
+    - `curl http://localhost:8010/api/health` -> `200`, поля `uptime_seconds`, `embeddings`, `storage` присутствуют;
+    - `curl http://localhost:8010/status` -> frontend-страница отдается;
+    - `docker compose down`.
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - При необходимости добавить frontend тест на рендер ключевых карточек `StatusPage` (backend/model/api key/uptime/embeddings/storage).
+
+## 2026-04-25
+- Что сделано:
   - На frontend-странице `Состояние Asya` добавлено отображение новых полей health-ответа:
     - `uptime_seconds` (в человекочитаемом формате),
     - `embeddings` (статус, модель, последняя ошибка),

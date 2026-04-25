@@ -26,27 +26,13 @@ export default function StatusPage() {
     }
   }
 
-  const backendStatus = health ? (health.status === "ok" ? "online" : "offline") : "offline";
-  const vsellmReachable = health?.vsellm.reachable;
-  const vsellmReachableText =
-    vsellmReachable === true ? "доступен" : vsellmReachable === false ? "недоступен" : "не проверялся";
+  const backendStatus = health && health.status === "ok" ? "online" : "offline";
   const apiKeyStatus = health?.vsellm.api_key_configured ? "настроен" : "не настроен";
-  const modelSelected = health?.model.selected ?? "не выбрана";
-  const filesStatus = health ? (health.files.enabled ? health.files.status : "отключён") : "неизвестно";
+  const modelSelected = health?.model.selected.trim() ? health.model.selected : "не выбрана";
   const uptimeText = formatUptime(health?.uptime_seconds);
-  const embeddingsStatus = health?.embeddings?.status ?? "неизвестно";
-  const embeddingsModel = health?.embeddings?.model?.trim() ? health.embeddings.model : "не настроена";
-  const embeddingsError = health?.embeddings?.last_error ?? "нет";
-  const storageSessionStatus = health?.storage?.session_store ?? "неизвестно";
-  const storageFileStatus = health?.storage?.file_store ?? "неизвестно";
-  const storageWritable = health?.storage ? (health.storage.writable ? "да" : "нет") : "неизвестно";
+  const embeddingsStatus = formatEmbeddingsStatus(health);
+  const storageStatus = formatStorageStatus(health);
   const storageTmpDir = health?.storage?.tmp_dir ?? "неизвестно";
-  const sessionStatus = health
-    ? health.session.enabled
-      ? `активных сессий: ${health.session.active_sessions}`
-      : "отключены"
-    : "неизвестно";
-  const lastError = health?.last_error ?? null;
 
   return (
     <section className="page" aria-label="Состояние Asya">
@@ -62,21 +48,12 @@ export default function StatusPage() {
 
       <dl className="status-grid">
         <StatusItem label="Бэкенд" value={backendStatus} />
-        <StatusItem label="Версия приложения" value={health?.version ?? "неизвестно"} />
         <StatusItem label="Время работы backend" value={uptimeText} />
-        <StatusItem label="VseLLM API-ключ" value={apiKeyStatus} />
-        <StatusItem label="Доступность VseLLM API" value={vsellmReachableText} />
         <StatusItem label="Выбранная модель" value={modelSelected} />
-        <StatusItem label="Файловый модуль" value={filesStatus} />
-        <StatusItem label="Embeddings статус" value={embeddingsStatus} />
-        <StatusItem label="Embeddings модель" value={embeddingsModel} />
-        <StatusItem label="Embeddings ошибка" value={embeddingsError} />
-        <StatusItem label="Хранилище сессий" value={storageSessionStatus} />
-        <StatusItem label="Хранилище файлов" value={storageFileStatus} />
-        <StatusItem label="Временный каталог доступен" value={storageWritable} />
+        <StatusItem label="VseLLM API-ключ" value={apiKeyStatus} />
+        <StatusItem label="Embeddings" value={embeddingsStatus} />
+        <StatusItem label="Временное хранилище" value={storageStatus} />
         <StatusItem label="TMP путь" value={storageTmpDir} />
-        <StatusItem label="Временная сессия" value={sessionStatus} />
-        <StatusItem label="Последняя ошибка" value={lastError ?? "нет"} />
       </dl>
     </section>
   );
@@ -112,4 +89,29 @@ function formatUptime(seconds?: number): string {
     return `${mins} мин`;
   }
   return `${hours} ч ${mins} мин`;
+}
+
+function formatEmbeddingsStatus(health: HealthResponse | null): string {
+  if (!health) {
+    return "неизвестно";
+  }
+  if (!health.embeddings.enabled) {
+    return "отключены";
+  }
+
+  const status = health.embeddings.status.trim() || "неизвестно";
+  const model = health.embeddings.model.trim() || "модель не указана";
+  if (health.embeddings.last_error?.trim()) {
+    return `${status} (${model}) — ${health.embeddings.last_error}`;
+  }
+  return `${status} (${model})`;
+}
+
+function formatStorageStatus(health: HealthResponse | null): string {
+  if (!health) {
+    return "неизвестно";
+  }
+
+  const writableText = health.storage.writable ? "доступно для записи" : "нет записи";
+  return `sessions: ${health.storage.session_store}, files: ${health.storage.file_store}, ${writableText}`;
 }

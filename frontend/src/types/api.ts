@@ -2,7 +2,7 @@ export interface HealthResponse {
   status: string;
   version: string;
   environment: string;
-  uptime_seconds?: number;
+  uptime_seconds: number;
   vsellm: {
     api_key_configured: boolean;
     base_url: string;
@@ -15,13 +15,13 @@ export interface HealthResponse {
     enabled: boolean;
     status: string;
   };
-  embeddings?: {
+  embeddings: {
     enabled: boolean;
     model: string;
     status: string;
     last_error?: string | null;
   };
-  storage?: {
+  storage: {
     session_store: string;
     file_store: string;
     tmp_dir: string;
