@@ -10,6 +10,7 @@
 ## Базовые команды запуска
 ```bash
 cp .env.example .env
+docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm run build"
 docker compose up --build
 ```
 
@@ -18,6 +19,8 @@ docker compose up --build
 docker compose up -d --build
 docker compose ps
 curl http://localhost:${ASYA_PORT}/api/health
+curl -I http://localhost:${ASYA_PORT}/
+curl -I http://localhost:${ASYA_PORT}/manifest.webmanifest
 ```
 
 Если нужно посмотреть логи:
@@ -40,3 +43,4 @@ make build-frontend
 - Не добавлять функции вне MVP.
 - Не менять архитектуру без отдельного запроса.
 - Не коммитить `.env` и реальные ключи.
+- Для локального MVP frontend должен открываться через backend URL (same-origin с `/api`).

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,10 +33,16 @@ class Settings(BaseSettings):
     max_file_size_mb: int = Field(default=256, alias="MAX_FILE_SIZE_MB")
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    serve_frontend: bool = Field(default=True, alias="SERVE_FRONTEND")
+    frontend_dist_path: str = Field(default="../frontend/dist", alias="FRONTEND_DIST_PATH")
 
     @property
     def vsellm_api_key_configured(self) -> bool:
         return bool(self.vsellm_api_key.strip())
+
+    @property
+    def frontend_dist_dir(self) -> Path:
+        return Path(self.frontend_dist_path).resolve()
 
 
 @lru_cache

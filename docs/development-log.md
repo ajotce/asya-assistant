@@ -2,6 +2,41 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализован локальный режим MVP, где backend отдает собранный frontend:
+    - добавлена раздача `index.html`, `manifest.webmanifest`, `assets/*`, `icons/*` из `frontend/dist`;
+    - добавлен SPA fallback на `index.html`;
+    - API маршруты сохранены на `/api/*`.
+  - Добавлены настройки:
+    - `SERVE_FRONTEND`;
+    - `FRONTEND_DIST_PATH`.
+  - `docker-compose.yml` обновлен для локального режима:
+    - `./frontend/dist` монтируется read-only в backend контейнер;
+    - backend внутри контейнера читает сборку из `/app/frontend-dist`.
+  - Добавлен backend тест на раздачу frontend и доступность `/api/health`.
+  - Обновлены инструкции запуска в `README.md` и `docs/development.md`.
+- Какие файлы изменены:
+  - `backend/app/core/config.py`
+  - `backend/app/main.py`
+  - `backend/tests/test_frontend_serving.py`
+  - `.env.example`
+  - `docker-compose.yml`
+  - `README.md`
+  - `docs/development.md`
+  - `docs/api.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `cd backend && python3 -m pytest -q`
+  - `docker run ... node:20-alpine ... npm run build` (сборка frontend)
+  - `docker compose up -d --build`
+  - `curl http://localhost:${ASYA_PORT}/api/health`
+  - `curl http://localhost:${ASYA_PORT}/` и `curl http://localhost:${ASYA_PORT}/manifest.webmanifest`
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - Добавить smoke-тест уровня e2e для сценария "frontend с backend одного origin" в CI (вне текущего MVP-этапа).
+
+## 2026-04-25
+- Что сделано:
   - Актуализирована Docker-конфигурация для локального MVP-запуска backend.
   - Обновлен `docker-compose.yml`:
     - backend использует `backend/Dockerfile`;

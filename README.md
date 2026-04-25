@@ -13,6 +13,7 @@ Asya — персональный ИИ-ассистент в формате PWA-
 ## Быстрый старт
 ```bash
 cp .env.example .env
+docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm run build"
 docker compose up --build
 ```
 
@@ -21,6 +22,12 @@ Backend будет доступен по адресу `http://localhost:${ASYA_P
 Проверка health endpoint:
 ```bash
 curl http://localhost:${ASYA_PORT}/api/health
+```
+
+Проверка, что frontend отдается backend (тот же origin):
+```bash
+curl -I http://localhost:${ASYA_PORT}/
+curl -I http://localhost:${ASYA_PORT}/manifest.webmanifest
 ```
 
 Запуск в фоне и просмотр статуса:

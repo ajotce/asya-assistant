@@ -6,6 +6,7 @@
 - Префикс backend endpoint-ов: `/api/*`.
 - Секреты и API-ключи не возвращаются во frontend.
 - Полная схема API доступна через OpenAPI/Swagger backend.
+- В локальном MVP backend может отдавать собранный frontend (`frontend/dist`) с того же origin.
 
 ## Базовые группы endpoint-ов MVP
 - `/health`
@@ -15,6 +16,13 @@
 - `/files`
 - `/session`
 - `/usage`
+
+## Локальная раздача frontend через backend
+- `GET /` -> `index.html` из собранного frontend.
+- `GET /manifest.webmanifest` -> PWA manifest из сборки frontend.
+- `GET /assets/*`, `GET /icons/*` -> статические файлы сборки.
+- Для SPA-путей backend отдает `index.html` fallback.
+- API продолжает работать через `/api/*`.
 
 ## Загрузка файлов в сессию (MVP)
 
