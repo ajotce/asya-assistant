@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import AppHeader from "./components/AppHeader";
 import NavTabs, { type AppTab } from "./components/NavTabs";
@@ -9,28 +9,24 @@ import "./styles/app.css";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>(() => getTabFromPath(window.location.pathname));
+  const [mountedTabs, setMountedTabs] = useState<Record<AppTab, boolean>>(() =>
+    buildInitialMountedTabs(getTabFromPath(window.location.pathname))
+  );
 
   useEffect(() => {
     function handlePopState() {
-      setActiveTab(getTabFromPath(window.location.pathname));
+      const tab = getTabFromPath(window.location.pathname);
+      setActiveTab(tab);
+      setMountedTabs((prev) => markTabMounted(prev, tab));
     }
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  const page = useMemo(() => {
-    if (activeTab === "settings") {
-      return <SettingsPage />;
-    }
-    if (activeTab === "status") {
-      return <StatusPage />;
-    }
-    return <ChatPage />;
-  }, [activeTab]);
-
   function handleTabChange(tab: AppTab) {
     setActiveTab(tab);
+    setMountedTabs((prev) => markTabMounted(prev, tab));
     const nextPath = getPathForTab(tab);
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, "", nextPath);
@@ -41,9 +37,40 @@ export default function App() {
     <div className="app-shell">
       <AppHeader title="Asya" subtitle="Персональный ИИ-ассистент" />
       <NavTabs activeTab={activeTab} onChange={handleTabChange} />
-      {page}
+      <div className="tab-panels">
+        {mountedTabs.chat ? (
+          <section className="tab-panel" hidden={activeTab !== "chat"}>
+            <ChatPage />
+          </section>
+        ) : null}
+        {mountedTabs.settings ? (
+          <section className="tab-panel" hidden={activeTab !== "settings"}>
+            <SettingsPage />
+          </section>
+        ) : null}
+        {mountedTabs.status ? (
+          <section className="tab-panel" hidden={activeTab !== "status"}>
+            <StatusPage />
+          </section>
+        ) : null}
+      </div>
     </div>
   );
+}
+
+function buildInitialMountedTabs(initialTab: AppTab): Record<AppTab, boolean> {
+  return {
+    chat: initialTab === "chat",
+    settings: initialTab === "settings",
+    status: initialTab === "status",
+  };
+}
+
+function markTabMounted(mountedTabs: Record<AppTab, boolean>, tab: AppTab): Record<AppTab, boolean> {
+  if (mountedTabs[tab]) {
+    return mountedTabs;
+  }
+  return { ...mountedTabs, [tab]: true };
 }
 
 function getTabFromPath(pathname: string): AppTab {

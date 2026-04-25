@@ -75,6 +75,15 @@ body {
   color: #ffffff;
 }
 
+.tab-panels {
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-panel[hidden] {
+  display: none;
+}
+
 .page {
   background: #ffffff;
   border: 1px solid #dce8ff;

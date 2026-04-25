@@ -2,6 +2,36 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализовано сохранение runtime-состояния вкладок frontend без `localStorage`/`IndexedDB`:
+    - `App.tsx` больше не размонтирует `ChatPage`/`SettingsPage`/`StatusPage` при переключении;
+    - после первого открытия вкладка остаётся смонтированной и скрывается через `hidden`;
+    - при прямом открытии `/status` вкладка чата не монтируется и не создаёт backend-сессию до первого перехода в `Чат`.
+  - Сохранён текущий URL flow `/`, `/settings`, `/status`.
+  - Обновлены тесты `App` под сценарии:
+    - `Чат -> Настройки -> Чат` не пересоздаёт сессию;
+    - сообщение остаётся видимым после возврата на вкладку `Чат`;
+    - прямой `/status` открывает страницу состояния и не инициализирует chat-сессию.
+  - Обновлены `docs/development.md`, `docs/architecture.md`, `docs/testing.md` под новое поведение вкладок.
+- Какие файлы изменены:
+  - `frontend/src/App.tsx`
+  - `frontend/src/App.test.tsx`
+  - `frontend/src/styles/app.css`
+  - `docs/development.md`
+  - `docs/architecture.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make test` -> `40 passed`.
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"` -> `10 passed`.
+  - `make build-frontend` -> успешно.
+  - `make lint` -> успешно.
+- Какие проблемы остались:
+  - `npm audit` продолжает показывать `5 moderate severity vulnerabilities` в frontend-зависимостях; функционально тесты/сборка/lint проходят.
+- Следующий рекомендуемый шаг:
+  - Перейти к доработке №2 (диагностика и стабилизация работы моделей из списка для chat pipeline).
+
+## 2026-04-25
+- Что сделано:
   - Проведена финальная приёмка MVP по требованиям AGENTS/ТЗ/плана без расширения scope.
   - Подтверждено, что репозиторий `ajotce/asya-assistant`, ветка `main` актуальна относительно `origin/main`.
   - Проверено, что `.env`, `frontend/node_modules`, `frontend/dist`, `backend/data`, `backend/tmp`, `.pytest_cache` и runtime-базы не отслеживаются git.
