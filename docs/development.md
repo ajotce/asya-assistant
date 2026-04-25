@@ -1,149 +1,25 @@
-# Development Guide
+# Development
 
-## Требования
-- Docker и Docker Compose
-- Python 3.12+ (для локального запуска backend в будущем)
-- Node.js 20+ (для локального запуска frontend в будущем)
+## Цель текущего этапа
+Поддерживать и проверять базовую структуру проекта:
+- `frontend/`
+- `backend/`
+- `docs/`
+- базовые конфигурационные файлы в корне репозитория.
 
-## Команды
+## Базовые команды
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-## Frontend (React + Vite + TypeScript)
-Установка зависимостей:
+## Локальные команды проверки
 ```bash
-cd frontend
-npm install
+cd backend && python3 -m pytest -q
+cd frontend && npm run build
 ```
 
-Запуск dev-сервера:
-```bash
-cd frontend
-npm run dev
-```
-
-Сборка frontend:
-```bash
-cd frontend
-npm run build
-```
-
-## Backend skeleton (этап 1)
-Локальный запуск backend:
-```bash
-cd backend
-python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-Проверка health-check:
-```bash
-curl http://127.0.0.1:8000/api/health
-```
-
-Запуск тестов backend:
-```bash
-cd backend
-python3 -m pytest -q
-```
-
-## VseLLM (этап 5: список моделей)
-Переменные окружения:
-```env
-VSELLM_API_KEY=
-VSELLM_BASE_URL=https://api.vsellm.ru/v1
-```
-
-Правила безопасности:
-- API-ключ хранится только на backend в `.env`.
-- API-ключ нельзя передавать во frontend.
-- API-ключ нельзя логировать.
-
-Проверка endpoint:
-```bash
-curl http://127.0.0.1:8000/api/models
-```
-
-Типовые ошибки:
-- не задан `VSELLM_API_KEY` -> `503`;
-- неверный ключ -> `401/403`;
-- rate limit -> `429`;
-- проблемы сети/доступности VseLLM -> `502/504`.
-
-## Настройки (frontend + backend)
-Проверка чтения настроек:
-```bash
-curl http://127.0.0.1:8000/api/settings
-```
-
-Проверка обновления настроек:
-```bash
-curl -X PUT http://127.0.0.1:8000/api/settings \
-  -H "Content-Type: application/json" \
-  -d '{"assistant_name":"Ася","system_prompt":"Новый системный промт","selected_model":"openai/gpt-5-mini"}'
-```
-
-Проверка, что изменения сохранились:
-```bash
-curl http://127.0.0.1:8000/api/settings
-```
-
-## Streaming chat (этап 8)
-Проверка streaming endpoint:
-```bash
-SESSION_ID=$(curl -s -X POST http://127.0.0.1:8000/api/session | python3 -c 'import sys,json; print(json.load(sys.stdin)["session_id"])')
-
-curl -N -X POST http://127.0.0.1:8000/api/chat/stream \
-  -H "Content-Type: application/json" \
-  -d "{\"session_id\":\"$SESSION_ID\",\"message\":\"Привет\"}"
-
-curl -X DELETE http://127.0.0.1:8000/api/session/$SESSION_ID -i
-```
-
-Ожидается `text/event-stream` с событиями `token`, `error` (если есть проблема), `done`.
-
-## Состояние Asya (health-check)
-Проверка расширенного health-check:
-```bash
-curl http://127.0.0.1:8000/api/health
-```
-
-Проверка сценария недоступного backend:
-```bash
-curl --max-time 2 http://127.0.0.1:65535/api/health
-```
-
-Ожидается ошибка соединения; на frontend страница `Состояние Asya` должна показать backend `offline` и сообщение об ошибке.
-
-## Полезные make-команды
-```bash
-make dev
-make test
-make lint
-make build-frontend
-```
-
-## Правила работы с `.env`
-- Использовать `.env.example` как шаблон.
-- Никогда не коммитить `.env`.
-- Не хранить реальные секреты в репозитории.
-
-## Git workflow (обязательно)
-- Работать маленькими логическими шагами по этапам из `asya-mvp-development-plan.md`.
-- После каждого завершенного шага:
-  - запустить доступные проверки;
-  - сделать осмысленный commit;
-  - выполнить push в GitHub.
-- Рекомендуемый режим: отдельная рабочая ветка под этап и merge после проверки.
-- Не делать бессмысленные commit-сообщения (`update files`, `fix stuff`).
-- Не коммитить `.env`, реальные ключи и секреты.
-
-## Добавление backend endpoint-ов
-- Использовать префикс `/api/*`.
-- Описывать модели запросов/ответов через Pydantic.
-- Сохранять совместимость OpenAPI.
-
-## Обновление frontend API-типов
-- Для каждого endpoint создавать/обновлять типы в `frontend/src/types/`.
-- Не использовать `any` без необходимости.
+## Правила этапа
+- Не добавлять функции вне MVP.
+- Не менять архитектуру без отдельного запроса.
+- Не коммитить `.env` и реальные ключи.

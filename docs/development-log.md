@@ -2,6 +2,31 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Проверена базовая структура репозитория `ajotce/asya-assistant` и актуальность ветки `main`.
+  - Актуализированы базовые документы каркасного этапа:
+    - `README.md`;
+    - `docs/decisions.md`;
+    - `docs/development.md`;
+    - `docs/testing.md`;
+    - `docs/api.md`.
+  - Изменения ограничены документацией и не добавляют новую функциональность вне текущего этапа.
+- Какие файлы изменены:
+  - `README.md`
+  - `docs/decisions.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/api.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `cd backend && python3 -m pytest -q` -> `18 passed`.
+  - `cd frontend && npm run build` -> не выполнено в текущем окружении: `npm: command not found`.
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - Перейти к следующему этапу плана MVP с реализацией/проверкой backend и frontend функциональности строго по ТЗ.
+
+## 2026-04-25
+- Что сделано:
   - Расширен backend health-check для страницы `Состояние Asya`:
     - `vsellm.reachable`;
     - `model.selected`;
