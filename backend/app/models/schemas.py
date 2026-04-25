@@ -13,9 +13,12 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     environment: str
+    uptime_seconds: int
     vsellm: VseLLMHealth
     model: "HealthModelInfo"
     files: "HealthFilesInfo"
+    embeddings: "HealthEmbeddingsInfo"
+    storage: "HealthStorageInfo"
     session: "HealthSessionInfo"
     last_error: Optional[str] = None
 
@@ -27,6 +30,20 @@ class HealthModelInfo(BaseModel):
 class HealthFilesInfo(BaseModel):
     enabled: bool
     status: str
+
+
+class HealthEmbeddingsInfo(BaseModel):
+    enabled: bool
+    model: str
+    status: str
+    last_error: Optional[str] = None
+
+
+class HealthStorageInfo(BaseModel):
+    session_store: str
+    file_store: str
+    tmp_dir: str
+    writable: bool
 
 
 class HealthSessionInfo(BaseModel):

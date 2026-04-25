@@ -18,6 +18,18 @@ make build-frontend
 - Сборка frontend выполняется.
 - Backend-тесты проходят (если окружение готово).
 - Usage endpoints возвращают ожидаемый формат и корректно обрабатывают отсутствие данных.
+- Health endpoint содержит uptime и статусы embeddings/storage для страницы `Состояние Asya`.
+
+## Проверки health endpoint'а
+Автотесты backend покрывают:
+- наличие новых health-полей (`uptime_seconds`, `embeddings`, `storage`);
+- корректное поведение при отсутствии API-ключа;
+- базовый happy path c достижимым VseLLM.
+
+Ручной smoke:
+1. `docker compose up -d backend`
+2. `curl http://localhost:${ASYA_PORT}/api/health`
+3. `docker compose down`
 
 ## Проверки файлового пайплайна
 Автотесты backend покрывают:

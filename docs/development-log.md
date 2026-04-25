@@ -2,6 +2,36 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Расширен `GET /api/health` под требования страницы `Состояние Asya` без удаления старых полей.
+  - Добавлены новые поля:
+    - `uptime_seconds` (uptime backend),
+    - `embeddings` (явный статус embeddings: `готов` / `ошибка` / `не настроен`),
+    - `storage` (явный статус временного хранилища сессий/файлов и writable-флаг).
+  - Обновлены схемы health в `models/schemas.py`.
+  - Добавлены/обновлены тесты health-роута:
+    - наличие новых полей;
+    - корректные значения при отсутствии API-ключа;
+    - базовый happy path.
+  - Обновлены `docs/api.md` и `docs/testing.md`.
+- Какие файлы изменены:
+  - `backend/app/api/routes_health.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_health.py`
+  - `docs/api.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make test` -> `40 passed`.
+  - `docker compose up -d --build backend`
+  - `curl http://localhost:8010/api/health` -> `200`, новые поля присутствуют.
+  - `docker compose down`
+- Какие проблемы остались:
+  - Нет.
+- Следующий рекомендуемый шаг:
+  - При необходимости вывести новые `health` поля на frontend странице `Состояние Asya`.
+
+## 2026-04-25
+- Что сделано:
   - Добавлен фактический сбор usage в runtime/storage для chat и embeddings:
     - новый in-memory `UsageStore` (глобальный и по сессиям);
     - сбор `chat` usage из `chat/stream`, если провайдер возвращает `usage`;

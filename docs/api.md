@@ -24,6 +24,58 @@
 - Для SPA-путей backend отдает `index.html` fallback.
 - API продолжает работать через `/api/*`.
 
+## Health (MVP)
+
+### `GET /api/health`
+Возвращает расширенный статус для страницы `Состояние Asya`:
+- базовые поля: `status`, `version`, `environment`, `last_error`;
+- `uptime_seconds` — uptime backend с момента старта процесса;
+- `vsellm` — статус ключа, base URL и доступности API;
+- `model` — выбранная chat-модель;
+- `files` — базовый статус файлового модуля;
+- `embeddings` — явный статус embeddings (`готов` / `ошибка` / `не настроен`);
+- `storage` — явный статус временного хранилища (`session_store`, `file_store`, `tmp_dir`, `writable`);
+- `session` — состояние runtime-сессий (включая `active_sessions`).
+
+Пример:
+```json
+{
+  "status": "ok",
+  "version": "0.1.0",
+  "environment": "local",
+  "uptime_seconds": 7,
+  "vsellm": {
+    "api_key_configured": true,
+    "base_url": "https://api.vsellm.ru/v1",
+    "reachable": true
+  },
+  "model": {
+    "selected": "gpt-4o"
+  },
+  "files": {
+    "enabled": true,
+    "status": "готов"
+  },
+  "embeddings": {
+    "enabled": true,
+    "model": "text-embedding-3-small",
+    "status": "готов",
+    "last_error": null
+  },
+  "storage": {
+    "session_store": "готов",
+    "file_store": "готов",
+    "tmp_dir": "/app/tmp",
+    "writable": true
+  },
+  "session": {
+    "enabled": true,
+    "active_sessions": 0
+  },
+  "last_error": null
+}
+```
+
 ## Загрузка файлов в сессию (MVP)
 
 ### `POST /api/session/{session_id}/files`
