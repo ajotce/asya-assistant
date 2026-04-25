@@ -220,6 +220,13 @@ body {
   gap: 8px;
 }
 
+.settings-form__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .settings-form__label {
   font-size: 0.9rem;
   color: #3b4c68;

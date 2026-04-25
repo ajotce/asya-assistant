@@ -71,6 +71,24 @@ curl http://127.0.0.1:8000/api/models
 - rate limit -> `429`;
 - проблемы сети/доступности VseLLM -> `502/504`.
 
+## Настройки (frontend + backend)
+Проверка чтения настроек:
+```bash
+curl http://127.0.0.1:8000/api/settings
+```
+
+Проверка обновления настроек:
+```bash
+curl -X PUT http://127.0.0.1:8000/api/settings \
+  -H "Content-Type: application/json" \
+  -d '{"assistant_name":"Ася","system_prompt":"Новый системный промт","selected_model":"openai/gpt-5-mini"}'
+```
+
+Проверка, что изменения сохранились:
+```bash
+curl http://127.0.0.1:8000/api/settings
+```
+
 ## Streaming chat (этап 8)
 Проверка streaming endpoint:
 ```bash

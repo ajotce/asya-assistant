@@ -21,6 +21,16 @@ export interface SettingsUpdateRequest {
   selected_model: string;
 }
 
+export interface ModelInfo {
+  id: string;
+  name?: string;
+  description?: string;
+  context_window?: number;
+  input_price?: number;
+  output_price?: number;
+  supports_vision?: boolean;
+}
+
 export interface SessionCreateResponse {
   session_id: string;
   created_at: string;

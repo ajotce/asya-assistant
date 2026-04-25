@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
-import { getSettings, updateSettings } from "../api/client";
-import type { SettingsResponse } from "../types/api";
+import { getModels, getSettings, updateSettings } from "../api/client";
+import type { ModelInfo, SettingsResponse } from "../types/api";
 
 interface SettingsFormState {
   assistant_name: string;
@@ -17,10 +17,12 @@ const emptyState: SettingsFormState = {
 
 export default function SettingsPage() {
   const [form, setForm] = useState<SettingsFormState>(emptyState);
-  const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modelsError, setModelsError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,6 +37,7 @@ export default function SettingsPage() {
           return;
         }
         applySettings(data);
+        await loadModels(data.selected_model, active);
       } catch (loadError) {
         if (!active) {
           return;
@@ -53,13 +56,40 @@ export default function SettingsPage() {
     };
   }, []);
 
+  async function loadModels(selectedModel: string, active = true) {
+    setModelsLoading(true);
+    setModelsError(null);
+    try {
+      const list = await getModels();
+      if (!active) {
+        return;
+      }
+      setModels(list);
+      if (list.length > 0) {
+        const hasCurrent = list.some((model) => model.id === selectedModel);
+        if (!hasCurrent) {
+          setForm((prev) => ({ ...prev, selected_model: list[0].id }));
+        }
+      }
+    } catch (modelsLoadError) {
+      if (!active) {
+        return;
+      }
+      setModels([]);
+      setModelsError(getErrorMessage(modelsLoadError));
+    } finally {
+      if (active) {
+        setModelsLoading(false);
+      }
+    }
+  }
+
   function applySettings(settings: SettingsResponse) {
     setForm({
       assistant_name: settings.assistant_name,
       selected_model: settings.selected_model,
       system_prompt: settings.system_prompt,
     });
-    setApiKeyConfigured(settings.api_key_configured);
   }
 
   function updateField<K extends keyof SettingsFormState>(key: K, value: SettingsFormState[K]) {
@@ -110,16 +140,44 @@ export default function SettingsPage() {
           placeholder="Asya"
         />
 
-        <label className="settings-form__label" htmlFor="selected-model">
-          Глобально выбранная модель
-        </label>
-        <input
-          id="selected-model"
-          className="settings-form__input"
-          value={form.selected_model}
-          onChange={(event) => updateField("selected_model", event.target.value)}
-          placeholder="openai/gpt-5"
-        />
+        <div className="settings-form__row">
+          <label className="settings-form__label" htmlFor="selected-model">
+            Глобально выбранная модель
+          </label>
+          <button
+            type="button"
+            className="chat-action-button"
+            onClick={() => loadModels(form.selected_model)}
+            disabled={modelsLoading || saving}
+          >
+            {modelsLoading ? "Обновление..." : "Обновить список"}
+          </button>
+        </div>
+
+        {modelsError ? <p className="status-text status-text--error">{modelsError}</p> : null}
+
+        {models.length > 0 ? (
+          <select
+            id="selected-model"
+            className="settings-form__input"
+            value={form.selected_model}
+            onChange={(event) => updateField("selected_model", event.target.value)}
+          >
+            {models.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.id}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id="selected-model"
+            className="settings-form__input"
+            value={form.selected_model}
+            onChange={(event) => updateField("selected_model", event.target.value)}
+            placeholder="openai/gpt-5"
+          />
+        )}
 
         <label className="settings-form__label" htmlFor="system-prompt">
           Системный промт
@@ -131,8 +189,6 @@ export default function SettingsPage() {
           onChange={(event) => updateField("system_prompt", event.target.value)}
           rows={6}
         />
-
-        <p className="status-text">VseLLM API-ключ: {apiKeyConfigured ? "настроен" : "не настроен"}</p>
 
         <button type="submit" className="settings-form__submit" disabled={saving}>
           {saving ? "Сохранение..." : "Сохранить"}

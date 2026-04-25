@@ -1,6 +1,7 @@
 import type {
   ChatStreamRequest,
   HealthResponse,
+  ModelInfo,
   SessionCreateResponse,
   SettingsResponse,
   SettingsUpdateRequest,
@@ -34,6 +35,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/api/health");
+}
+
+export function getModels(): Promise<ModelInfo[]> {
+  return apiFetch<ModelInfo[]>("/api/models");
 }
 
 export function getSettings(): Promise<SettingsResponse> {
