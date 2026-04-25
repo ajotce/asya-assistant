@@ -50,6 +50,23 @@ make build-frontend
 - При успешной отправке локальный список выбранных файлов очищается.
 - История чатов и долгосрочное хранение на frontend не добавляются.
 
+## Страница «Состояние Asya» (MVP)
+На `StatusPage` отображаются:
+- backend online/offline;
+- выбранная модель;
+- статус VseLLM API-ключа;
+- uptime backend;
+- статус embeddings (включая модель и последнюю ошибку);
+- статус временного хранилища (session/files + writable + tmp path).
+
+Минимальная ручная проверка:
+```bash
+docker compose up -d --build backend
+curl http://localhost:${ASYA_PORT}/api/health
+# открыть в браузере: http://localhost:${ASYA_PORT}/status
+docker compose down
+```
+
 ## Ручной smoke для chat/files
 ```bash
 docker compose up -d backend

@@ -14,6 +14,11 @@
 - Какие тесты/проверки запущены:
   - `make build-frontend` -> успешно.
   - `make test` -> `40 passed`.
+  - Ручная проверка страницы состояния:
+    - `docker compose up -d --build backend`;
+    - `curl http://localhost:8010/status` (SPA отдается корректно);
+    - `curl http://localhost:8010/api/health` (новые поля присутствуют);
+    - `docker compose down`.
 - Какие проблемы остались:
   - Нет.
 - Следующий рекомендуемый шаг:

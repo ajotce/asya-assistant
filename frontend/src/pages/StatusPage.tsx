@@ -61,9 +61,9 @@ export default function StatusPage() {
       {error ? <p className="status-text status-text--error">{error}</p> : null}
 
       <dl className="status-grid">
-        <StatusItem label="Backend" value={backendStatus} />
+        <StatusItem label="Бэкенд" value={backendStatus} />
         <StatusItem label="Версия приложения" value={health?.version ?? "неизвестно"} />
-        <StatusItem label="Uptime backend" value={uptimeText} />
+        <StatusItem label="Время работы backend" value={uptimeText} />
         <StatusItem label="VseLLM API-ключ" value={apiKeyStatus} />
         <StatusItem label="Доступность VseLLM API" value={vsellmReachableText} />
         <StatusItem label="Выбранная модель" value={modelSelected} />
@@ -71,9 +71,9 @@ export default function StatusPage() {
         <StatusItem label="Embeddings статус" value={embeddingsStatus} />
         <StatusItem label="Embeddings модель" value={embeddingsModel} />
         <StatusItem label="Embeddings ошибка" value={embeddingsError} />
-        <StatusItem label="Session store" value={storageSessionStatus} />
-        <StatusItem label="File store" value={storageFileStatus} />
-        <StatusItem label="TMP writable" value={storageWritable} />
+        <StatusItem label="Хранилище сессий" value={storageSessionStatus} />
+        <StatusItem label="Хранилище файлов" value={storageFileStatus} />
+        <StatusItem label="Временный каталог доступен" value={storageWritable} />
         <StatusItem label="TMP путь" value={storageTmpDir} />
         <StatusItem label="Временная сессия" value={sessionStatus} />
         <StatusItem label="Последняя ошибка" value={lastError ?? "нет"} />
