@@ -88,3 +88,55 @@ class SettingsUpdateRequest(BaseModel):
     assistant_name: str = Field(min_length=1, max_length=120)
     system_prompt: str = Field(min_length=1, max_length=12000)
     selected_model: str = Field(min_length=1, max_length=200)
+
+
+class UsageTokensInfo(BaseModel):
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    status: str
+    note: Optional[str] = None
+
+
+class UsageEmbeddingsInfo(BaseModel):
+    input_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    status: str
+    note: Optional[str] = None
+
+
+class UsageCostInfo(BaseModel):
+    currency: Optional[str] = None
+    total_cost: Optional[float] = None
+    status: str
+    note: Optional[str] = None
+
+
+class UsageRuntimeInfo(BaseModel):
+    active_sessions: int
+    selected_model: str
+    embedding_model: str
+
+
+class UsageOverviewResponse(BaseModel):
+    chat: UsageTokensInfo
+    embeddings: UsageEmbeddingsInfo
+    cost: UsageCostInfo
+    runtime: UsageRuntimeInfo
+
+
+class UsageSessionRuntimeInfo(BaseModel):
+    session_id: str
+    created_at: str
+    message_count: int
+    user_messages: int
+    assistant_messages: int
+    file_count: int
+    chunks_indexed: int
+
+
+class UsageSessionResponse(BaseModel):
+    chat: UsageTokensInfo
+    embeddings: UsageEmbeddingsInfo
+    cost: UsageCostInfo
+    runtime: UsageSessionRuntimeInfo

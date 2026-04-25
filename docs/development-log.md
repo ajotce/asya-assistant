@@ -2,6 +2,37 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализована минимальная группа endpoint'ов `/usage` в backend (MVP):
+    - добавлен роутер `routes_usage.py`;
+    - роутер подключен в `main.py` с префиксом `/api`;
+    - реализованы `GET /api/usage` и `GET /api/usage/session/{session_id}`.
+  - Добавлены схемы usage в `models/schemas.py`.
+  - Для `chat`, `embeddings` и `cost` возвращается явный статус `unavailable` и `null`-поля, если данные пока недоступны.
+  - Стоимость моделей не хардкодится.
+  - Добавлено покрытие backend-тестами для usage endpoint'ов.
+  - Обновлена документация (`docs/api.md`, `docs/architecture.md`, `docs/testing.md`).
+- Какие файлы изменены:
+  - `backend/app/api/routes_usage.py`
+  - `backend/app/main.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/storage/vector_store.py`
+  - `backend/tests/test_usage.py`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make test` -> `36 passed`.
+  - `docker compose up -d --build backend`
+  - `curl http://localhost:8010/api/usage` -> `200`, корректная usage-структура.
+  - `docker compose down`
+- Какие проблемы остались:
+  - Токены chat/embeddings и стоимость пока не персистятся (возвращаются как `unavailable` в рамках MVP).
+- Следующий рекомендуемый шаг:
+  - Добавить сбор и хранение usage из streaming chat и embeddings pipeline в runtime/storage слой, затем обновить `/api/usage`.
+
+## 2026-04-25
+- Что сделано:
   - Доработан frontend `ChatPage` под backend-контракт файлов:
     - после `POST /api/session/{session_id}/files` в `POST /api/chat/stream` передаются `file_ids` только для изображений;
     - для документов (`PDF/DOCX/XLSX`) запрос в chat отправляется без `file_ids`, чтобы работал retrieval по данным сессии.

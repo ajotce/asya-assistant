@@ -55,6 +55,10 @@ class SessionVectorStore:
         with self._lock:
             return bool(self._chunks_by_session.get(session_id))
 
+    def count_session_chunks(self, session_id: str) -> int:
+        with self._lock:
+            return len(self._chunks_by_session.get(session_id, []))
+
     def delete_session(self, session_id: str) -> int:
         with self._lock:
             removed = self._chunks_by_session.pop(session_id, [])

@@ -8,6 +8,7 @@ from app.api.routes_health import router as health_router
 from app.api.routes_models import router as models_router
 from app.api.routes_session import router as session_router
 from app.api.routes_settings import router as settings_router
+from app.api.routes_usage import router as usage_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 
@@ -55,6 +56,7 @@ def create_app() -> FastAPI:
     app.include_router(settings_router, prefix="/api")
     app.include_router(session_router, prefix="/api")
     app.include_router(chat_router, prefix="/api")
+    app.include_router(usage_router, prefix="/api")
     if settings.app_env == "local" and settings.serve_frontend:
         register_frontend_routes(app=app, dist_dir=settings.frontend_dist_dir)
     return app

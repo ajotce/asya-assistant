@@ -115,6 +115,56 @@
 
 Frontend должен показать это как пользовательскую ошибку и предложить выбрать vision-модель в настройках.
 
+## Usage (MVP)
+
+### `GET /api/usage`
+Возвращает минимальный общий usage-срез по текущему runtime:
+- `chat` — usage чата (в MVP сейчас `status=unavailable`, поля токенов `null`);
+- `embeddings` — usage embeddings (в MVP сейчас `status=unavailable`, поля токенов `null`);
+- `cost` — расчет стоимости (в MVP `status=unavailable`, стоимость `null`, цены моделей не хардкодятся);
+- `runtime` — текущие доступные runtime-данные (`active_sessions`, `selected_model`, `embedding_model`).
+
+Пример:
+```json
+{
+  "chat": {
+    "prompt_tokens": null,
+    "completion_tokens": null,
+    "total_tokens": null,
+    "status": "unavailable",
+    "note": "Данные usage по chat не сохраняются в текущем MVP."
+  },
+  "embeddings": {
+    "input_tokens": null,
+    "total_tokens": null,
+    "status": "unavailable",
+    "note": "Данные usage по embeddings не сохраняются в текущем MVP."
+  },
+  "cost": {
+    "currency": null,
+    "total_cost": null,
+    "status": "unavailable",
+    "note": "Стоимость не рассчитывается: цены моделей не хардкодятся в MVP."
+  },
+  "runtime": {
+    "active_sessions": 0,
+    "selected_model": "gpt-4o",
+    "embedding_model": "text-embedding-3-small"
+  }
+}
+```
+
+### `GET /api/usage/session/{session_id}`
+Возвращает usage-срез для конкретной сессии:
+- `chat` / `embeddings` / `cost` в MVP возвращаются как `unavailable` с `null`-полями;
+- `runtime` содержит доступные данные сессии:
+  - `session_id`, `created_at`;
+  - `message_count`, `user_messages`, `assistant_messages`;
+  - `file_count`, `chunks_indexed`.
+
+Ошибки:
+- `404`: `Сессия не найдена.`
+
 ## Документация backend
 - OpenAPI schema: `GET /openapi.json`
 - Swagger UI: `GET /docs`

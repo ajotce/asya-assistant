@@ -17,6 +17,7 @@ make build-frontend
 - Конфигурационные файлы заполнены без секретов.
 - Сборка frontend выполняется.
 - Backend-тесты проходят (если окружение готово).
+- Usage endpoints возвращают ожидаемый формат и корректно обрабатывают отсутствие данных.
 
 ## Проверки файлового пайплайна
 Автотесты backend покрывают:
@@ -36,3 +37,15 @@ make build-frontend
 4. Задать вопрос через `POST /api/chat/stream` и убедиться, что ответ строится с retrieval-контекстом по документу.
 5. Проверить, что для документов текст извлечён и чанки индексированы (по runtime-store/отладочному сценарию).
 6. Удалить сессию `DELETE /api/session/{session_id}` и убедиться, что временные файлы и индекс очищены.
+
+## Проверки usage endpoint'ов
+Автотесты backend покрывают:
+- успешный ответ `GET /api/usage`;
+- формат и поля ответов `GET /api/usage` и `GET /api/usage/session/{session_id}`;
+- поведение при недоступных usage-данных (явные `null` + `status=unavailable`);
+- `404` для несуществующей сессии в `GET /api/usage/session/{session_id}`.
+
+Ручной smoke:
+1. `docker compose up -d backend`
+2. `curl http://localhost:${ASYA_PORT}/api/usage`
+3. `docker compose down`

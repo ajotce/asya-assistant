@@ -13,6 +13,7 @@ Asya MVP состоит из:
 - settings (`/api/settings`)
 - session (`/api/session*`)
 - chat streaming (`/api/chat/stream`)
+- usage (`/api/usage`, `/api/usage/session/{session_id}`)
 
 ## Временные backend-сессии
 Сессии реализованы in-memory в `SessionStore`:
@@ -88,3 +89,10 @@ Asya MVP состоит из:
 - `VSELLM_API_KEY` хранится только на backend в `.env`.
 - API-ключ не возвращается в API-ответах.
 - API-ключ не логируется.
+
+## Usage в MVP
+Группа `/api/usage` дает минимальный слой наблюдаемости:
+- текущие runtime-данные (`active_sessions`, выбранная chat-модель, embedding-модель);
+- структура usage по `chat` и `embeddings` с явным `status=unavailable`, если данные пока не сохраняются;
+- структура стоимости с `status=unavailable` и `null`, без хардкода цен моделей;
+- сессионный endpoint `/api/usage/session/{session_id}` с доступными счетчиками сообщений/файлов/чанков.
