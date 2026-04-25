@@ -2,6 +2,31 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Проведена сверка текущего состояния проекта с `AGENTS.md`, `asya-mvp-tech-spec.md`, `asya-mvp-development-plan.md`.
+  - Актуализированы команды проверки и документация под реальное окружение:
+    - `Makefile`: `make build-frontend` теперь автоматически использует Docker-сборку, если локальный `npm` отсутствует;
+    - `README.md`: обновлено описание текущего этапа и пояснение к `make build-frontend`;
+    - `docs/development.md`: обновлена цель этапа и добавлено описание fallback-сборки frontend.
+  - На странице настроек frontend добавлено явное отображение статуса VseLLM API-ключа (`настроен` / `не настроен`) по данным backend.
+- Какие файлы изменены:
+  - `Makefile`
+  - `README.md`
+  - `docs/development.md`
+  - `docs/development-log.md`
+  - `frontend/src/pages/SettingsPage.tsx`
+- Какие тесты/проверки запущены:
+  - `cd backend && python3 -m pytest -q` -> `31 passed`.
+  - `docker compose build` -> успешно.
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm run build"` -> успешно.
+  - `make build-frontend` -> успешно (проверен docker fallback режим).
+  - `docker compose up -d backend` + `curl http://127.0.0.1:8010/api/health` -> `200 OK`.
+- Какие проблемы остались:
+  - До полного завершения MVP не хватает части функциональности frontend и части API-групп из ТЗ (детализировано в отчёте приёмки этапа).
+- Следующий рекомендуемый шаг:
+  - Закрыть оставшиеся MVP-требования: frontend upload/прикрепление файлов к чату, endpoint `/usage`, и минимальные frontend-тесты.
+
+## 2026-04-25
+- Что сделано:
   - Доведена PWA-часть до минимальной готовности MVP:
     - обновлен `manifest.webmanifest`;
     - добавлены базовые PNG-иконки-заглушки (`192x192`, `512x512`, `apple-touch-icon 180x180`);

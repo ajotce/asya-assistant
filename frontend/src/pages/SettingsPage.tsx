@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -90,6 +91,7 @@ export default function SettingsPage() {
       selected_model: settings.selected_model,
       system_prompt: settings.system_prompt,
     });
+    setApiKeyConfigured(settings.api_key_configured);
   }
 
   function updateField<K extends keyof SettingsFormState>(key: K, value: SettingsFormState[K]) {
@@ -129,6 +131,7 @@ export default function SettingsPage() {
       {savedMessage ? <p className="status-text status-text--ok">{savedMessage}</p> : null}
 
       <form className="settings-form" onSubmit={handleSubmit}>
+        <p className="status-text">VseLLM API-ключ: {apiKeyConfigured ? "настроен" : "не настроен"}</p>
         <label className="settings-form__label" htmlFor="assistant-name">
           Имя ассистента
         </label>
