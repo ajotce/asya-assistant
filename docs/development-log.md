@@ -2,6 +2,35 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Актуализирована Docker-конфигурация для локального MVP-запуска backend.
+  - Обновлен `docker-compose.yml`:
+    - backend использует `backend/Dockerfile`;
+    - переменные окружения подхватываются из корневого `.env`;
+    - добавлен `healthcheck` на `GET /api/health`.
+  - Добавлен `backend/.dockerignore`, чтобы в образ не попадали:
+    - `.env` и секреты;
+    - кэши и тестовые артефакты;
+    - временные файлы/данные (`tmp`, `data`) и логи.
+  - Обновлены инструкции запуска в `README.md` и `docs/development.md`.
+  - Порт публикации backend в compose сделан настраиваемым через `ASYA_PORT` (`${ASYA_PORT}:8000`), чтобы избежать конфликтов с другими локальными проектами.
+- Какие файлы изменены:
+  - `docker-compose.yml`
+  - `backend/.dockerignore`
+  - `README.md`
+  - `docs/development.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `docker compose build backend`
+  - `docker compose up -d`
+  - `curl http://localhost:8000/api/health`
+  - `docker compose ps`
+- Какие проблемы остались:
+  - В текущем окружении `8000` уже занят другим docker-проектом; для проверки использован свободный порт через `ASYA_PORT`.
+- Следующий рекомендуемый шаг:
+  - При необходимости добавить frontend-сервис в `docker-compose.yml` для единого локального запуска полного стека.
+
+## 2026-04-25
+- Что сделано:
   - Проверена базовая структура репозитория `ajotce/asya-assistant` и актуальность ветки `main` относительно `origin/main`.
   - Актуализированы базовые конфигурационные файлы этапа структуры:
     - `Makefile` (реальные команды проверки backend и сборки frontend);

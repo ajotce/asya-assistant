@@ -13,6 +13,23 @@ cp .env.example .env
 docker compose up --build
 ```
 
+## Локальный Docker запуск backend
+```bash
+docker compose up -d --build
+docker compose ps
+curl http://localhost:${ASYA_PORT}/api/health
+```
+
+Если нужно посмотреть логи:
+```bash
+docker compose logs -f backend
+```
+
+Остановка:
+```bash
+docker compose down
+```
+
 ## Локальные команды проверки
 ```bash
 make test

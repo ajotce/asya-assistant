@@ -16,6 +16,25 @@ cp .env.example .env
 docker compose up --build
 ```
 
+Backend будет доступен по адресу `http://localhost:${ASYA_PORT}` (по умолчанию `8000`).
+
+Проверка health endpoint:
+```bash
+curl http://localhost:${ASYA_PORT}/api/health
+```
+
+Запуск в фоне и просмотр статуса:
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs -f backend
+```
+
+Остановка:
+```bash
+docker compose down
+```
+
 ## Базовые команды
 ```bash
 make dev             # локальный запуск через docker compose
