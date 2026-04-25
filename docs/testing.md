@@ -4,14 +4,12 @@
 
 ### Backend
 ```bash
-cd backend
-python3 -m pytest -q
+make test
 ```
 
 ### Frontend
 ```bash
-cd frontend
-npm run build
+make build-frontend
 ```
 
 ## Что проверяем

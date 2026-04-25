@@ -7,7 +7,7 @@
 - `docs/`
 - базовые конфигурационные файлы в корне репозитория.
 
-## Базовые команды
+## Базовые команды запуска
 ```bash
 cp .env.example .env
 docker compose up --build
@@ -15,8 +15,8 @@ docker compose up --build
 
 ## Локальные команды проверки
 ```bash
-cd backend && python3 -m pytest -q
-cd frontend && npm run build
+make test
+make build-frontend
 ```
 
 ## Правила этапа

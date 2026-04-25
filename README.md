@@ -3,12 +3,12 @@
 Asya — персональный ИИ-ассистент в формате PWA-веб-приложения с локальным backend.
 
 Репозиторий: `ajotce/asya-assistant`  
-Текущий фокус: базовая структура проекта и документация MVP.
+Текущий этап: базовая структура проекта и инфраструктура MVP.
 
-## Базовая структура
-- `frontend/` — React + Vite + TypeScript.
-- `backend/` — FastAPI + Docker.
-- `docs/` — документация и решения по MVP.
+## Структура проекта
+- `frontend/` — React + Vite + TypeScript (PWA интерфейс).
+- `backend/` — FastAPI + Docker (локальный API).
+- `docs/` — документация, решения и журнал разработки.
 
 ## Быстрый старт
 ```bash
@@ -18,13 +18,13 @@ docker compose up --build
 
 ## Базовые команды
 ```bash
-make dev
-make test
-make lint
-make build-frontend
+make dev             # локальный запуск через docker compose
+make test            # backend тесты (pytest)
+make build-frontend  # сборка frontend
+make lint            # пока заглушка для будущей lint-конфигурации
 ```
 
-## Важные документы
+## Обязательные документы
 - `AGENTS.md`
 - `asya-mvp-tech-spec.md`
 - `asya-mvp-development-plan.md`
