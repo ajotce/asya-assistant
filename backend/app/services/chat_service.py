@@ -1,23 +1,31 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator, List, Optional
 
 import httpx
 
 from app.core.config import Settings
+from app.services.settings_service import SettingsService
 from app.services.vsellm_client import VseLLMError
 from app.storage.session_store import SessionStore
 
 
 class ChatService:
-    def __init__(self, settings: Settings, session_store: SessionStore) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        session_store: SessionStore,
+        settings_service: Optional[SettingsService] = None,
+    ) -> None:
         self._settings = settings
         self._session_store = session_store
+        self._settings_service = settings_service or SettingsService(settings)
 
     def build_messages_payload(self, session_id: str, user_message: str) -> List[Dict[str, str]]:
+        runtime_settings = self._settings_service.get_settings()
         history = self._session_store.get_messages(session_id)
-        messages: List[Dict[str, str]] = [{"role": "system", "content": self._settings.default_system_prompt}]
+        messages: List[Dict[str, str]] = [{"role": "system", "content": runtime_settings.system_prompt}]
         messages.extend(history)
         messages.append({"role": "user", "content": user_message})
         return messages
@@ -25,9 +33,10 @@ class ChatService:
     def stream_chat(self, session_id: str, user_message: str) -> Generator[bytes, None, None]:
         try:
             self._validate_request(session_id=session_id, user_message=user_message)
+            runtime_settings = self._settings_service.get_settings()
             messages = self.build_messages_payload(session_id=session_id, user_message=user_message)
             self._session_store.append_message(session_id=session_id, role="user", content=user_message)
-            model = self._settings.default_chat_model
+            model = runtime_settings.selected_model
             payload = {"model": model, "messages": messages, "stream": True}
             headers = {"Authorization": f"Bearer {self._settings.vsellm_api_key.strip()}"}
             assistant_text = ""
@@ -81,7 +90,7 @@ class ChatService:
             raise VseLLMError(status_code=400, user_message="Сообщение не должно быть пустым.")
         if not self._settings.vsellm_api_key.strip():
             raise VseLLMError(status_code=503, user_message="VseLLM API-ключ не настроен на backend.")
-        if not self._settings.default_chat_model.strip():
+        if not self._settings_service.get_settings().selected_model.strip():
             raise VseLLMError(status_code=503, user_message="Глобальная модель не настроена на backend.")
 
     @staticmethod

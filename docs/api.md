@@ -9,6 +9,8 @@
 ## Реализованные endpoint-ы
 - `GET /api/health`
 - `GET /api/models`
+- `GET /api/settings`
+- `PUT /api/settings`
 - `POST /api/session`
 - `GET /api/session/{session_id}`
 - `DELETE /api/session/{session_id}`
@@ -65,6 +67,42 @@
   "detail": "Ошибка авторизации VseLLM. Проверьте API-ключ на backend."
 }
 ```
+
+## Settings endpoints
+
+### `GET /api/settings`
+Возвращает настройки MVP:
+- `assistant_name`
+- `system_prompt`
+- `selected_model`
+- `api_key_configured` (только статус, без ключа)
+
+Пример:
+```json
+{
+  "assistant_name": "Asya",
+  "system_prompt": "Ты — Asya...",
+  "selected_model": "openai/gpt-5",
+  "api_key_configured": false
+}
+```
+
+### `PUT /api/settings`
+Обновляет настройки MVP.
+
+Request:
+```json
+{
+  "assistant_name": "Ася",
+  "system_prompt": "Работай кратко и по делу.",
+  "selected_model": "openai/gpt-5"
+}
+```
+
+Валидация:
+- пустые значения недопустимы;
+- лишние поля отклоняются (`422`);
+- API-ключ через этот endpoint не принимается и не возвращается.
 
 ## `POST /api/chat/stream`
 Потоковый endpoint чата (SSE).
@@ -141,8 +179,6 @@ Request:
 ```
 
 ## Планируемые endpoint-ы MVP
-- `GET /api/settings`
-- `PUT /api/settings`
 - `POST /api/files`
 - `GET /api/files/{file_id}`
 - `DELETE /api/files/{file_id}`

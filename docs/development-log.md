@@ -2,6 +2,39 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Реализован backend API настроек:
+    - `GET /api/settings`;
+    - `PUT /api/settings`.
+  - Добавлено служебное локальное хранилище настроек в SQLite.
+  - Добавлена валидация входных данных:
+    - пустые значения отклоняются;
+    - лишние поля отклоняются.
+  - Обновлен chat service: системный промт и глобальная модель берутся из сохранённых backend-настроек.
+  - Добавлены тесты на чтение/обновление/валидацию настроек.
+  - Обновлены `docs/api.md` и `docs/architecture.md`.
+- Какие файлы изменены:
+  - `backend/app/core/config.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/storage/sqlite.py`
+  - `backend/app/services/settings_service.py`
+  - `backend/app/api/routes_settings.py`
+  - `backend/app/main.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/tests/test_settings.py`
+  - `backend/tests/test_chat.py`
+  - `.env.example`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие тесты запущены:
+  - План: `cd backend && python3 -m pytest -q`.
+- Какие проблемы остались:
+  - Пока отсутствуют endpoints загрузки файлов и usage endpoint.
+- Следующий рекомендуемый шаг:
+  - Этап file upload API (`/api/files`) с валидацией лимитов.
+
+## 2026-04-25
+- Что сделано:
   - Реализованы временные backend-сессии:
     - `POST /api/session` (создание `session_id`);
     - `GET /api/session/{session_id}` (чтение состояния);

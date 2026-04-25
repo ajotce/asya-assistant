@@ -11,6 +11,17 @@ class FakeSettings:
     vsellm_base_url = "https://api.vsellm.ru/v1"
     default_chat_model = "openai/gpt-5"
     default_system_prompt = "System prompt"
+    sqlite_path = "/tmp/asya-test.sqlite3"
+
+
+class FakeRuntimeSettings:
+    system_prompt = "System prompt"
+    selected_model = "openai/gpt-5"
+
+
+class FakeSettingsService:
+    def get_settings(self):
+        return FakeRuntimeSettings()
 
 
 def test_build_messages_payload_uses_system_prompt_and_session_context() -> None:
@@ -19,7 +30,7 @@ def test_build_messages_payload_uses_system_prompt_and_session_context() -> None
     session_id = session.session_id
     store.append_message(session_id, "user", "old user")
     store.append_message(session_id, "assistant", "old assistant")
-    service = ChatService(settings=FakeSettings(), session_store=store)
+    service = ChatService(settings=FakeSettings(), session_store=store, settings_service=FakeSettingsService())
 
     messages = service.build_messages_payload(session_id=session_id, user_message="new message")
 
@@ -35,7 +46,7 @@ def test_stream_chat_returns_error_event_on_vsellm_validation_error() -> None:
 
     store = SessionStore()
     session_id = store.create_session().session_id
-    service = ChatService(settings=NoKeySettings(), session_store=store)
+    service = ChatService(settings=NoKeySettings(), session_store=store, settings_service=FakeSettingsService())
     chunks = list(service.stream_chat(session_id=session_id, user_message="Hello"))
     payload = b"".join(chunks).decode("utf-8")
 
@@ -44,7 +55,7 @@ def test_stream_chat_returns_error_event_on_vsellm_validation_error() -> None:
 
 
 def test_stream_chat_returns_error_when_session_missing() -> None:
-    service = ChatService(settings=FakeSettings(), session_store=SessionStore())
+    service = ChatService(settings=FakeSettings(), session_store=SessionStore(), settings_service=FakeSettingsService())
     chunks = list(service.stream_chat(session_id="missing", user_message="Hello"))
     payload = b"".join(chunks).decode("utf-8")
     assert "event: error" in payload

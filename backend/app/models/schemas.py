@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class VseLLMHealth(BaseModel):
@@ -44,3 +44,18 @@ class SessionStateResponse(BaseModel):
 
 class SessionFileBindRequest(BaseModel):
     file_id: str
+
+
+class SettingsResponse(BaseModel):
+    assistant_name: str
+    system_prompt: str
+    selected_model: str
+    api_key_configured: bool
+
+
+class SettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    assistant_name: str = Field(min_length=1, max_length=120)
+    system_prompt: str = Field(min_length=1, max_length=12000)
+    selected_model: str = Field(min_length=1, max_length=200)

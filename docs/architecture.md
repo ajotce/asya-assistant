@@ -10,6 +10,7 @@ Asya MVP состоит из:
 Текущие ключевые группы:
 - health (`/api/health`)
 - models (`/api/models`)
+- settings (`/api/settings`)
 - session (`/api/session*`)
 - chat streaming (`/api/chat/stream`)
 
@@ -32,6 +33,15 @@ Asya MVP состоит из:
 - использует глобальную модель из backend-настроек;
 - учитывает только сообщения текущей сессии;
 - отдает SSE (`token`, `error`, `done`).
+
+## Хранение настроек (MVP)
+Настройки (`assistant_name`, `system_prompt`, `selected_model`) хранятся в локальной SQLite БД
+как служебное хранилище backend (singleton запись).
+
+Важно:
+- это не история чатов;
+- это не долговременная память пользователя;
+- `VSELLM_API_KEY` не хранится в этой таблице и не принимается из frontend.
 
 ## Файлы
 На текущем этапе реализована только привязка `file_id` к сессии через `/api/session/{session_id}/files`.
