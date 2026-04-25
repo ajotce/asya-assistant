@@ -59,9 +59,23 @@ export interface SessionStateResponse {
 export interface ChatStreamRequest {
   session_id: string;
   message: string;
+  file_ids?: string[];
 }
 
 export type ChatStreamEvent =
   | { event: "token"; data: { text: string } }
   | { event: "error"; data: { message: string } }
   | { event: "done"; data: { usage: unknown } };
+
+export interface SessionUploadedFileInfo {
+  file_id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+}
+
+export interface SessionFilesUploadResponse {
+  session_id: string;
+  files: SessionUploadedFileInfo[];
+  file_ids: string[];
+}

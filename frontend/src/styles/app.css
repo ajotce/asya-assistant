@@ -147,6 +147,52 @@ body {
   gap: 8px;
 }
 
+.chat-files {
+  border: 1px solid #dce8ff;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #fbfdff;
+}
+
+.chat-files__input {
+  width: 100%;
+  border: 1px solid #cadcf9;
+  border-radius: 10px;
+  padding: 8px;
+  font: inherit;
+  background: #ffffff;
+  color: #142133;
+}
+
+.chat-files__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-files__item {
+  border: 1px solid #dce8ff;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #ffffff;
+}
+
+.chat-files__name {
+  font-size: 0.9rem;
+  color: #2d3f5b;
+  overflow-wrap: anywhere;
+}
+
 .chat-form__input,
 .settings-form__input,
 .settings-form__textarea {

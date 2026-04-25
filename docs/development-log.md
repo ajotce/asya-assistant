@@ -2,6 +2,38 @@
 
 ## 2026-04-25
 - Что сделано:
+  - Доработан frontend-чат под MVP-требования по файлам без изменения backend API-контракта.
+  - В `ChatPage` добавлены:
+    - выбор до 10 файлов;
+    - список выбранных файлов с удалением до отправки;
+    - последовательность отправки `upload -> chat/stream`;
+    - очистка локального списка файлов после успешной отправки;
+    - более понятные пользовательские ошибки для лимитов, типа/размера файлов и vision-сценариев.
+  - В API-клиент frontend добавлен `uploadSessionFiles(sessionId, files)` для `POST /api/session/{session_id}/files`.
+  - В типы frontend добавлены модели ответа загрузки файлов и поддержка `file_ids` в chat stream request.
+  - Обновлены документы `docs/api.md` и `docs/development.md` по текущему поведению frontend chat/files.
+- Какие файлы изменены:
+  - `frontend/src/pages/ChatPage.tsx`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/styles/app.css`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/development-log.md`
+- Какие тесты/проверки запущены:
+  - `make build-frontend` -> успешно.
+  - `make test` -> `31 passed`.
+  - Ручной smoke:
+    - сообщение без файла -> корректный поток `event:error`/`event:done` при не настроенном API-ключе;
+    - сообщение с документом -> загрузка возвращает понятную ошибку `503` (`VseLLM API-ключ не настроен на backend.`);
+    - сообщение с изображением -> upload успешен, chat stream возвращает понятную ошибку при не настроенном API-ключе.
+- Какие проблемы остались:
+  - В текущем окружении `VSELLM_API_KEY` не настроен, поэтому end-to-end генерация ответов модели недоступна.
+- Следующий рекомендуемый шаг:
+  - Повторить smoke с настроенным `VSELLM_API_KEY` и выбранной моделью (включая vision-модель для сценария с изображением).
+
+## 2026-04-25
+- Что сделано:
   - Выполнена baseline-подготовка перед финальным этапом без функциональных изменений кода.
   - Проверен репозиторий и git-состояние:
     - подтвержден `origin=https://github.com/ajotce/asya-assistant.git`;

@@ -2,6 +2,7 @@ import type {
   ChatStreamRequest,
   HealthResponse,
   ModelInfo,
+  SessionFilesUploadResponse,
   SessionCreateResponse,
   SettingsResponse,
   SettingsUpdateRequest,
@@ -17,17 +18,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const fallbackMessage = `Ошибка запроса (${response.status})`;
-    let detail = fallbackMessage;
-    try {
-      const payload = (await response.json()) as { detail?: string };
-      if (typeof payload.detail === "string" && payload.detail.trim()) {
-        detail = payload.detail;
-      }
-    } catch {
-      detail = fallbackMessage;
-    }
-    throw new Error(detail);
+    throw new Error(await extractErrorMessage(response, `Ошибка запроса (${response.status})`));
   }
 
   return (await response.json()) as T;
@@ -61,18 +52,23 @@ export function createSession(): Promise<SessionCreateResponse> {
 export async function deleteSession(sessionId: string): Promise<void> {
   const response = await fetch(`/api/session/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
   if (!response.ok) {
-    const fallbackMessage = `Ошибка удаления сессии (${response.status})`;
-    let detail = fallbackMessage;
-    try {
-      const payload = (await response.json()) as { detail?: string };
-      if (typeof payload.detail === "string" && payload.detail.trim()) {
-        detail = payload.detail;
-      }
-    } catch {
-      detail = fallbackMessage;
-    }
-    throw new Error(detail);
+    throw new Error(await extractErrorMessage(response, `Ошибка удаления сессии (${response.status})`));
   }
+}
+
+export async function uploadSessionFiles(sessionId: string, files: File[]): Promise<SessionFilesUploadResponse> {
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append("files", file);
+  }
+  const response = await fetch(`/api/session/${encodeURIComponent(sessionId)}/files`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, `Ошибка загрузки файлов (${response.status})`));
+  }
+  return (await response.json()) as SessionFilesUploadResponse;
 }
 
 interface StreamHandlers {
@@ -89,8 +85,7 @@ export async function streamChat(request: ChatStreamRequest, handlers: StreamHan
   });
 
   if (!response.ok || !response.body) {
-    const fallbackMessage = `Ошибка запроса (${response.status})`;
-    throw new Error(fallbackMessage);
+    throw new Error(await extractErrorMessage(response, `Ошибка запроса (${response.status})`));
   }
 
   const reader = response.body.getReader();
@@ -112,6 +107,21 @@ export async function streamChat(request: ChatStreamRequest, handlers: StreamHan
       boundary = buffer.indexOf("\n\n");
     }
   }
+}
+
+async function extractErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
+  try {
+    const payload = (await response.json()) as { detail?: string; message?: string };
+    if (typeof payload.detail === "string" && payload.detail.trim()) {
+      return payload.detail;
+    }
+    if (typeof payload.message === "string" && payload.message.trim()) {
+      return payload.message;
+    }
+  } catch {
+    return fallbackMessage;
+  }
+  return fallbackMessage;
 }
 
 function parseSseEvent(rawEvent: string, handlers: StreamHandlers) {
