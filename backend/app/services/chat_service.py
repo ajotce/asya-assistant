@@ -66,6 +66,15 @@ class ChatService:
             assistant_text = ""
             usage: Any = None
 
+            if self._is_reasoning_model(model):
+                yield from self._stream_reasoning_via_non_stream(
+                    session_id=session_id,
+                    payload=payload,
+                    headers=headers,
+                    model=model,
+                )
+                return
+
             with httpx.stream(
                 "POST",
                 f"{self._settings.vsellm_base_url.rstrip('/')}/chat/completions",
@@ -295,6 +304,44 @@ class ChatService:
     def _sse_event(event: str, payload: Dict[str, Any]) -> bytes:
         body = json.dumps(payload, ensure_ascii=False)
         return f"event: {event}\ndata: {body}\n\n".encode("utf-8")
+
+    @staticmethod
+    def _is_reasoning_model(model_id: str) -> bool:
+        identifier = (model_id or "").lower()
+        if not identifier:
+            return False
+        markers = ("deepseek-r1", "/o1", "/o3", "openai/o1", "openai/o3")
+        if any(marker in identifier for marker in markers):
+            return True
+        suffix = identifier.rsplit("/", 1)[-1]
+        suffix_markers = ("o1", "o3")
+        return any(suffix == m or suffix.startswith(f"{m}-") for m in suffix_markers)
+
+    def _stream_reasoning_via_non_stream(
+        self,
+        session_id: str,
+        payload: Dict[str, Any],
+        headers: Dict[str, str],
+        model: str,
+    ) -> Generator[bytes, None, None]:
+        text, thinking, usage = self._request_non_stream_completion(
+            payload=payload,
+            headers=headers,
+            model=model,
+        )
+        if thinking:
+            for chunk_text in self._split_text_for_sse(thinking, chunk_size=80):
+                yield self._sse_event("thinking", {"text": chunk_text})
+        if text:
+            self._session_store.append_message(session_id=session_id, role="assistant", content=text)
+            for chunk_text in self._split_text_for_sse(text, chunk_size=80):
+                yield self._sse_event("token", {"text": chunk_text})
+        if self._usage_store is not None:
+            self._usage_store.record_chat_usage(
+                session_id=session_id,
+                usage=usage if isinstance(usage, dict) else None,
+            )
+        yield self._sse_event("done", {"usage": usage})
 
     def _request_non_stream_completion(
         self,

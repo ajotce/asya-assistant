@@ -172,6 +172,64 @@ body {
   color: #4a4f60;
 }
 
+.settings-form__hint {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: #5b6478;
+}
+
+.reasoning-probe {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e6ee;
+}
+
+.reasoning-probe__title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #20294a;
+}
+
+.reasoning-probe__list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reasoning-probe__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f6f7fb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.reasoning-probe__item--ok {
+  background: #e9f5ec;
+  color: #1f4d2c;
+}
+
+.reasoning-probe__badge {
+  width: 1.3em;
+  text-align: center;
+}
+
+.reasoning-probe__id {
+  flex: 1;
+  word-break: break-all;
+}
+
+.reasoning-probe__error {
+  color: #a23030;
+  font-size: 0.78rem;
+}
+
 .chat-form {
   display: flex;
   flex-direction: column;

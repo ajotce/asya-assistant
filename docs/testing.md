@@ -18,7 +18,7 @@ docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci 
 - покрыты минимальные MVP-сценарии:
   - `App` (прямое открытие `/status`, сохранение runtime-состояния чата при `Чат -> Настройки -> Чат`, отсутствие повторного создания сессии при возврате на вкладку чата)
   - `ChatPage` (рендер, отправка, streaming, отображение блока «Размышления модели» при наличии reasoning, отсутствие блока для обычных моделей, ошибки)
-  - `SettingsPage` (модель, системный промт, предупреждение и disabled option для моделей с явным `supports_chat=false`)
+  - `SettingsPage` (модель, системный промт, предупреждение и disabled option для моделей с явным `supports_chat=false`, бейджи `🧠`/`✅` и probe-секция reasoning)
   - `StatusPage` (интерактивные статус-карточки, раскрытие деталей, понятная ошибка `/api/health`, graceful-деградация при ошибке `/api/usage`, наличие toggle автообновления)
 
 ## 2) Lint
@@ -39,14 +39,20 @@ make test
 
 Ожидаемый результат:
 - `pytest` завершается без падений
-- текущий baseline: `48 passed` (возможны предупреждения, не блокирующие запуск)
+- текущий baseline: `55 passed` (возможны предупреждения, не блокирующие запуск)
 - для совместимости моделей покрыты сценарии:
   - нормализация `supports_chat`/`supports_stream` из provider metadata (`supports_*`, `capabilities`, `endpoints`);
   - понятная маппинга provider body ошибок в chat;
   - fallback non-stream при явной provider-ошибке streaming;
 - для streaming размышлений покрыты сценарии:
   - `event: thinking` эмитится при `delta.reasoning_content` от провайдера, reasoning не попадает в историю сессии;
-  - non-stream fallback с `message.reasoning_content` отдаёт `event: thinking` до `event: token`.
+  - non-stream fallback с `message.reasoning_content` отдаёт `event: thinking` до `event: token`;
+  - для reasoning-моделей с известными ID (`deepseek-r1-*`, `o1`, `o3`) backend заранее уходит в non-stream и chunk'ает reasoning + ответ в SSE;
+- для probe reasoning-моделей покрыты сценарии:
+  - эвристика `is_likely_reasoning_model` по ID;
+  - `probe_reasoning_streaming` распознаёт `delta.reasoning_content`;
+  - `POST /api/models/probe-reasoning` фильтрует кандидатов эвристикой, использует кэш и поддерживает `force=true`;
+  - `POST /api/models/probe-reasoning` принимает явный `model_ids[]` и не зовёт `get_models()`.
 
 ## 4) Frontend сборка
 Команда:

@@ -63,6 +63,24 @@ class ModelInfo(BaseModel):
     supports_vision: Optional[bool] = None
 
 
+class ReasoningProbeItem(BaseModel):
+    id: str
+    streams_reasoning: bool
+    checked_at: str
+    error: Optional[str] = None
+
+
+class ReasoningProbeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    model_ids: Optional[list[str]] = None
+    force: bool = False
+
+
+class ReasoningProbeResponse(BaseModel):
+    results: list[ReasoningProbeItem]
+
+
 class ChatStreamRequest(BaseModel):
     session_id: str
     message: str

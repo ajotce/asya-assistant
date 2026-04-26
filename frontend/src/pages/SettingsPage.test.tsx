@@ -1,12 +1,20 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getModels, getSettings, updateSettings } from "../api/client";
+import {
+  getModels,
+  getReasoningCache,
+  getSettings,
+  probeReasoningModels,
+  updateSettings,
+} from "../api/client";
 import SettingsPage from "./SettingsPage";
 
 vi.mock("../api/client", () => ({
   getModels: vi.fn(),
+  getReasoningCache: vi.fn(),
   getSettings: vi.fn(),
+  probeReasoningModels: vi.fn(),
   updateSettings: vi.fn(),
 }));
 
@@ -14,6 +22,8 @@ describe("SettingsPage", () => {
   beforeEach(() => {
     vi.mocked(getSettings).mockReset();
     vi.mocked(getModels).mockReset();
+    vi.mocked(getReasoningCache).mockReset();
+    vi.mocked(probeReasoningModels).mockReset();
     vi.mocked(updateSettings).mockReset();
 
     vi.mocked(getSettings).mockResolvedValue({
@@ -23,6 +33,8 @@ describe("SettingsPage", () => {
       api_key_configured: true,
     });
     vi.mocked(getModels).mockResolvedValue([{ id: "gpt-4o" }, { id: "openai/gpt-5" }]);
+    vi.mocked(getReasoningCache).mockResolvedValue({ results: [] });
+    vi.mocked(probeReasoningModels).mockResolvedValue({ results: [] });
     vi.mocked(updateSettings).mockImplementation(async (payload) => ({
       ...payload,
       api_key_configured: true,
@@ -53,6 +65,36 @@ describe("SettingsPage", () => {
       });
     });
     expect(await screen.findByText("Настройки сохранены.")).toBeInTheDocument();
+  });
+
+  it("показывает heuristic-бейдж 🧠 у reasoning-моделей и подтверждённый ✅ после probe", async () => {
+    vi.mocked(getModels).mockResolvedValue([
+      { id: "gpt-4o" },
+      { id: "qwen/qwen3-vl-235b-a22b-thinking" },
+    ]);
+    vi.mocked(probeReasoningModels).mockResolvedValue({
+      results: [
+        {
+          id: "qwen/qwen3-vl-235b-a22b-thinking",
+          streams_reasoning: true,
+          checked_at: "2026-04-26T10:00:00+00:00",
+        },
+      ],
+    });
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByRole("option", { name: "🧠 qwen/qwen3-vl-235b-a22b-thinking" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "gpt-4o" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Проверить reasoning у моделей" }));
+
+    expect(
+      await screen.findByRole("option", { name: "✅ qwen/qwen3-vl-235b-a22b-thinking" })
+    ).toBeInTheDocument();
+    expect(probeReasoningModels).toHaveBeenCalledWith({ force: false });
+    const probeList = screen.getByTestId("reasoning-probe-results");
+    expect(probeList).toHaveTextContent("qwen/qwen3-vl-235b-a22b-thinking");
   });
 
   it("показывает предупреждение и disabled option для модели без chat/completions", async () => {

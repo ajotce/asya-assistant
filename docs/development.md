@@ -63,11 +63,20 @@ Frontend unit-тесты запускаются через `vitest` (`frontend/s
 Минимальный smoke:
 ```bash
 docker compose up -d --build backend
-# в Настройках выбрать reasoning-модель (например, deepseek-r1-distill-llama-70b)
-# отправить сообщение в Чате -> увидеть блок «Размышления модели» в ответе
+# в Настройках выбрать reasoning-модель и отправить сообщение в Чате
+# увидеть блок «Размышления модели» в ответе (если provider реально шлёт reasoning)
 # выбрать обычную модель -> блок не появляется
 docker compose down
 ```
+
+Подтверждённые на текущий момент модели VseLLM, которые реально стримят `reasoning_content`:
+- `qwen/qwen3-vl-235b-a22b-thinking`
+- `qwen/qwen3-vl-30b-a3b-thinking`
+- `qwen/qwen3-vl-8b-thinking`
+
+Модели с «thinking» / «r1» в имени, которые **не** пробрасывают reasoning через текущую VseLLM-проксю (отдают только `content`): `qwen/qwen3-max-thinking`, `deepseek-r1-distill-llama-70b`, `claude-*` (даже с `thinking`-параметром), `gpt-5` с `reasoning_effort`.
+
+В Настройках сделана пометка `🧠` по эвристике на ID и кнопка «Проверить reasoning у моделей», которая через `POST /api/models/probe-reasoning` живёт-проверяет провайдера и подтверждает значком `✅` те модели, у которых reasoning реально стримится. Кэш — 24 часа, кнопка «Проверить заново» сбрасывает запись и переспрашивает провайдера.
 
 ## Проверка совместимости моделей (MVP)
 - На `Настройки` обновите список моделей (`GET /api/models`).

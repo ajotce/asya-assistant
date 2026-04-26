@@ -12,7 +12,7 @@
 
 ### API routes (`backend/app/api`)
 - `routes_health.py` -> `/api/health`
-- `routes_models.py` -> `/api/models`
+- `routes_models.py` -> `/api/models`, `/api/models/probe-reasoning`, `/api/models/reasoning-cache`
 - `routes_settings.py` -> `/api/settings`
 - `routes_chat.py` -> `/api/chat/stream`
 - `routes_session.py` -> `/api/session*`, `/api/session/{session_id}/files`
@@ -63,8 +63,16 @@
 - для `file_ids` прикладывает только изображения (data URL)
 - отдает SSE события `token`, `thinking` (опционально), `error`, `done`
 - если провайдер присылает reasoning (`reasoning_content`/`reasoning`/`thinking` в delta или `message.*`), backend эмитит отдельный `event: thinking` перед/между `event: token`; reasoning не пишется в `SessionStore` и не передаётся провайдеру в следующих запросах
+- для reasoning-моделей, чей upstream не отдаёт reasoning при `stream=true` (`deepseek-r1-*`, `openai/o1-*`, `openai/o3-*`), backend заранее переключается на non-stream запрос и эмитит `event: thinking` chunked-блоками до `event: token`
 - при provider-ошибках `400/404/422` пытается извлечь точную причину из ответа провайдера и возвращает понятное сообщение с ID модели
 - при явном указании провайдера на неподдерживаемый `stream=true` выполняет безопасный non-stream retry и маппит его в SSE
+
+## Reasoning probe
+- `POST /api/models/probe-reasoning` запускает короткий streaming-запрос (до 32 токенов) к моделям-кандидатам и фиксирует, какие реально присылают `reasoning_content`/`reasoning`/`thinking` в delta.
+- Если `model_ids` не передан, кандидаты выбираются эвристикой по ID: содержит `thinking`, `reasoning`, `-r1`, `o3` (см. `is_likely_reasoning_model` в `vsellm_client.py`).
+- Результаты кэшируются в process-памяти (`ReasoningProbeCache`, TTL 24 часа); `force=true` обходит кэш.
+- `GET /api/models/reasoning-cache` отдает текущий кэш без обращения к провайдеру.
+- Frontend `SettingsPage` использует ответ для бейджа `✅` напротив подтверждённых моделей в селекте моделей; для неподтверждённых, но похожих по эвристике, ставит `🧠`.
 
 ## Совместимость моделей
 - `/api/models` не хардкодит whitelist моделей: используются provider metadata и эвристики по `capabilities`/`endpoints`.

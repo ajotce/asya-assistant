@@ -47,6 +47,22 @@ export interface SettingsUpdateRequest {
   selected_model: string;
 }
 
+export interface ReasoningProbeItem {
+  id: string;
+  streams_reasoning: boolean;
+  checked_at: string;
+  error?: string | null;
+}
+
+export interface ReasoningProbeResponse {
+  results: ReasoningProbeItem[];
+}
+
+export interface ReasoningProbeRequest {
+  model_ids?: string[];
+  force?: boolean;
+}
+
 export interface ModelInfo {
   id: string;
   name?: string;

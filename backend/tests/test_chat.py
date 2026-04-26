@@ -601,6 +601,78 @@ def test_stream_chat_falls_back_to_non_stream_with_reasoning_content(monkeypatch
     assert assistant_messages == [{"role": "assistant", "content": "Финальный ответ."}]
 
 
+def test_stream_chat_uses_non_stream_for_reasoning_models_and_emits_thinking(monkeypatch) -> None:
+    class ReasoningRuntimeSettings:
+        system_prompt = "System prompt"
+        selected_model = "deepseek/deepseek-r1-distill-llama-70b"
+
+    class ReasoningSettingsService:
+        def get_settings(self):
+            return ReasoningRuntimeSettings()
+
+    captured_payloads: list[dict] = []
+
+    def fake_post(*args, **kwargs):
+        captured_payloads.append(kwargs["json"])
+        request = httpx.Request("POST", "https://api.vsellm.ru/v1/chat/completions")
+        return httpx.Response(
+            status_code=200,
+            request=request,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "reasoning_content": "Я размышляю поэтапно об ответе." * 4,
+                            "content": "Финальный ответ модели." * 4,
+                        }
+                    }
+                ],
+                "usage": {"prompt_tokens": 7, "completion_tokens": 11, "total_tokens": 18},
+            },
+        )
+
+    def fake_stream(*args, **kwargs):
+        raise AssertionError("httpx.stream must not be called for reasoning models")
+
+    monkeypatch.setattr("httpx.post", fake_post)
+    monkeypatch.setattr("httpx.stream", fake_stream)
+
+    store = SessionStore()
+    session_id = store.create_session().session_id
+    service = ChatService(
+        settings=FakeSettings(),
+        session_store=store,
+        file_store=_build_file_store(),
+        vector_store=SessionVectorStore(),
+        vsellm_client=VseLLMClient(FakeSettings()),
+        settings_service=ReasoningSettingsService(),
+    )
+
+    payload = b"".join(service.stream_chat(session_id=session_id, user_message="Сколько 17*19?")).decode("utf-8")
+    assert "event: thinking" in payload
+    assert "Я размышляю поэтапно" in payload
+    assert "event: token" in payload
+    assert "Финальный ответ модели." in payload
+    assert payload.find("event: thinking") < payload.find("event: token")
+
+    history = store.get_messages(session_id)
+    assistant_messages = [item for item in history if item["role"] == "assistant"]
+    assert assistant_messages == [{"role": "assistant", "content": "Финальный ответ модели." * 4}]
+    assert captured_payloads and captured_payloads[0]["stream"] is False
+    assert captured_payloads[0]["model"] == "deepseek/deepseek-r1-distill-llama-70b"
+
+
+def test_is_reasoning_model_heuristic() -> None:
+    assert ChatService._is_reasoning_model("deepseek/deepseek-r1-distill-llama-70b") is True
+    assert ChatService._is_reasoning_model("openai/o1-preview") is True
+    assert ChatService._is_reasoning_model("openai/o3-deep-research") is True
+    assert ChatService._is_reasoning_model("o1") is True
+    assert ChatService._is_reasoning_model("o3-mini") is True
+    assert ChatService._is_reasoning_model("gpt-5-mini") is False
+    assert ChatService._is_reasoning_model("qwen/qwen3-max-thinking") is False
+    assert ChatService._is_reasoning_model("") is False
+
+
 def test_stream_chat_collects_usage_in_runtime_store(monkeypatch) -> None:
     usage_store.reset()
 

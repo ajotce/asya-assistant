@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 import httpx
 
 from app.core.config import Settings
 from app.models.schemas import ModelInfo
+
+_REASONING_HEURISTIC_TOKENS = ("thinking", "reasoning", "-r1", "/o3", "-o3")
+
+
+def is_likely_reasoning_model(model_id: str) -> bool:
+    lower = model_id.lower()
+    return any(token in lower for token in _REASONING_HEURISTIC_TOKENS)
 
 
 @dataclass
@@ -20,6 +29,14 @@ class EmbeddingsResult:
     vectors: List[List[float]]
     usage: Optional[dict]
     model: str
+
+
+@dataclass
+class ReasoningProbeResult:
+    model_id: str
+    streams_reasoning: bool
+    checked_at: datetime
+    error: Optional[str] = None
 
 
 class VseLLMClient:
@@ -345,3 +362,76 @@ class VseLLMClient:
             if value is not None:
                 return value
         return None
+
+    def probe_reasoning_streaming(self, model_id: str, timeout: float = 15.0) -> ReasoningProbeResult:
+        api_key = self._settings.vsellm_api_key.strip()
+        if not api_key:
+            return ReasoningProbeResult(
+                model_id=model_id,
+                streams_reasoning=False,
+                checked_at=datetime.now(timezone.utc),
+                error="API-ключ не настроен.",
+            )
+
+        payload = {
+            "model": model_id,
+            "stream": True,
+            "max_tokens": 32,
+            "messages": [{"role": "user", "content": "Привет"}],
+        }
+        headers = {"Authorization": f"Bearer {api_key}"}
+
+        try:
+            with httpx.stream(
+                "POST",
+                f"{self._settings.vsellm_base_url.rstrip('/')}/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=httpx.Timeout(timeout=timeout, connect=5.0),
+            ) as response:
+                if response.status_code >= 400:
+                    return ReasoningProbeResult(
+                        model_id=model_id,
+                        streams_reasoning=False,
+                        checked_at=datetime.now(timezone.utc),
+                        error=f"HTTP {response.status_code}",
+                    )
+
+                streams_reasoning = False
+                processed = 0
+                for raw_line in response.iter_lines():
+                    if not raw_line:
+                        continue
+                    line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
+                    if not line.startswith("data:"):
+                        continue
+                    raw_data = line[len("data:") :].strip()
+                    if raw_data == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(raw_data)
+                    except json.JSONDecodeError:
+                        continue
+                    choices = chunk.get("choices") or []
+                    delta = (choices[0].get("delta") if choices and isinstance(choices[0], dict) else {}) or {}
+                    for key in ("reasoning_content", "reasoning", "thinking"):
+                        value = delta.get(key)
+                        if isinstance(value, str) and value:
+                            streams_reasoning = True
+                            break
+                    processed += 1
+                    if streams_reasoning or processed >= 60:
+                        break
+
+                return ReasoningProbeResult(
+                    model_id=model_id,
+                    streams_reasoning=streams_reasoning,
+                    checked_at=datetime.now(timezone.utc),
+                )
+        except (httpx.RequestError, httpx.TimeoutException):
+            return ReasoningProbeResult(
+                model_id=model_id,
+                streams_reasoning=False,
+                checked_at=datetime.now(timezone.utc),
+                error="timeout/network",
+            )

@@ -1,7 +1,20 @@
 import { FormEvent, useEffect, useState } from "react";
 
-import { getModels, getSettings, updateSettings } from "../api/client";
-import type { ModelInfo, SettingsResponse } from "../types/api";
+import {
+  getModels,
+  getReasoningCache,
+  getSettings,
+  probeReasoningModels,
+  updateSettings,
+} from "../api/client";
+import type { ModelInfo, ReasoningProbeItem, SettingsResponse } from "../types/api";
+
+const REASONING_HEURISTIC_TOKENS = ["thinking", "reasoning", "-r1", "/o3", "-o3"];
+
+export function isLikelyReasoningModel(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+  return REASONING_HEURISTIC_TOKENS.some((token) => lower.includes(token));
+}
 
 interface SettingsFormState {
   assistant_name: string;
@@ -25,6 +38,10 @@ export default function SettingsPage() {
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
+  const [reasoningResults, setReasoningResults] = useState<ReasoningProbeItem[]>([]);
+  const [reasoningProbeLoading, setReasoningProbeLoading] = useState(false);
+  const [reasoningError, setReasoningError] = useState<string | null>(null);
+  const [reasoningProbeRanOnce, setReasoningProbeRanOnce] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -56,6 +73,46 @@ export default function SettingsPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCachedProbe() {
+      try {
+        const cache = await getReasoningCache();
+        if (!active) {
+          return;
+        }
+        if (cache.results.length > 0) {
+          setReasoningResults(cache.results);
+          setReasoningProbeRanOnce(true);
+        }
+      } catch {
+        // Silently ignore; user can still trigger probe manually.
+      }
+    }
+
+    loadCachedProbe();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handleProbeReasoning(force = false) {
+    setReasoningProbeLoading(true);
+    setReasoningError(null);
+    try {
+      const response = await probeReasoningModels({ force });
+      setReasoningResults(response.results);
+      setReasoningProbeRanOnce(true);
+    } catch (probeError) {
+      setReasoningError(getErrorMessage(probeError));
+    } finally {
+      setReasoningProbeLoading(false);
+    }
+  }
+
+  const reasoningStatusById = new Map(reasoningResults.map((item) => [item.id, item]));
 
   async function loadModels(selectedModel: string, active = true) {
     setModelsLoading(true);
@@ -176,7 +233,7 @@ export default function SettingsPage() {
           >
             {models.map((model) => (
               <option key={model.id} value={model.id} disabled={model.supports_chat === false}>
-                {model.supports_chat === false ? `${model.id} (без chat/completions)` : model.id}
+                {formatModelOptionLabel(model, reasoningStatusById.get(model.id))}
               </option>
             ))}
           </select>
@@ -189,6 +246,9 @@ export default function SettingsPage() {
             placeholder="openai/gpt-5"
           />
         )}
+        <p className="status-text settings-form__hint">
+          🧠 — модель помечена как reasoning по эвристике на ID, реальная поддержка стриминга reasoning зависит от провайдера. ✅ — подтверждено живой проверкой ниже.
+        </p>
 
         <label className="settings-form__label" htmlFor="system-prompt">
           Системный промт
@@ -205,8 +265,57 @@ export default function SettingsPage() {
           {saving ? "Сохранение..." : "Сохранить"}
         </button>
       </form>
+
+      <section className="reasoning-probe" aria-label="Проверка reasoning у моделей">
+        <div className="page__row">
+          <h3 className="reasoning-probe__title">Streaming reasoning</h3>
+          <button
+            type="button"
+            className="chat-action-button"
+            onClick={() => handleProbeReasoning(reasoningProbeRanOnce)}
+            disabled={reasoningProbeLoading}
+          >
+            {reasoningProbeLoading
+              ? "Проверка..."
+              : reasoningProbeRanOnce
+                ? "Проверить заново"
+                : "Проверить reasoning у моделей"}
+          </button>
+        </div>
+        <p className="status-text">
+          Backend пробует streaming-запрос к моделям, отмеченным эвристикой 🧠, и фиксирует, какие реально присылают reasoning от провайдера. Результат кешируется на 24 часа.
+        </p>
+        {reasoningError ? <p className="status-text status-text--error">{reasoningError}</p> : null}
+        {reasoningResults.length === 0 && reasoningProbeRanOnce && !reasoningProbeLoading ? (
+          <p className="status-text">Кандидатов по эвристике не нашлось или провайдер ничего не вернул.</p>
+        ) : null}
+        {reasoningResults.length > 0 ? (
+          <ul className="reasoning-probe__list" data-testid="reasoning-probe-results">
+            {reasoningResults.map((item) => (
+              <li
+                key={item.id}
+                className={`reasoning-probe__item reasoning-probe__item--${item.streams_reasoning ? "ok" : "off"}`}
+              >
+                <span className="reasoning-probe__badge">{item.streams_reasoning ? "✅" : "—"}</span>
+                <span className="reasoning-probe__id">{item.id}</span>
+                {item.error ? <span className="reasoning-probe__error">{item.error}</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
     </section>
   );
+}
+
+function formatModelOptionLabel(model: ModelInfo, probeItem: ReasoningProbeItem | undefined): string {
+  const reasoningBadge = probeItem?.streams_reasoning
+    ? "✅ "
+    : isLikelyReasoningModel(model.id)
+      ? "🧠 "
+      : "";
+  const suffix = model.supports_chat === false ? " (без chat/completions)" : "";
+  return `${reasoningBadge}${model.id}${suffix}`;
 }
 
 function getErrorMessage(error: unknown): string {

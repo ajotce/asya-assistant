@@ -48,6 +48,24 @@
 - `503` если API-ключ не настроен
 - `502/504/429` при проблемах провайдера
 
+### `POST /api/models/probe-reasoning`
+Проверяет, какие модели реально присылают `reasoning_content` через provider streaming. Запускает короткие тестовые запросы (до 32 токенов) с `stream=true` и инспектирует delta.
+
+Тело запроса (необязательное):
+- `model_ids?: string[]` — явный список ID. Если опущен, backend берёт `/api/models` и фильтрует кандидатов эвристикой (`thinking`, `reasoning`, `-r1`, `o3`).
+- `force?: boolean` — игнорировать кэш (24 часа) и переспросить провайдера.
+
+Лимит: до 10 моделей за один вызов, чтобы не сжигать токены.
+
+Успех `200`:
+- `results[]`: `{ id, streams_reasoning, checked_at, error? }`.
+
+### `GET /api/models/reasoning-cache`
+Возвращает текущий кэш probe без обращения к провайдеру.
+
+Успех `200`:
+- `results[]`: то же, что у `/probe-reasoning`, но только записи моложе 24 часов.
+
 ## Settings
 
 ### `GET /api/settings`
@@ -92,6 +110,7 @@ SSE события:
 - для ошибок провайдера `400/404/422` backend пытается извлечь точную причину из provider body и возвращает её пользователю без секретов;
 - если провайдер явно сообщает, что модель не поддерживает `stream=true`, backend делает безопасный fallback на non-stream completion и отдает ответ в SSE `event: token` + `event: done`.
 - `event: thinking` эмитится, если в delta провайдера есть `reasoning_content` / `reasoning` / `thinking` (для stream) или соответствующие поля в `message.*` (для non-stream fallback). Reasoning не дублируется в `event: token`, не сохраняется в истории сессии и не отправляется обратно провайдеру в последующих сообщениях.
+- Для reasoning-моделей, у которых текущий VseLLM upstream не пробрасывает reasoning через стрим (например, `deepseek-r1-*`, `openai/o1-*`, `openai/o3-*`), backend заранее переходит на non-stream запрос и эмитит `event: thinking` (chunked) до `event: token` — поведение SSE-контракта при этом не меняется.
 
 ## Session
 

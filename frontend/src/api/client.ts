@@ -2,6 +2,8 @@ import type {
   ChatStreamRequest,
   HealthResponse,
   ModelInfo,
+  ReasoningProbeRequest,
+  ReasoningProbeResponse,
   SessionFilesUploadResponse,
   SessionCreateResponse,
   SettingsResponse,
@@ -35,6 +37,17 @@ export function getUsage(): Promise<UsageOverviewResponse> {
 
 export function getModels(): Promise<ModelInfo[]> {
   return apiFetch<ModelInfo[]>("/api/models");
+}
+
+export function getReasoningCache(): Promise<ReasoningProbeResponse> {
+  return apiFetch<ReasoningProbeResponse>("/api/models/reasoning-cache");
+}
+
+export function probeReasoningModels(body: ReasoningProbeRequest = {}): Promise<ReasoningProbeResponse> {
+  return apiFetch<ReasoningProbeResponse>("/api/models/probe-reasoning", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export function getSettings(): Promise<SettingsResponse> {
