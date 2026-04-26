@@ -2,6 +2,60 @@
 
 ## 2026-04-26
 - Что сделано:
+  - По запросу пользователя реализован вариант B+D поверх доработки №3, чтобы убрать «серую зону» с reasoning-моделями VseLLM.
+  - Эвристика reasoning-моделей: `is_likely_reasoning_model` по ID (`thinking`/`reasoning`/`-r1`/`o3`) — общая для backend и frontend (синхронные правила).
+  - Backend probe (`POST /api/models/probe-reasoning`) делает короткие streaming-запросы к моделям-кандидатам (до 32 токенов, до 10 моделей за вызов), детектит `delta.reasoning_content`/`reasoning`/`thinking`, кэширует результат на 24 часа в `ReasoningProbeCache` (process-память, чистится на рестарте). Принимает опциональный `model_ids[]` и `force=true` для обхода кэша.
+  - Backend cache view: `GET /api/models/reasoning-cache` возвращает текущий кэш без обращения к провайдеру.
+  - Backend bonus: для reasoning-моделей с ID-маркерами `deepseek-r1`/`o1`/`o3` (где провайдер VseLLM не пробрасывает reasoning через streaming, но даёт его в `message.reasoning_content` при non-stream) `chat_service.stream_chat` заранее уходит в non-stream и chunk'ает reasoning + финальный текст в SSE `event: thinking` + `event: token`. Прямая проба провайдера подтвердила это поведение для `deepseek/deepseek-r1-distill-llama-70b`.
+  - Frontend `SettingsPage`:
+    - в селекте моделей рядом с reasoning-моделями ставится `🧠` по эвристике, а после реального probe — `✅` (если подтверждено), всё это без ломки текущего UX совместимости моделей;
+    - подсказка под селектом объясняет значки;
+    - новая секция «Streaming reasoning» с кнопкой «Проверить reasoning у моделей» / «Проверить заново» и табличным списком результатов (id, бейдж, ошибка); первоначальная загрузка тихо подтягивает кэш (`GET reasoning-cache`), без сетевых ошибок при пустом кэше.
+  - Документация обновлена под новые endpoint'ы, поведение non-stream fallback и UX-подсказки.
+- Какие файлы изменены:
+  - `backend/app/api/routes_models.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/services/vsellm_client.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/storage/runtime.py`
+  - `backend/app/storage/reasoning_cache.py` (новый)
+  - `backend/tests/test_models.py`
+  - `backend/tests/test_chat.py`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/pages/SettingsPage.tsx`
+  - `frontend/src/pages/SettingsPage.test.tsx`
+  - `frontend/src/styles/app.css`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `55 passed` (48 → 55: +5 reasoning-probe тестов и +2 теста для non-stream-фоллбэка / эвристики reasoning-моделей в `chat_service`).
+  - `docker run ... node:20-alpine ... npm test` -> `15 passed` (+1 SettingsPage тест на 🧠/✅ и probe-секцию).
+  - `make lint` -> код 0.
+  - `make build-frontend` -> код 0.
+  - `docker compose up -d --build` (`ASYA_PORT=8021`):
+    - `GET /api/health` -> 200, `vsellm.reachable=true`.
+    - `GET /api/models` -> 200.
+    - `POST /api/models/probe-reasoning` (без тела) -> 200, кандидаты по эвристике, кэш заполнен.
+    - `GET /api/models/reasoning-cache` -> 200, кэш виден.
+    - `POST /api/chat/stream` против `qwen/qwen3-vl-235b-a22b-thinking` -> сотни `event: thinking` + десятки `event: token` через обычный stream-путь.
+    - `POST /api/chat/stream` против `deepseek/deepseek-r1-distill-llama-70b` -> теперь backend сам уходит в non-stream и эмитит `event: thinking` + `event: token`; в UI блок «Размышления модели» отображается.
+    - `docker compose down`; временный `.env` удалён.
+- Безопасность:
+  - `.env` остаётся вне git, real key использовался только для smoke и удалён сразу.
+  - Probe эндпоинт принимает только `force` и список `model_ids` (`extra=forbid`), нет SSRF/injection векторов.
+  - Provider-ошибки в probe сводятся к `HTTP <code>`/`timeout/network` без утечки тела.
+- Какие проблемы остались:
+  - Эвристика reasoning-моделей дублируется в backend (`vsellm_client.is_likely_reasoning_model`) и frontend (`SettingsPage.isLikelyReasoningModel`). Это сделано сознательно (минимум сетевых вызовов для UI-бейджа), правила синхронны; при расширении нужно держать оба места в актуальном состоянии. Можно вынести в отдельный backend endpoint, но это уже scope creep.
+  - `npm audit` всё ещё показывает `5 moderate severity vulnerabilities` в frontend dev-зависимостях.
+- Следующий рекомендуемый шаг:
+  - Отдельной задачей при появлении новых reasoning-моделей у VseLLM прогонять `POST /api/models/probe-reasoning` (через UI «Проверить reasoning у моделей»), чтобы кэш ✅-моделей был актуален.
+
+## 2026-04-26
+- Что сделано:
   - Проведена финальная приёмка после серии доработок №1–№4.
   - Закрыта доработка №3 (streaming размышления) в этой же сессии:
     - backend `chat_service.py` извлекает provider reasoning из delta (`reasoning_content`/`reasoning`/`thinking`) и из `message.*` для non-stream fallback;
