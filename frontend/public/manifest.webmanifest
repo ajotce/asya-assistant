@@ -8,7 +8,7 @@
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#1c4fa3",
-  "description": "Локальный PWA-интерфейс Asya MVP",
+  "description": "Локальный PWA-интерфейс Asya Local",
   "icons": [
     {
       "src": "/icons/icon-192.png",

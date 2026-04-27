@@ -56,7 +56,7 @@ def _unavailable_cost() -> UsageCostInfo:
         currency=None,
         total_cost=None,
         status="unavailable",
-        note="Стоимость не рассчитывается: цены моделей не хардкодятся в MVP.",
+        note="Стоимость не рассчитывается: цены моделей не хардкодятся в приложении.",
     )
 
 

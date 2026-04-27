@@ -1,5 +1,55 @@
 # Development Log
 
+## 2026-04-27
+- Что сделано:
+  - Зафиксировано завершение MVP как исторического этапа и переведена актуальная документация проекта на позиционирование Asya Local.
+  - Перенесены исторические MVP-документы в архив `docs/archive/mvp/`:
+    - `asya-mvp-tech-spec.md` -> `docs/archive/mvp/asya-mvp-tech-spec.md`
+    - `asya-mvp-development-plan.md` -> `docs/archive/mvp/asya-mvp-development-plan.md`
+    - `docs/codex-mvp-completion-prompts.md` -> `docs/archive/mvp/codex-mvp-completion-prompts.md`
+  - Обновлены актуальные документы без изменения бизнес-логики приложения:
+    - `README.md` (название и описание Asya Local, актуальный список документов)
+    - `AGENTS.md` (правила работы Codex для Asya Local, без рамок MVP)
+    - `CLAUDE.md` (новые краткие правила для Claude Code)
+    - `docs/architecture.md`, `docs/api.md`, `docs/development.md`, `docs/testing.md`, `docs/decisions.md`
+  - Обновлены технические текстовые строки и метаданные:
+    - `backend/app/storage/runtime.py`
+    - `backend/app/api/routes_usage.py`
+    - `backend/pyproject.toml`
+    - `frontend/public/manifest.webmanifest`
+- Какие файлы изменены:
+  - `README.md`
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `docs/architecture.md`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/decisions.md`
+  - `docs/development-log.md`
+  - `backend/app/storage/runtime.py`
+  - `backend/app/api/routes_usage.py`
+  - `backend/pyproject.toml`
+  - `frontend/public/manifest.webmanifest`
+  - `docs/archive/mvp/asya-mvp-tech-spec.md`
+  - `docs/archive/mvp/asya-mvp-development-plan.md`
+  - `docs/archive/mvp/codex-mvp-completion-prompts.md`
+- Какие проверки запущены:
+  - `make test` -> `55 passed, 5 warnings`.
+  - `make build-frontend` -> успешно.
+  - `make lint` -> успешно.
+  - Smoke:
+    - `docker compose up -d --build` -> успешно.
+    - `curl http://localhost:${ASYA_PORT}/api/health` -> `200`, `status: "ok"`.
+    - `curl http://localhost:${ASYA_PORT}/ | head -n 2` -> `<!doctype html>`.
+    - `docker compose down` -> успешно.
+- Какие проблемы остались:
+  - Блокирующих проблем по задаче нет.
+  - Во время frontend-команд выводится `5 moderate severity vulnerabilities` в `npm audit` (dev-зависимости); на выполнение тестов, lint и сборки это не повлияло.
+- Следующий рекомендуемый шаг:
+  - Дальше вести документацию и метаданные уже в режиме Asya Local, а исторические MVP-материалы поддерживать только в `docs/archive/mvp/`.
+
+
 ## 2026-04-26
 - Что сделано:
   - По запросу пользователя реализован вариант B+D поверх доработки №3, чтобы убрать «серую зону» с reasoning-моделями VseLLM.

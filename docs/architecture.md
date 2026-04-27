@@ -1,6 +1,6 @@
-# Architecture (MVP)
+# Architecture (Asya Local)
 
-Документ описывает фактическую архитектуру текущего кода MVP Asya.
+Документ описывает фактическую архитектуру текущего кода Asya Local.
 
 ## Состав системы
 - Frontend: `React + Vite + TypeScript` (`frontend/`)
@@ -85,7 +85,7 @@
 - Предзапрет только при явном `supports_vision=false`
 - Если capability неизвестен, backend пробует запрос и возвращает ошибку провайдера, если он отклонит image input
 
-## Usage в MVP
+## Usage
 - `/api/usage` и `/api/usage/session/{session_id}`
 - Chat usage собирается из stream-ответов, если провайдер присылает `usage`
 - Embeddings usage собирается из upload/retrieval pipeline
@@ -97,9 +97,9 @@
 - SPA fallback включен для не-API путей
 - Вкладки `Чат`/`Настройки`/`Состояние` синхронизируются с URL (`/`, `/settings`, `/status`), но после первого открытия вкладка не размонтируется: компонент остаётся в runtime и скрывается через `hidden`. Это сохраняет состояние `ChatPage` до обновления страницы без `localStorage`/`IndexedDB`.
 
-## Ограничения MVP (по текущей реализации)
+## Текущие технические ограничения
 - Один пользователь
 - Нет долговременной памяти/истории чатов
 - Нет авторизации
-- Нет внешних интеграций (Todoist/Calendar/CRM)
+- Нет внешних интеграций
 - Нет web search
