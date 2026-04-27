@@ -1,6 +1,6 @@
-# Asya Assistant (MVP)
+# Asya Local
 
-Asya — персональный ИИ-ассистент в формате PWA с локальным backend.
+Asya Local — локальная PWA-версия персонального ИИ-ассистента Asya с backend на FastAPI.
 
 Репозиторий: `ajotce/asya-assistant`
 
@@ -16,8 +16,8 @@ Asya — персональный ИИ-ассистент в формате PWA 
 cp .env.example .env
 ```
 
-По умолчанию приложение будет доступно на `http://localhost:8000`.
-Если измените `ASYA_PORT` в `.env`, используйте свой порт.
+По умолчанию приложение доступно на `http://localhost:8000`.
+Если вы измените `ASYA_PORT` в `.env`, используйте свой порт.
 
 ### 3. Сборка frontend
 ```bash
@@ -62,8 +62,13 @@ docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci 
 
 ## Документы проекта
 - `AGENTS.md`
-- `asya-mvp-tech-spec.md`
-- `asya-mvp-development-plan.md`
+- `CLAUDE.md`
 - `docs/api.md`
 - `docs/architecture.md`
+- `docs/development.md`
 - `docs/testing.md`
+- `docs/development-log.md`
+- `docs/decisions.md`
+- `docs/archive/mvp/asya-mvp-tech-spec.md`
+- `docs/archive/mvp/asya-mvp-development-plan.md`
+- `docs/archive/mvp/codex-mvp-completion-prompts.md`

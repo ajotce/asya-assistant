@@ -1,16 +1,16 @@
-# API (MVP)
+# API (Asya Local)
 
-Документ отражает фактические backend endpoint'ы текущего MVP.
+Документ отражает фактические backend endpoint'ы текущей версии Asya Local.
 
 Базовый префикс API: `/api`
 
-## Группы endpoint'ов MVP
+## Группы endpoint'ов
 - `/health`
 - `/models`
 - `/settings`
 - `/chat`
 - `/session`
-- `/files` (в MVP реализовано как `/session/{session_id}/files`)
+- `/files` (реализовано как `/session/{session_id}/files`)
 - `/usage`
 
 ## Health
@@ -105,12 +105,12 @@ SSE события:
 Примечания:
 - backend использует только контекст текущей сессии;
 - для документов retrieval идет через embeddings/векторный индекс сессии;
-- запрос с изображениями блокируется заранее только если модель явно `supports_vision=false`.
+- запрос с изображениями блокируется заранее только если модель явно `supports_vision=false`;
 - если модель по metadata явно не поддерживает chat/completions, backend возвращает понятную ошибку с ID модели;
 - для ошибок провайдера `400/404/422` backend пытается извлечь точную причину из provider body и возвращает её пользователю без секретов;
-- если провайдер явно сообщает, что модель не поддерживает `stream=true`, backend делает безопасный fallback на non-stream completion и отдает ответ в SSE `event: token` + `event: done`.
-- `event: thinking` эмитится, если в delta провайдера есть `reasoning_content` / `reasoning` / `thinking` (для stream) или соответствующие поля в `message.*` (для non-stream fallback). Reasoning не дублируется в `event: token`, не сохраняется в истории сессии и не отправляется обратно провайдеру в последующих сообщениях.
-- Для reasoning-моделей, у которых текущий VseLLM upstream не пробрасывает reasoning через стрим (например, `deepseek-r1-*`, `openai/o1-*`, `openai/o3-*`), backend заранее переходит на non-stream запрос и эмитит `event: thinking` (chunked) до `event: token` — поведение SSE-контракта при этом не меняется.
+- если провайдер явно сообщает, что модель не поддерживает `stream=true`, backend делает безопасный fallback на non-stream completion и отдает ответ в SSE `event: token` + `event: done`;
+- `event: thinking` эмитится, если в delta провайдера есть `reasoning_content` / `reasoning` / `thinking` (для stream) или соответствующие поля в `message.*` (для non-stream fallback). Reasoning не дублируется в `event: token`, не сохраняется в истории сессии и не отправляется обратно провайдеру в последующих сообщениях;
+- для reasoning-моделей, у которых текущий VseLLM upstream не пробрасывает reasoning через стрим (например, `deepseek-r1-*`, `openai/o1-*`, `openai/o3-*`), backend заранее переходит на non-stream запрос и эмитит `event: thinking` (chunked) до `event: token` — поведение SSE-контракта при этом не меняется.
 
 ## Session
 
@@ -146,7 +146,7 @@ SSE события:
 ### `POST /api/session/{session_id}/files`
 Загрузка файлов в текущую сессию (`multipart/form-data`, поле `files`).
 
-Ограничения MVP:
+Ограничения:
 - до 10 файлов за запрос
 - до 256 МБ на файл
 - типы: PDF, DOCX, XLSX, изображения
@@ -177,7 +177,7 @@ SSE события:
 Сводный usage runtime:
 - `chat` (`status=available|unavailable`, токены)
 - `embeddings` (`status=available|unavailable`, токены)
-- `cost` (`status=unavailable` в MVP, без расчета стоимости)
+- `cost` (`status=unavailable`, без расчета стоимости)
 - `runtime` (`active_sessions`, `selected_model`, `embedding_model`)
 
 ### `GET /api/usage/session/{session_id}`

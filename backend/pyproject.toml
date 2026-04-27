@@ -1,7 +1,7 @@
 [project]
 name = "asya-backend"
 version = "0.1.0"
-description = "Asya MVP backend skeleton"
+description = "Asya Local backend"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115.0",
