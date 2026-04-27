@@ -7,7 +7,19 @@ import {
   probeReasoningModels,
   updateSettings,
 } from "../api/client";
+import type { ThemePreference } from "../hooks/useTheme";
 import type { ModelInfo, ReasoningProbeItem, SettingsResponse } from "../types/api";
+
+interface SettingsPageProps {
+  themePreference: ThemePreference;
+  onThemePreferenceChange: (preference: ThemePreference) => void;
+}
+
+const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = [
+  { value: "light", label: "Светлая" },
+  { value: "dark", label: "Тёмная" },
+  { value: "system", label: "Системная" },
+];
 
 const REASONING_HEURISTIC_TOKENS = ["thinking", "reasoning", "-r1", "/o3", "-o3"];
 
@@ -28,7 +40,7 @@ const emptyState: SettingsFormState = {
   system_prompt: "",
 };
 
-export default function SettingsPage() {
+export default function SettingsPage({ themePreference, onThemePreferenceChange }: SettingsPageProps) {
   const [form, setForm] = useState<SettingsFormState>(emptyState);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -193,6 +205,26 @@ export default function SettingsPage() {
 
       {error ? <p className="status-text status-text--error">{error}</p> : null}
       {savedMessage ? <p className="status-text status-text--ok">{savedMessage}</p> : null}
+
+      <div className="theme-switcher" role="group" aria-label="Тема оформления">
+        <span className="settings-form__label">Тема оформления</span>
+        <div className="theme-switcher__options">
+          {THEME_OPTIONS.map((option) => {
+            const isActive = themePreference === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={`theme-switcher__button${isActive ? " theme-switcher__button--active" : ""}`}
+                aria-pressed={isActive}
+                onClick={() => onThemePreferenceChange(option.value)}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <form className="settings-form" onSubmit={handleSubmit}>
         <p className="status-text">VseLLM API-ключ: {apiKeyConfigured ? "настроен" : "не настроен"}</p>

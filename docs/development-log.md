@@ -1,5 +1,25 @@
 # Development Log
 
+## 2026-04-27 (тёмная тема)
+- Что сделано:
+  - Введены CSS-переменные в `frontend/src/styles/app.css` со светлым дефолтом и тёмной палитрой под селектором `[data-theme="dark"]` (тёмно-синий тон в духе акцента `#1c4fa3`, для тёмной темы — `#3b82f6`).
+  - Добавлен хук `frontend/src/hooks/useTheme.ts`: хранит выбор пользователя в `localStorage` (`asya:theme`), резолвит режим `system` через `matchMedia("(prefers-color-scheme: dark)")` и слушает изменения системной темы.
+  - В `frontend/index.html` добавлен ранний инлайн-скрипт, проставляющий `data-theme` до загрузки JS (без FOUC).
+  - В `SettingsPage` добавлен сегментированный переключатель «Светлая / Тёмная / Системная»; состояние поднято в `App.tsx` и пробрасывается пропсами.
+  - Добавлены тесты: `frontend/src/hooks/useTheme.test.tsx` (запись в localStorage, реакция на смену системной темы) и кейс в `SettingsPage.test.tsx` (aria-pressed и колбэк выбора).
+- Какие файлы изменены:
+  - `frontend/index.html`
+  - `frontend/src/App.tsx`
+  - `frontend/src/styles/app.css`
+  - `frontend/src/hooks/useTheme.ts`
+  - `frontend/src/hooks/useTheme.test.tsx`
+  - `frontend/src/pages/SettingsPage.tsx`
+  - `frontend/src/pages/SettingsPage.test.tsx`
+- Какие тесты запущены:
+  - `npm test` (vitest) и `npm run lint` через `node:20-alpine` (см. результаты в выводе CI/локального запуска).
+- Следующий рекомендуемый шаг:
+  - Проверить тёмную тему в реальном браузере (chat/settings/status) и при необходимости подстроить тёмные оттенки бейджей.
+
 ## 2026-04-27
 - Что сделано:
   - Зафиксировано завершение MVP как исторического этапа и переведена актуальная документация проекта на позиционирование Asya Local.

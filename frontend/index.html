@@ -11,6 +11,21 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>Asya</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("asya:theme");
+          var pref = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+          var resolved = pref;
+          if (pref === "system") {
+            resolved = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.setAttribute("data-theme", resolved);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -8,7 +9,25 @@ import {
   probeReasoningModels,
   updateSettings,
 } from "../api/client";
+import { type ThemePreference } from "../hooks/useTheme";
 import SettingsPage from "./SettingsPage";
+
+function renderSettingsPage(initialPreference: ThemePreference = "system") {
+  const onChange = vi.fn();
+  function Harness() {
+    const [pref, setPref] = useState<ThemePreference>(initialPreference);
+    return (
+      <SettingsPage
+        themePreference={pref}
+        onThemePreferenceChange={(next) => {
+          onChange(next);
+          setPref(next);
+        }}
+      />
+    );
+  }
+  return { onChange, ...render(<Harness />) };
+}
 
 vi.mock("../api/client", () => ({
   getModels: vi.fn(),
@@ -42,7 +61,7 @@ describe("SettingsPage", () => {
   });
 
   it("показывает настройки модели и список доступных моделей", async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
 
     expect(await screen.findByRole("heading", { name: "Настройки" })).toBeInTheDocument();
     expect(await screen.findByRole("option", { name: "gpt-4o" })).toBeInTheDocument();
@@ -50,7 +69,7 @@ describe("SettingsPage", () => {
   });
 
   it("позволяет изменить системный промт и сохранить настройки", async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     await screen.findByLabelText("Глобально выбранная модель");
 
     fireEvent.change(screen.getByLabelText("Глобально выбранная модель"), { target: { value: "openai/gpt-5" } });
@@ -82,7 +101,7 @@ describe("SettingsPage", () => {
       ],
     });
 
-    render(<SettingsPage />);
+    renderSettingsPage();
 
     expect(await screen.findByRole("option", { name: "🧠 qwen/qwen3-vl-235b-a22b-thinking" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "gpt-4o" })).toBeInTheDocument();
@@ -97,6 +116,25 @@ describe("SettingsPage", () => {
     expect(probeList).toHaveTextContent("qwen/qwen3-vl-235b-a22b-thinking");
   });
 
+  it("отображает сегментированный переключатель темы и сообщает о выборе", async () => {
+    const { onChange } = renderSettingsPage("system");
+    await screen.findByRole("heading", { name: "Настройки" });
+
+    const lightButton = screen.getByRole("button", { name: "Светлая" });
+    const darkButton = screen.getByRole("button", { name: "Тёмная" });
+    const systemButton = screen.getByRole("button", { name: "Системная" });
+
+    expect(systemButton).toHaveAttribute("aria-pressed", "true");
+    expect(lightButton).toHaveAttribute("aria-pressed", "false");
+    expect(darkButton).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(darkButton);
+
+    expect(onChange).toHaveBeenCalledWith("dark");
+    expect(screen.getByRole("button", { name: "Тёмная" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Системная" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("показывает предупреждение и disabled option для модели без chat/completions", async () => {
     vi.mocked(getSettings).mockResolvedValue({
       assistant_name: "Asya",
@@ -109,7 +147,7 @@ describe("SettingsPage", () => {
       { id: "openai/gpt-5", supports_chat: true },
     ]);
 
-    render(<SettingsPage />);
+    renderSettingsPage();
 
     expect(await screen.findByText(/не поддерживает chat\/completions/i)).toBeInTheDocument();
     const unsupportedOption = await screen.findByRole("option", { name: "embed-only (без chat/completions)" });
