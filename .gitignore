@@ -47,3 +47,6 @@ htmlcov/
 # IDE
 .idea/
 .vscode/
+
+# Local Codex workspace artifacts
+.claude/
