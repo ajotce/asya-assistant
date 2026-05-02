@@ -243,12 +243,14 @@ class AccessRequestSubmitRequest(BaseModel):
 
     email: str = Field(min_length=3, max_length=320)
     display_name: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=3, max_length=1000)
 
 
 class AccessRequestResponse(BaseModel):
     id: str
     email: str
     display_name: str
+    reason: str
     status: str
     approved_by: Optional[str] = None
     reviewed_at: Optional[str] = None

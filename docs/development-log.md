@@ -1,5 +1,114 @@
 # Development Log
 
+## 2026-05-02 (Финальная приёмка v0.2 завершена: Docker smoke + full checks)
+- Что сделано:
+  - Завершена финальная приёмка `0.2-multi-user` по всем обязательным пунктам с учётом ранее внесённых фиксов:
+    - `user_settings` (per-user settings),
+    - `access_requests.reason`,
+    - миграция `20260502_03`.
+  - Выполнен полный локальный Docker smoke по README:
+    - `docker compose up --build -d`,
+    - `curl /api/health`,
+    - `curl /`,
+    - `curl /manifest.webmanifest`,
+    - `docker compose down`.
+  - Принято решение: magic-link/email flow официально переносится в `v0.3` (в `v0.2` остаётся password auth + access request + admin approve/reject + dev/mock уведомления).
+- Какие файлы изменены:
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `86 passed`.
+  - `make lint` -> PASS.
+  - `make build-frontend` -> PASS.
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"` -> PASS (`5 files, 20 tests`).
+  - `docker compose up --build -d` -> PASS.
+  - `curl http://localhost:${ASYA_PORT}/api/health` -> `200 OK`.
+  - `curl http://localhost:${ASYA_PORT}/` -> `200 OK`, HTML.
+  - `curl http://localhost:${ASYA_PORT}/manifest.webmanifest` -> `200 OK`, manifest JSON.
+- Что не проверено и почему:
+  - Реальная отправка magic-link/email не проверялась, так как этот scope перенесён в `v0.3` по решению пользователя.
+- Риски/следующие шаги:
+  - Для старта `v0.3` первым шагом добавить production-ready magic-link/email transport и one-time token flow (TTL/reuse protection/audit).
+
+## 2026-05-02 (Закрытие блокеров финальной приёмки v0.2: per-user settings + access request reason)
+- Что сделано:
+  - Добавлена миграция `20260502_03`:
+    - новая таблица `user_settings` (user-scoped `assistant_name/system_prompt/selected_model`);
+    - новое обязательное поле `reason` в `access_requests`.
+  - `/api/settings` переведён на авторизованный user-scoped режим:
+    - endpoint-ы требуют auth;
+    - значения читаются/обновляются только для текущего `user_id`.
+  - `ChatService` и `/api/usage` переведены на чтение пользовательских настроек.
+  - Access request flow обновлён:
+    - `POST /api/access-requests` теперь принимает `reason`;
+    - `reason` возвращается в API-ответах и frontend-типах.
+  - Обновлён frontend `AuthPage`: в режиме заявки есть поле причины.
+  - Обновлены тесты (`settings`, `access_requests`, `alembic`, frontend mocks) и документация (`api/development/testing`).
+- Какие файлы изменены:
+  - `backend/alembic/versions/20260502_03_user_settings_and_access_request_reason.py`
+  - `backend/app/db/models/user_settings.py`
+  - `backend/app/services/settings_service.py`
+  - `backend/app/api/routes_settings.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/api/routes_usage.py`
+  - `backend/app/db/models/access_request.py`
+  - `backend/app/repositories/access_request_repository.py`
+  - `backend/app/services/access_request_service.py`
+  - `backend/app/services/auth_service.py`
+  - `backend/app/api/routes_access_requests.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_settings.py`
+  - `backend/tests/test_access_requests.py`
+  - `backend/tests/test_alembic_migration.py`
+  - `frontend/src/pages/AuthPage.tsx`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/App.test.tsx`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `86 passed`.
+  - `make build-frontend` -> не выполнен: недоступен Docker daemon.
+  - `make lint` -> не выполнен: недоступен Docker daemon.
+  - `docker run --rm -v \"$PWD/frontend:/work\" -w /work node:20-alpine sh -lc \"npm ci && npm test\"` -> не выполнен: недоступен Docker daemon.
+- Что не проверено и почему:
+  - frontend lint/build/unit tests и docker smoke не выполнены из-за недоступного Docker daemon в текущей среде.
+- Риски/следующие шаги:
+  - Нужна повторная финальная smoke-приёмка запуска по README в окружении с рабочим Docker daemon.
+  - Magic-link/email flow по-прежнему не реализован и должен быть либо добавлен, либо явно зафиксирован как deferred.
+
+## 2026-05-02 (Финальная приёмка Asya v0.2 — Multi-user foundation)
+- Что сделано:
+  - Выполнена полная приёмка ветки `0.2-multi-user` относительно `main` по блокам v0.2 (db/migrations, auth, access-requests, chats/base-chat, isolation, settings, secrets, API/docs, local run).
+  - Подтверждено по коду и тестам:
+    - есть SQLAlchemy + Alembic слой и миграции `20260502_01`, `20260502_02`;
+    - auth реализован через `register/login/logout/me` с `HttpOnly` cookie и hash session token в БД;
+    - user-data endpoint-ы защищены и user-scoped;
+    - multiple chats + `Base-chat` + запрет удаления `Base-chat` работают;
+    - `FileMeta` и `UsageRecord` перенесены в БД.
+  - Подтверждены gap'ы, влияющие на финальный статус приёмки:
+    - `settings` остаются глобальными (`/api/settings`, `settings` table c `id=1`), не per-user;
+    - публичная заявка доступа не содержит поля причины (`why`/`reason`);
+    - magic-link/email flow не реализован (только dev/mock notifier для access request);
+    - retrieval vector store остаётся runtime-only (`SessionVectorStore` in-memory).
+  - Проверены README smoke-команды: запуск через Docker в текущей среде не выполнен из-за недоступного Docker daemon.
+- Какие файлы изменены:
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `85 passed`.
+  - `make build-frontend` -> не выполнен (`Cannot connect to the Docker daemon ... docker.sock`).
+  - `make lint` -> не выполнен (`Cannot connect to the Docker daemon ... docker.sock`).
+  - `docker run ... npm test` -> не выполнен (`Cannot connect to the Docker daemon ... docker.sock`).
+  - `docker compose up --build` smoke -> не выполнен (`Cannot connect to the Docker daemon ... docker.sock`).
+  - `cd backend && python3 -m alembic -c alembic.ini current` -> OK.
+  - `cd backend && ASYA_DB_PATH=./data/asya-0.2.sqlite3 python3 -m alembic -c alembic.ini upgrade head` -> OK (`20260502_02` head).
+- Что не проверено и почему:
+  - Полный Docker/local-run smoke (`/api/health`, `/`, `manifest`) не выполнен из-за недоступного Docker daemon.
+  - Frontend build/lint/unit-tests в контейнере не выполнены по той же причине.
+- Риски/следующие шаги:
+  - Для формального закрытия v0.2 нужно закрыть ключевые пробелы: per-user settings, reason в access-request, определиться с magic-link/email flow статусом (реализация или явный deferred), и повторить полную smoke-приёмку в окружении с доступным Docker daemon.
+
 ## 2026-05-02 (Hardening Asya 0.2: auth/data isolation checks)
 - Что сделано:
   - Проведён аудит user-data endpoint-ов: `session*`, `chats*`, `chat/stream`, `usage*`, `auth*`, `admin/access-requests*`.

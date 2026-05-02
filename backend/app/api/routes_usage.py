@@ -90,7 +90,7 @@ def get_usage_overview(
     db_session: Session = Depends(get_db_session),
 ) -> UsageOverviewResponse:
     settings = get_settings()
-    runtime_settings = SettingsService(settings).get_settings()
+    runtime_settings = SettingsService(settings, db_session=db_session).get_settings(user_id=current_user.id)
     usage_repo = UsageRecordRepository(db_session)
     active_sessions = len(ChatRepository(db_session).list_for_user(current_user.id))
     return UsageOverviewResponse(

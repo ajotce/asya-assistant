@@ -42,7 +42,11 @@ class AuthService:
 
     def register(self, *, email: str, display_name: str, password: str) -> User:
         if self._settings.auth_registration_mode.lower() != "open":
-            self._access_requests.submit_request(email=email, display_name=display_name)
+            self._access_requests.submit_request(
+                email=email,
+                display_name=display_name,
+                reason="Автоматическая заявка из закрытой регистрации.",
+            )
             raise RegistrationClosedError("Регистрация закрыта, заявка сохранена.")
 
         password_hash = self._hash_password(password)

@@ -192,12 +192,14 @@ export interface AuthRegisterResponse {
 export interface AccessRequestSubmitRequest {
   email: string;
   display_name: string;
+  reason: string;
 }
 
 export interface AccessRequestResponse {
   id: string;
   email: string;
   display_name: string;
+  reason: string;
   status: string;
   approved_by?: string | null;
   reviewed_at?: string | null;

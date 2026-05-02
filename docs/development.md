@@ -127,6 +127,13 @@ Frontend unit-тесты запускаются через `vitest` (`frontend/s
   - session token не хранится в `localStorage` (используется только backend `HttpOnly` cookie).
 - В шапке приложения показывается `current user` и кнопка logout (`POST /api/auth/logout`).
 - После входа frontend использует `preferred_chat_id` из auth-response и открывает Base-chat или последний доступный чат без создания лишней сессии.
+- В режиме `Заявка на доступ` форма запрашивает дополнительное поле причины (`reason`).
+
+## User-specific settings (этап 0.2)
+- `/api/settings` переведён на user-scoped хранение в таблице `user_settings` (SQLite через SQLAlchemy).
+- Настройки (`assistant_name`, `system_prompt`, `selected_model`) больше не глобальные между пользователями.
+- `ChatService` и `Usage` читают модель/промт через settings текущего пользователя.
+- `GET/PUT /api/settings` требуют авторизацию.
 
 ## Minimal Admin Flow (заявки на доступ)
 - Backend admin endpoint-ы `/api/admin/access-requests*` защищены `role=admin` через `get_current_admin_user`.

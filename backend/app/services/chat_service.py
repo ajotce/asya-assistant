@@ -51,7 +51,7 @@ class ChatService:
         self._usage_store = usage_store
 
     def build_messages_payload(self, session_id: str, user_message: str, file_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-        runtime_settings = self._settings_service.get_settings()
+        runtime_settings = self._get_runtime_settings()
         history = self._build_history_payload(session_id)
         attached_images = self._resolve_attached_images(session_id=session_id, file_ids=file_ids or [])
         if attached_images:
@@ -68,7 +68,7 @@ class ChatService:
     def stream_chat(self, session_id: str, user_message: str, file_ids: Optional[List[str]] = None) -> Generator[bytes, None, None]:
         try:
             self._validate_request(session_id=session_id, user_message=user_message, file_ids=file_ids or [])
-            runtime_settings = self._settings_service.get_settings()
+            runtime_settings = self._get_runtime_settings()
             messages = self.build_messages_payload(session_id=session_id, user_message=user_message, file_ids=file_ids or [])
             self._ensure_chat_supported(selected_model=runtime_settings.selected_model)
             self._append_message(
@@ -192,7 +192,7 @@ class ChatService:
             raise VseLLMError(status_code=400, user_message="Сообщение не должно быть пустым.")
         if not self._settings.vsellm_api_key.strip():
             raise VseLLMError(status_code=503, user_message="VseLLM API-ключ не настроен на backend.")
-        if not self._settings_service.get_settings().selected_model.strip():
+        if not self._get_runtime_settings().selected_model.strip():
             raise VseLLMError(status_code=503, user_message="Глобальная модель не настроена на backend.")
         for file_id in file_ids:
             if self._file_store.get_session_file(session_id=session_id, file_id=file_id) is None:
@@ -357,6 +357,13 @@ class ChatService:
         suffix = identifier.rsplit("/", 1)[-1]
         suffix_markers = ("o1", "o3")
         return any(suffix == m or suffix.startswith(f"{m}-") for m in suffix_markers)
+
+    def _get_runtime_settings(self):
+        # Backward-compatible call: unit tests may provide fake services without user_id support.
+        try:
+            return self._settings_service.get_settings(user_id=self._current_user_id or None)
+        except TypeError:
+            return self._settings_service.get_settings()
 
     def _stream_reasoning_via_non_stream(
         self,

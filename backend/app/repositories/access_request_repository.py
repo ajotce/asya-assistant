@@ -25,10 +25,11 @@ class AccessRequestRepository:
         stmt = select(AccessRequest).order_by(AccessRequest.created_at.desc())
         return list(self._session.execute(stmt).scalars())
 
-    def create(self, *, email: str, display_name: str) -> AccessRequest:
+    def create(self, *, email: str, display_name: str, reason: str) -> AccessRequest:
         req = AccessRequest(
             email=email,
             display_name=display_name,
+            reason=reason,
             status=AccessRequestStatus.PENDING,
             token_hash=None,
             approved_by=None,

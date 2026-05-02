@@ -79,6 +79,8 @@
 - `selected_model`
 - `api_key_configured`
 
+Требует авторизацию (`401` без cookie). Настройки user-scoped и читаются только для текущего пользователя.
+
 ### `PUT /api/settings`
 Обновляет настройки.
 
@@ -89,6 +91,7 @@
 
 Ошибки:
 - `400` при валидации
+- `401` без авторизации
 
 ## Auth (v1)
 
@@ -98,6 +101,7 @@
 Тело:
 - `email`
 - `display_name`
+- `reason` (почему пользователь хочет доступ)
 - `password`
 
 Поведение:
@@ -124,6 +128,7 @@
 Успех `200`:
 - `status: "pending"`
 - `request: { id, email, display_name, status, ... }`
+- `request: { id, email, display_name, reason, status, ... }`
 
 ### `GET /api/admin/access-requests`
 Список заявок. Только для `role=admin`.

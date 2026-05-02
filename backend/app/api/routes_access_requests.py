@@ -27,6 +27,7 @@ def _to_access_request_response(request: AccessRequest) -> AccessRequestResponse
         id=request.id,
         email=request.email,
         display_name=request.display_name,
+        reason=request.reason,
         status=request.status.value,
         approved_by=request.approved_by,
         reviewed_at=request.reviewed_at.isoformat() if request.reviewed_at else None,
@@ -51,7 +52,7 @@ def submit_access_request(
     session=Depends(get_db_session),
 ) -> AccessRequestSubmitResponse:
     service = AccessRequestService(session)
-    request = service.submit_request(email=payload.email, display_name=payload.display_name)
+    request = service.submit_request(email=payload.email, display_name=payload.display_name, reason=payload.reason)
     return AccessRequestSubmitResponse(status="pending", request=_to_access_request_response(request))
 
 

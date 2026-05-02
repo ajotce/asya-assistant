@@ -31,16 +31,21 @@ class AccessRequestService:
         self._chat_service = ChatServiceV2(session)
         self._notifier = notifier or DevLogAccessRequestNotifier()
 
-    def submit_request(self, *, email: str, display_name: str) -> AccessRequest:
+    def submit_request(self, *, email: str, display_name: str, reason: str) -> AccessRequest:
         normalized_email = email.strip().lower()
         normalized_name = display_name.strip()
+        normalized_reason = reason.strip()
 
         pending = self._requests.get_pending_by_email(normalized_email)
         if pending is not None:
             # Предсказуемое поведение: повторный submit на pending-email возвращает существующую заявку.
             return pending
 
-        request = self._requests.create(email=normalized_email, display_name=normalized_name)
+        request = self._requests.create(
+            email=normalized_email,
+            display_name=normalized_name,
+            reason=normalized_reason,
+        )
         self._session.commit()
         self._session.refresh(request)
         self._notifier.on_submitted(request)

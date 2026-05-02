@@ -57,12 +57,18 @@ def test_submit_access_request_and_repeat_is_predictable(tmp_path, monkeypatch) 
     app.dependency_overrides[get_db_session] = _override_db_session(engine)
     client = TestClient(app)
 
-    first = client.post("/api/access-requests", json={"email": "u@example.com", "display_name": "User"})
+    first = client.post(
+        "/api/access-requests",
+        json={"email": "u@example.com", "display_name": "User", "reason": "Хочу протестировать ассистента"},
+    )
     assert first.status_code == 200
     request_id = first.json()["request"]["id"]
     assert first.json()["request"]["status"] == "pending"
 
-    second = client.post("/api/access-requests", json={"email": "u@example.com", "display_name": "User 2"})
+    second = client.post(
+        "/api/access-requests",
+        json={"email": "u@example.com", "display_name": "User 2", "reason": "Повторная заявка"},
+    )
     assert second.status_code == 200
     assert second.json()["request"]["id"] == request_id
     app.dependency_overrides.clear()
@@ -103,7 +109,10 @@ def test_admin_only_endpoints_and_approve_flow(tmp_path, monkeypatch) -> None:
     )
     assert user_login.status_code == 200
 
-    submit = admin_client.post("/api/access-requests", json={"email": "beta@example.com", "display_name": "Beta"})
+    submit = admin_client.post(
+        "/api/access-requests",
+        json={"email": "beta@example.com", "display_name": "Beta", "reason": "Нужно проверить функционал"},
+    )
     request_id = submit.json()["request"]["id"]
 
     forbidden = user_client.get("/api/admin/access-requests")
@@ -165,7 +174,10 @@ def test_admin_endpoints_require_auth_and_admin_role(tmp_path, monkeypatch) -> N
     forbidden = user_client.get("/api/admin/access-requests")
     assert forbidden.status_code == 403
 
-    req = user_client.post("/api/access-requests", json={"email": "target@example.com", "display_name": "Target"})
+    req = user_client.post(
+        "/api/access-requests",
+        json={"email": "target@example.com", "display_name": "Target", "reason": "Хочу попробовать"},
+    )
     assert req.status_code == 200
     req_id = req.json()["request"]["id"]
 
@@ -194,12 +206,18 @@ def test_admin_cannot_self_approve_and_can_reject(tmp_path, monkeypatch) -> None
     login = client.post("/api/auth/login", json={"email": "boss@example.com", "password": "strong-pass-123"})
     assert login.status_code == 200
 
-    own_req = client.post("/api/access-requests", json={"email": "boss@example.com", "display_name": "Boss"})
+    own_req = client.post(
+        "/api/access-requests",
+        json={"email": "boss@example.com", "display_name": "Boss", "reason": "Нужен доступ"},
+    )
     own_req_id = own_req.json()["request"]["id"]
     self_approve = client.post(f"/api/admin/access-requests/{own_req_id}/approve")
     assert self_approve.status_code == 400
 
-    other_req = client.post("/api/access-requests", json={"email": "other@example.com", "display_name": "Other"})
+    other_req = client.post(
+        "/api/access-requests",
+        json={"email": "other@example.com", "display_name": "Other", "reason": "Хочу проверить продукт"},
+    )
     other_req_id = other_req.json()["request"]["id"]
     rejected = client.post(f"/api/admin/access-requests/{other_req_id}/reject")
     assert rejected.status_code == 200

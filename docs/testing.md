@@ -39,7 +39,7 @@ make test
 
 Ожидаемый результат:
 - `pytest` завершается без падений
-- текущий baseline: `55 passed` (возможны предупреждения, не блокирующие запуск)
+- текущий baseline: `86 passed` (возможны предупреждения, не блокирующие запуск)
 - для совместимости моделей покрыты сценарии:
   - нормализация `supports_chat`/`supports_stream` из provider metadata (`supports_*`, `capabilities`, `endpoints`);
   - понятная маппинга provider body ошибок в chat;
@@ -98,8 +98,8 @@ cd backend && ASYA_DB_PATH=./data/asya-0.2.sqlite3 python3 -m alembic -c alembic
 
 Ожидаемый результат:
 - миграция `20260502_01` применяется без ошибок;
-- в SQLite создаются таблицы: `users`, `auth_sessions`, `chats`, `messages`, `file_meta`, `usage_records`, `access_requests`, `encrypted_secrets`;
-- таблица `alembic_version` содержит текущую ревизию `20260502_01`.
+- в SQLite создаются таблицы: `users`, `auth_sessions`, `chats`, `messages`, `file_meta`, `usage_records`, `access_requests`, `encrypted_secrets`, `user_settings`;
+- таблица `alembic_version` содержит текущую ревизию `20260502_03`.
 
 ## 8) Тесты сервисов users/chats
 Покрытие в `backend/tests/test_user_chat_services.py`:
@@ -122,6 +122,7 @@ cd backend && ASYA_DB_PATH=./data/asya-0.2.sqlite3 python3 -m alembic -c alembic
 ## 10) Тесты access request flow
 Покрытие в `backend/tests/test_access_requests.py`:
 - публичная подача заявки в `pending`;
+- в заявке сохраняется `reason` (почему пользователь хочет доступ);
 - предсказуемая обработка повторной заявки на тот же email (возврат той же pending-записи);
 - admin-only доступ к списку и действиям approve/reject;
 - без авторизации admin endpoint-ы возвращают `401`, для non-admin — `403`;
@@ -207,4 +208,4 @@ cd backend && ASYA_DB_PATH=./data/asya-0.2.sqlite3 python3 -m alembic -c alembic
 - Files/retrieval после auth:
   - upload в `/api/session/{id}/files` работает для владельца и блокируется для чужой сессии;
   - retrieval-контекст строится только по файлам текущей сессии пользователя.
-- `settings` в текущем шаге остаются глобальными (`/api/settings`), не user-specific.
+- `settings` user-scoped: пользователь A не видит настройки пользователя B.

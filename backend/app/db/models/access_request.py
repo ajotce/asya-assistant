@@ -15,6 +15,7 @@ class AccessRequest(Base, IdMixin, TimestampMixin):
 
     email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    reason: Mapped[str] = mapped_column(String(1000), nullable=False)
     status: Mapped[AccessRequestStatus] = mapped_column(
         SAEnum(AccessRequestStatus, name="access_request_status", native_enum=False),
         nullable=False,

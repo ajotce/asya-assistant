@@ -14,6 +14,7 @@ export default function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -49,7 +50,11 @@ export default function AuthPage({ onAuthenticated }: AuthPageProps) {
       }
 
       if (mode === "request") {
-        await submitAccessRequest({ email: email.trim(), display_name: displayName.trim() });
+        await submitAccessRequest({
+          email: email.trim(),
+          display_name: displayName.trim(),
+          reason: reason.trim(),
+        });
         setSuccess("Заявка отправлена. Дождитесь подтверждения доступа.");
         return;
       }
@@ -104,6 +109,22 @@ export default function AuthPage({ onAuthenticated }: AuthPageProps) {
               onChange={(event) => setDisplayName(event.target.value)}
               autoComplete="name"
               required
+            />
+          </>
+        ) : null}
+
+        {mode === "request" ? (
+          <>
+            <label className="settings-form__label" htmlFor="auth-request-reason">
+              Почему хотите попробовать Asya
+            </label>
+            <textarea
+              id="auth-request-reason"
+              className="settings-form__textarea"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              required
+              minLength={3}
             />
           </>
         ) : null}

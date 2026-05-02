@@ -29,5 +29,5 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path, monkeypatch) -> None:
 
     with engine.connect() as conn:
         revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert revision == "20260502_02"
+    assert revision == "20260502_03"
     get_settings.cache_clear()
