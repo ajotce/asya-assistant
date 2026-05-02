@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import {
   createDiaryEntry,
@@ -26,16 +26,12 @@ export default function DiaryPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadAll();
-  }, []);
-
-  async function loadAll() {
+  const loadAll = useCallback(async (query?: string) => {
     setSettingsLoading(true);
     setEntriesLoading(true);
     setError(null);
     try {
-      const [s, e] = await Promise.all([getDiarySettings(), listDiaryEntries(searchQuery || undefined)]);
+      const [s, e] = await Promise.all([getDiarySettings(), listDiaryEntries(query || undefined)]);
       setSettings(s);
       setEntries(e);
     } catch (err) {
@@ -44,7 +40,11 @@ export default function DiaryPage() {
       setSettingsLoading(false);
       setEntriesLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
 
   async function loadEntries(q?: string) {
     setEntriesLoading(true);
@@ -138,7 +138,7 @@ export default function DiaryPage() {
     <section className="page" aria-label="Дневник">
       <div className="page__row">
         <h2 className="page__title">Дневник</h2>
-        <button type="button" className="chat-action-button" onClick={() => { void runObserver(); loadAll(); }}>
+        <button type="button" className="chat-action-button" onClick={() => { void runObserver(); void loadAll(searchQuery || undefined); }}>
           Обновить
         </button>
       </div>
