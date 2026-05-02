@@ -8,9 +8,11 @@ from fastapi import UploadFile
 
 from app.core.config import Settings
 from app.models.schemas import SessionUploadedFileInfo
+from app.repositories.chat_repository import ChatRepository
+from app.repositories.file_meta_repository import FileMetaRepository
+from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.file_store import SessionFileStore, StoredSessionFile
-from app.storage.session_store import SessionStore
 from app.storage.usage_store import UsageStore
 from app.storage.vector_store import SessionVectorStore, StoredChunkVector
 
@@ -44,21 +46,27 @@ class FileService:
     def __init__(
         self,
         settings: Settings,
-        session_store: SessionStore,
+        chat_repository: ChatRepository,
+        current_user_id: str,
+        file_meta_repository: FileMetaRepository,
         file_store: SessionFileStore,
         vector_store: SessionVectorStore,
         vsellm_client: VseLLMClient,
+        usage_recorder: UsageRecorder | None = None,
         usage_store: UsageStore | None = None,
     ) -> None:
         self._settings = settings
-        self._session_store = session_store
+        self._chat_repository = chat_repository
+        self._current_user_id = current_user_id
+        self._file_meta_repository = file_meta_repository
         self._file_store = file_store
         self._vector_store = vector_store
         self._vsellm_client = vsellm_client
+        self._usage_recorder = usage_recorder
         self._usage_store = usage_store
 
     async def upload_files(self, session_id: str, files: List[UploadFile]) -> List[SessionUploadedFileInfo]:
-        if not self._session_store.has_session(session_id):
+        if self._chat_repository.get_for_user(session_id, self._current_user_id) is None:
             raise FileValidationError("Сессия не найдена.", status_code=404)
         if not files:
             raise FileValidationError("Не выбраны файлы для загрузки.")
@@ -84,7 +92,17 @@ class FileService:
 
         self._file_store.register_files(session_id, pending_files)
         for pending in pending_files:
-            self._session_store.bind_file(session_id=session_id, file_id=pending.file_id)
+            self._file_meta_repository.create(
+                file_id=pending.file_id,
+                user_id=self._current_user_id,
+                chat_id=session_id,
+                filename=pending.filename,
+                content_type=pending.content_type,
+                size=pending.size_bytes,
+                storage_path=pending.path,
+                extracted_text_status="indexed" if pending.extracted_text else "uploaded",
+                extracted_text_meta={"has_extracted_text": bool(pending.extracted_text)},
+            )
 
         return [
             SessionUploadedFileInfo(
@@ -162,6 +180,8 @@ class FileService:
             raise FileValidationError(f"Файл '{stored_file.filename}' не содержит данных для индексирования.")
 
         vectors, embeddings_usage = self._get_embeddings_with_usage(chunks_text)
+        if self._usage_recorder is not None:
+            self._usage_recorder.record_embeddings_usage(session_id=session_id, usage=embeddings_usage)
         if self._usage_store is not None and embeddings_usage is not None:
             self._usage_store.record_embeddings_usage(session_id=session_id, usage=embeddings_usage)
         indexed_chunks = [

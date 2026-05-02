@@ -6,6 +6,7 @@ import httpx
 from fastapi.testclient import TestClient
 from PIL import Image
 
+from app.api.deps_auth import get_db_session
 from app.main import app
 from app.services.chat_service import ChatService
 from app.services.vsellm_client import VseLLMClient, VseLLMError
@@ -13,6 +14,7 @@ from app.storage.file_store import SessionFileStore, StoredSessionFile
 from app.storage.runtime import usage_store
 from app.storage.session_store import SessionStore
 from app.storage.vector_store import SessionVectorStore, StoredChunkVector
+from tests.auth_helpers import override_db_session, setup_test_db
 
 
 class FakeSettings:
@@ -106,19 +108,27 @@ def test_stream_chat_returns_error_when_session_missing() -> None:
     assert "Сессия не найдена" in payload
 
 
-def test_stream_chat_endpoint_streams_events(monkeypatch) -> None:
+def test_stream_chat_endpoint_streams_events(monkeypatch, tmp_path) -> None:
     class FakeService:
         def stream_chat(self, session_id: str, user_message: str, file_ids=None):
             yield b'event: token\ndata: {"text":"Hi"}\n\n'
             yield b'event: done\ndata: {"usage":null}\n\n'
 
-    monkeypatch.setattr("app.api.routes_chat.get_chat_service", lambda: FakeService())
+    _, engine = setup_test_db(tmp_path, monkeypatch)
+    app.dependency_overrides[get_db_session] = override_db_session(engine)
+    monkeypatch.setattr("app.api.routes_chat.get_chat_service", lambda *args, **kwargs: FakeService())
     client = TestClient(app)
+    client.post(
+        "/api/auth/register",
+        json={"email": "chat@example.com", "display_name": "Chat", "password": "strong-pass-123"},
+    )
+    client.post("/api/auth/login", json={"email": "chat@example.com", "password": "strong-pass-123"})
     response = client.post("/api/chat/stream", json={"session_id": "s-1", "message": "hello"})
     text = response.text
     assert response.status_code == 200
     assert "event: token" in text
     assert "event: done" in text
+    app.dependency_overrides.clear()
 
 
 def test_status_mapper_for_rate_limit_error() -> None:

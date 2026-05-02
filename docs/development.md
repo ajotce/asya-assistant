@@ -14,6 +14,71 @@ docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci 
 docker compose up --build
 ```
 
+## Инфраструктура БД Asya 0.2 (без подключения endpoint-ов)
+- Добавлен отдельный SQLAlchemy/Alembic контур в `backend/app/db` и `backend/alembic`.
+- Путь новой БД задаётся через `ASYA_DB_PATH`.
+- Кодовый default: `./data/asya-0.2.sqlite3` (безопасно для локального запуска тестов/CLI).
+- В `.env.example` задано `ASYA_DB_PATH=/app/data/asya-0.2.sqlite3`, чтобы Docker backend писал в volume `/app/data`.
+- Текущие endpoint-ы (`/api/session*`, `/api/chat/stream`, `/api/usage*`) пока не переключены на новый DB-слой и продолжают работать как раньше.
+
+Проверка, что Alembic-конфиг поднимается:
+```bash
+cd backend && python3 -m alembic -c alembic.ini current
+```
+
+Применение первой миграции на чистой БД:
+```bash
+cd backend && ASYA_DB_PATH=./data/asya-0.2.sqlite3 python3 -m alembic -c alembic.ini upgrade head
+```
+
+Важно:
+- на этом этапе таблицы созданы, но действующие `/api/session*`, `/api/chat/stream`, `/api/usage*` всё ещё работают через текущие runtime/store-слои;
+- переключение API на SQLAlchemy-модели делается отдельными шагами.
+
+## Инфраструктура шифрования секретов (этап 0.2)
+- Добавлена env-переменная `MASTER_ENCRYPTION_KEY` (в `.env.example` только имя, без значения).
+- Добавлен `SecretCryptoService` (Fernet) для backend-шифрования секретов.
+- Добавлен `EncryptedSecretService`, который сохраняет секреты в `encrypted_secrets` только в зашифрованном виде.
+- Если `MASTER_ENCRYPTION_KEY` не задан или невалиден, сервис шифрования выдаёт явную безопасную ошибку конфигурации.
+- Текущий этап не подключает внешние интеграции и не добавляет публичные endpoint-ы управления секретами.
+
+## Repository/Service шаг для users/chats (без подключения endpoint-ов)
+- Добавлен backend слой `repositories + services` для:
+  - пользователей (`UserService`, `UserRepository`);
+  - чатов (`ChatServiceV2`, `ChatRepository`).
+- При создании пользователя автоматически создаётся `Base-chat`.
+- Сервис гарантирует один активный (`is_archived=false`, `is_deleted=false`) `Base-chat` на пользователя.
+- Базовые операции чатов реализованы в сервисе:
+  - список;
+  - создание;
+  - переименование;
+  - архивирование;
+  - безопасное удаление (soft-delete);
+  - чтение по `chat_id` только в рамках владельца (`user_id`).
+
+## Переходный слой session/chat -> БД (совместимость API)
+- Текущий legacy контракт `/api/session*` сохранён, но теперь:
+  - `session_id` фактически является `chat_id` в БД;
+  - сообщения `user/assistant` пишутся и читаются из таблицы `messages`.
+- `/api/chat/stream` работает только в рамках `current user`:
+  - чат должен принадлежать текущему пользователю;
+  - история восстанавливается из БД после перезапуска backend.
+- SSE-streaming и контракт событий не менялись.
+- `reasoning/thinking` не сохраняется как обычное сообщение.
+- Что ещё временно in-memory:
+  - `SessionVectorStore` (retrieval-векторы/chunks).
+
+## Перенос FileMeta и UsageRecord в БД
+- Upload файлов теперь записывает metadata в таблицу `file_meta` (user-scoped).
+- Chat/embeddings usage теперь записывается в `usage_records` (user-scoped, chat-scoped).
+- `routes_usage` использует DB-агрегацию вместо runtime `UsageStore`.
+- При `DELETE /api/session/{session_id}`:
+  - удаляются runtime-файлы и runtime-векторы по сессии;
+  - удаляются DB-записи `FileMeta` и `UsageRecord` текущего пользователя для этого чата.
+
+Временное ограничение 0.2:
+- retrieval-vector chunks всё ещё runtime-only (в памяти процесса), поэтому после рестарта backend retrieval-индекс требует повторной загрузки файлов.
+
 ## Локальный Docker запуск backend
 ```bash
 docker compose up -d --build
@@ -53,6 +118,47 @@ Frontend unit-тесты запускаются через `vitest` (`frontend/s
 - При успешной отправке локальный список выбранных файлов очищается.
 - При переключении вкладок `Чат`/`Настройки`/`Состояние` страницы не размонтируются повторно: уже открытые вкладки скрываются, поэтому runtime-состояние чата (текущая backend-сессия и видимая история) сохраняется до перезагрузки страницы.
 - История чатов и долгосрочное хранение на frontend не добавляются.
+
+## Frontend Auth UI (минимальный слой 0.2)
+- Добавлен `AuthPage` (вход / регистрация / заявка на доступ) без отдельного UI framework.
+- `App` при старте вызывает `/api/auth/me`:
+  - если пользователь не авторизован, приватные вкладки `Чат` и `Настройки` не рендерятся;
+  - показывается экран авторизации;
+  - session token не хранится в `localStorage` (используется только backend `HttpOnly` cookie).
+- В шапке приложения показывается `current user` и кнопка logout (`POST /api/auth/logout`).
+- После входа frontend использует `preferred_chat_id` из auth-response и открывает Base-chat или последний доступный чат без создания лишней сессии.
+
+## Minimal Admin Flow (заявки на доступ)
+- Backend admin endpoint-ы `/api/admin/access-requests*` защищены `role=admin` через `get_current_admin_user`.
+- Во frontend добавлен минимальный admin-раздел в `Настройки`:
+  - виден только пользователям с `role=admin`;
+  - показывает pending заявки;
+  - даёт approve/reject действия.
+- UI честно показывает dev-mode ограничение: реальная отправка email/magic-link не реализована в этом шаге.
+
+## Как назначить первого admin локально (безопасный dev-командный вариант)
+1. Сначала создайте обычного пользователя через UI/API (`/api/auth/register`) и убедитесь, что он есть в БД.
+2. Выполните локально команду (из корня репозитория), подставив email:
+
+```bash
+cd backend && python3 -c "from sqlalchemy.orm import Session; from app.core.config import get_settings; from app.db.session import get_engine; from app.db.models.user import User; from app.db.models.common import UserRole; s=get_settings(); e=get_engine(s.asya_db_url); session=Session(bind=e); u=session.query(User).filter(User.email=='admin@example.com').one(); u.role=UserRole.ADMIN; session.commit(); session.close()"
+```
+
+3. Перелогиньтесь этим пользователем. В `Настройки` появится admin-раздел заявок.
+
+Важно:
+- это только локальная dev-процедура;
+- не храните реальные секреты в Git;
+- не используйте миграции для временного повышения роли конкретного пользователя в dev.
+
+## Frontend multiple chats (этап 0.2)
+- В `ChatPage` добавлен минимальный список чатов:
+  - выбор активного чата;
+  - создание нового;
+  - переименование/архивирование/удаление обычного чата.
+- `Base-chat` показывается в списке по умолчанию и выбирается стартовым чатом, если `preferred_chat_id` недоступен.
+- История выбранного чата загружается из БД через `/api/chats/{chat_id}/messages`.
+- Streaming-ответы продолжают идти через текущий `/api/chat/stream` и не меняют формат SSE.
 
 ## Streaming размышления
 - Если выбранная модель присылает reasoning (`reasoning_content`/`reasoning`/`thinking`), backend пробрасывает его в отдельный SSE `event: thinking` без дублирования в `event: token`.

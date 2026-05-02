@@ -93,6 +93,31 @@ export interface ChatStreamRequest {
   file_ids?: string[];
 }
 
+export interface ChatListItem {
+  id: string;
+  title: string;
+  kind: string;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface ChatCreateRequest {
+  title: string;
+}
+
+export interface ChatRenameRequest {
+  title: string;
+}
+
+export interface ChatMessageItem {
+  id: string;
+  role: string;
+  content: string;
+  created_at: string;
+}
+
 export type ChatStreamEvent =
   | { event: "token"; data: { text: string } }
   | { event: "error"; data: { message: string } }
@@ -136,4 +161,57 @@ export interface UsageOverviewResponse {
     selected_model: string;
     embedding_model: string;
   };
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  display_name: string;
+  role: string;
+  status: string;
+  preferred_chat_id?: string | null;
+}
+
+export interface AuthLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface AuthRegisterRequest {
+  email: string;
+  display_name: string;
+  password: string;
+}
+
+export interface AuthRegisterResponse {
+  status: string;
+  user?: AuthUser | null;
+  detail?: string | null;
+}
+
+export interface AccessRequestSubmitRequest {
+  email: string;
+  display_name: string;
+}
+
+export interface AccessRequestResponse {
+  id: string;
+  email: string;
+  display_name: string;
+  status: string;
+  approved_by?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccessRequestSubmitResponse {
+  status: string;
+  request: AccessRequestResponse;
+}
+
+export interface AccessRequestApproveResponse {
+  status: string;
+  request: AccessRequestResponse;
+  user: AuthUser;
 }

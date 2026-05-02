@@ -10,8 +10,12 @@ from typing import Any, Dict, Generator, List, Optional
 import httpx
 
 from app.core.config import Settings
+from app.db.models.common import MessageRole
 from app.models.schemas import ModelInfo
+from app.repositories.chat_repository import ChatRepository
+from app.repositories.message_repository import MessageRepository
 from app.services.settings_service import SettingsService
+from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.file_store import SessionFileStore, StoredSessionFile
 from app.storage.session_store import SessionStore
@@ -23,24 +27,32 @@ class ChatService:
     def __init__(
         self,
         settings: Settings,
-        session_store: SessionStore,
         file_store: SessionFileStore,
         vector_store: SessionVectorStore,
         vsellm_client: VseLLMClient,
+        current_user_id: str = "",
+        chat_repository: Optional[ChatRepository] = None,
+        message_repository: Optional[MessageRepository] = None,
+        session_store: Optional[SessionStore] = None,
         settings_service: Optional[SettingsService] = None,
+        usage_recorder: Optional[UsageRecorder] = None,
         usage_store: Optional[UsageStore] = None,
     ) -> None:
         self._settings = settings
+        self._current_user_id = current_user_id
+        self._chat_repository = chat_repository
+        self._message_repository = message_repository
         self._session_store = session_store
         self._file_store = file_store
         self._vector_store = vector_store
         self._vsellm_client = vsellm_client
         self._settings_service = settings_service or SettingsService(settings)
+        self._usage_recorder = usage_recorder
         self._usage_store = usage_store
 
     def build_messages_payload(self, session_id: str, user_message: str, file_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         runtime_settings = self._settings_service.get_settings()
-        history = self._session_store.get_messages(session_id)
+        history = self._build_history_payload(session_id)
         attached_images = self._resolve_attached_images(session_id=session_id, file_ids=file_ids or [])
         if attached_images:
             self._ensure_vision_supported(selected_model=runtime_settings.selected_model)
@@ -59,7 +71,12 @@ class ChatService:
             runtime_settings = self._settings_service.get_settings()
             messages = self.build_messages_payload(session_id=session_id, user_message=user_message, file_ids=file_ids or [])
             self._ensure_chat_supported(selected_model=runtime_settings.selected_model)
-            self._session_store.append_message(session_id=session_id, role="user", content=user_message)
+            self._append_message(
+                chat_id=session_id,
+                role=MessageRole.USER.value,
+                content=user_message,
+                user_id=self._current_user_id,
+            )
             model = runtime_settings.selected_model
             payload = {"model": model, "messages": messages, "stream": True}
             headers = {"Authorization": f"Bearer {self._settings.vsellm_api_key.strip()}"}
@@ -97,9 +114,19 @@ class ChatService:
                             for chunk_text in self._split_text_for_sse(fallback_text):
                                 yield self._sse_event("token", {"text": chunk_text})
                         if assistant_text:
-                            self._session_store.append_message(session_id=session_id, role="assistant", content=assistant_text)
+                            self._append_message(
+                                chat_id=session_id,
+                                role=MessageRole.ASSISTANT.value,
+                                content=assistant_text,
+                                user_id=None,
+                            )
                         if self._usage_store is not None:
                             self._usage_store.record_chat_usage(
+                                session_id=session_id,
+                                usage=usage if isinstance(usage, dict) else None,
+                            )
+                        if self._usage_recorder is not None:
+                            self._usage_recorder.record_chat_usage(
                                 session_id=session_id,
                                 usage=usage if isinstance(usage, dict) else None,
                             )
@@ -132,9 +159,19 @@ class ChatService:
                         yield self._sse_event("token", {"text": delta})
 
             if assistant_text:
-                self._session_store.append_message(session_id=session_id, role="assistant", content=assistant_text)
+                self._append_message(
+                    chat_id=session_id,
+                    role=MessageRole.ASSISTANT.value,
+                    content=assistant_text,
+                    user_id=None,
+                )
             if self._usage_store is not None:
                 self._usage_store.record_chat_usage(session_id=session_id, usage=usage if isinstance(usage, dict) else None)
+            if self._usage_recorder is not None:
+                self._usage_recorder.record_chat_usage(
+                    session_id=session_id,
+                    usage=usage if isinstance(usage, dict) else None,
+                )
             yield self._sse_event("done", {"usage": usage})
         except VseLLMError as exc:
             yield self._sse_event("error", {"message": exc.user_message})
@@ -149,8 +186,7 @@ class ChatService:
     def _validate_request(self, session_id: str, user_message: str, file_ids: List[str]) -> None:
         if not session_id.strip():
             raise VseLLMError(status_code=400, user_message="session_id обязателен.")
-        session = self._session_store.get_session(session_id)
-        if session is None:
+        if not self._session_exists_for_user(session_id):
             raise VseLLMError(status_code=404, user_message="Сессия не найдена. Создайте новую сессию.")
         if not user_message.strip():
             raise VseLLMError(status_code=400, user_message="Сообщение не должно быть пустым.")
@@ -159,13 +195,18 @@ class ChatService:
         if not self._settings_service.get_settings().selected_model.strip():
             raise VseLLMError(status_code=503, user_message="Глобальная модель не настроена на backend.")
         for file_id in file_ids:
-            if file_id not in session.file_ids:
+            if self._file_store.get_session_file(session_id=session_id, file_id=file_id) is None:
                 raise VseLLMError(status_code=400, user_message=f"Файл '{file_id}' не найден в текущей сессии.")
 
     def _build_retrieval_context(self, session_id: str, user_message: str) -> str:
-        session = self._session_store.get_session(session_id)
-        if session is None or not session.file_ids:
-            return ""
+        if self._session_store is not None:
+            session = self._session_store.get_session(session_id)
+            if session is None or not session.file_ids:
+                return ""
+        else:
+            session_files = self._file_store.get_session_files(session_id)
+            if not session_files:
+                return ""
         if not self._vector_store.has_session_chunks(session_id):
             return ""
 
@@ -265,7 +306,7 @@ class ChatService:
     def _get_selected_model_metadata(self, selected_model: str) -> Optional[ModelInfo]:
         try:
             models = self._vsellm_client.get_models()
-        except VseLLMError:
+        except Exception:
             return None
         return next((item for item in models if item.id == selected_model), None)
 
@@ -333,7 +374,12 @@ class ChatService:
             for chunk_text in self._split_text_for_sse(thinking, chunk_size=80):
                 yield self._sse_event("thinking", {"text": chunk_text})
         if text:
-            self._session_store.append_message(session_id=session_id, role="assistant", content=text)
+            self._append_message(
+                chat_id=session_id,
+                role=MessageRole.ASSISTANT.value,
+                content=text,
+                user_id=None,
+            )
             for chunk_text in self._split_text_for_sse(text, chunk_size=80):
                 yield self._sse_event("token", {"text": chunk_text})
         if self._usage_store is not None:
@@ -341,7 +387,35 @@ class ChatService:
                 session_id=session_id,
                 usage=usage if isinstance(usage, dict) else None,
             )
+        if self._usage_recorder is not None:
+            self._usage_recorder.record_chat_usage(
+                session_id=session_id,
+                usage=usage if isinstance(usage, dict) else None,
+            )
         yield self._sse_event("done", {"usage": usage})
+
+    def _build_history_payload(self, chat_id: str) -> List[Dict[str, Any]]:
+        if self._session_store is not None:
+            return self._session_store.get_messages(chat_id)
+        if self._message_repository is None:
+            return []
+        messages = self._message_repository.list_for_chat(chat_id)
+        return [{"role": message.role.value, "content": message.content} for message in messages]
+
+    def _append_message(self, chat_id: str, role: str, content: str, user_id: Optional[str]) -> None:
+        if self._session_store is not None:
+            self._session_store.append_message(chat_id, role=role, content=content)
+            return
+        if self._message_repository is None:
+            return
+        self._message_repository.create(chat_id=chat_id, user_id=user_id, role=role, content=content)
+
+    def _session_exists_for_user(self, session_id: str) -> bool:
+        if self._session_store is not None:
+            return self._session_store.has_session(session_id)
+        if self._chat_repository is None:
+            return False
+        return self._chat_repository.get_for_user(session_id, self._current_user_id) is not None
 
     def _request_non_stream_completion(
         self,

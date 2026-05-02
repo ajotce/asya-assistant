@@ -28,6 +28,7 @@ class Settings(BaseSettings):
         alias="DEFAULT_SYSTEM_PROMPT",
     )
     sqlite_path: str = Field(default="./data/asya.sqlite3", alias="SQLITE_PATH")
+    asya_db_path: str = Field(default="./data/asya-0.2.sqlite3", alias="ASYA_DB_PATH")
     tmp_dir: str = Field(default="./tmp", alias="TMP_DIR")
     max_files_per_message: int = Field(default=10, alias="MAX_FILES_PER_MESSAGE")
     max_file_size_mb: int = Field(default=256, alias="MAX_FILE_SIZE_MB")
@@ -35,6 +36,12 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     serve_frontend: bool = Field(default=True, alias="SERVE_FRONTEND")
     frontend_dist_path: str = Field(default="../frontend/dist", alias="FRONTEND_DIST_PATH")
+    auth_registration_mode: str = Field(default="open", alias="AUTH_REGISTRATION_MODE")
+    auth_cookie_name: str = Field(default="asya_session", alias="AUTH_COOKIE_NAME")
+    auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
+    auth_session_ttl_hours: int = Field(default=168, alias="AUTH_SESSION_TTL_HOURS")
+    auth_session_hash_secret: str = Field(default="dev-change-me", alias="AUTH_SESSION_HASH_SECRET")
+    master_encryption_key: str = Field(default="", alias="MASTER_ENCRYPTION_KEY")
 
     @property
     def vsellm_api_key_configured(self) -> bool:
@@ -43,6 +50,13 @@ class Settings(BaseSettings):
     @property
     def frontend_dist_dir(self) -> Path:
         return Path(self.frontend_dist_path).resolve()
+
+    @property
+    def asya_db_url(self) -> str:
+        db_path = Path(self.asya_db_path)
+        if not db_path.is_absolute():
+            db_path = db_path.resolve()
+        return f"sqlite+pysqlite:///{db_path.as_posix()}"
 
 
 @lru_cache

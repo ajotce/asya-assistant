@@ -112,6 +112,35 @@ class SessionFilesUploadResponse(BaseModel):
     file_ids: list[str]
 
 
+class ChatListItemResponse(BaseModel):
+    id: str
+    title: str
+    kind: str
+    is_archived: bool
+    created_at: str
+    updated_at: str
+    message_count: int
+
+
+class ChatCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=255)
+
+
+class ChatRenameRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=255)
+
+
+class ChatMessageItemResponse(BaseModel):
+    id: str
+    role: str
+    content: str
+    created_at: str
+
+
 class SettingsResponse(BaseModel):
     assistant_name: str
     system_prompt: str
@@ -177,3 +206,62 @@ class UsageSessionResponse(BaseModel):
     embeddings: UsageEmbeddingsInfo
     cost: UsageCostInfo
     runtime: UsageSessionRuntimeInfo
+
+
+class AuthRegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=320)
+    display_name: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=8, max_length=200)
+
+
+class AuthLoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=8, max_length=200)
+
+
+class AuthUserResponse(BaseModel):
+    id: str
+    email: str
+    display_name: str
+    role: str
+    status: str
+    preferred_chat_id: Optional[str] = None
+
+
+class AuthRegisterResponse(BaseModel):
+    status: str
+    user: Optional[AuthUserResponse] = None
+    detail: Optional[str] = None
+
+
+class AccessRequestSubmitRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=320)
+    display_name: str = Field(min_length=1, max_length=120)
+
+
+class AccessRequestResponse(BaseModel):
+    id: str
+    email: str
+    display_name: str
+    status: str
+    approved_by: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class AccessRequestSubmitResponse(BaseModel):
+    status: str
+    request: AccessRequestResponse
+
+
+class AccessRequestApproveResponse(BaseModel):
+    status: str
+    request: AccessRequestResponse
+    user: AuthUserResponse

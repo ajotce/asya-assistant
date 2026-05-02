@@ -1,6 +1,16 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
-import { createSession, deleteSession, streamChat, uploadSessionFiles } from "../api/client";
+import {
+  archiveChat,
+  createChat,
+  deleteChat,
+  getChatMessages,
+  listChats,
+  renameChat,
+  streamChat,
+  uploadSessionFiles,
+} from "../api/client";
+import type { ChatListItem } from "../types/api";
 
 interface ChatMessage {
   id: string;
@@ -26,15 +36,24 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set([
   ".heic",
 ]);
 
-export default function ChatPage() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [input, setInput] = useState("");
+interface ChatPageProps {
+  initialSessionId?: string | null;
+}
+
+export default function ChatPage({ initialSessionId = null }: ChatPageProps) {
+  const [chats, setChats] = useState<ChatListItem[]>([]);
+  const [chatsLoading, setChatsLoading] = useState(true);
+  const [chatsError, setChatsError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(initialSessionId);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
+
+  const [input, setInput] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState("");
 
   const hasMessages = messages.length > 0;
   const canSend = !isGenerating && Boolean(sessionId);
@@ -42,24 +61,81 @@ export default function ChatPage() {
   useEffect(() => {
     let active = true;
 
-    async function initSession() {
+    async function loadChatsOnStart() {
+      setChatsLoading(true);
+      setChatsError(null);
       try {
-        const created = await createSession();
-        if (active) {
-          setSessionId(created.session_id);
+        const list = await listChats();
+        if (!active) {
+          return;
         }
-      } catch (initError) {
+        setChats(list);
+
+        const selected = pickInitialChatId(list, initialSessionId);
+        if (selected) {
+          setSessionId(selected);
+        }
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setChatsError(getErrorMessage(loadError));
+      } finally {
         if (active) {
-          setError(getErrorMessage(initError));
+          setChatsLoading(false);
         }
       }
     }
 
-    initSession();
+    void loadChatsOnStart();
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialSessionId]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setMessages([]);
+      return;
+    }
+
+    let active = true;
+
+    async function loadMessages(chatId: string) {
+      setMessagesLoading(true);
+      setMessagesError(null);
+      try {
+        const items = await getChatMessages(chatId);
+        if (!active) {
+          return;
+        }
+        setMessages(
+          items
+            .filter((item) => item.role === "user" || item.role === "assistant")
+            .map((item) => ({
+              id: item.id,
+              role: item.role as "user" | "assistant",
+              text: item.content,
+            }))
+        );
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setMessages([]);
+        setMessagesError(getErrorMessage(loadError));
+      } finally {
+        if (active) {
+          setMessagesLoading(false);
+        }
+      }
+    }
+
+    void loadMessages(sessionId);
+    return () => {
+      active = false;
+    };
+  }, [sessionId]);
 
   function handleSelectFiles(event: ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(event.target.files ?? []);
@@ -101,25 +177,92 @@ export default function ChatPage() {
     setSelectedFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
   }
 
+  async function handleCreateChat() {
+    if (isGenerating) {
+      return;
+    }
+    setError(null);
+    try {
+      const chat = await createChat({ title: "Новый чат" });
+      setChats((prev) => [...prev, chat]);
+      setSessionId(chat.id);
+      setMessages([]);
+      setSelectedFiles([]);
+      setInput("");
+    } catch (createError) {
+      setError(getErrorMessage(createError));
+    }
+  }
+
+  async function handleRenameChat(chat: ChatListItem) {
+    if (chat.kind === "base" || isGenerating) {
+      return;
+    }
+    const nextTitle = window.prompt("Новое название чата", chat.title)?.trim();
+    if (!nextTitle) {
+      return;
+    }
+    try {
+      const updated = await renameChat(chat.id, { title: nextTitle });
+      setChats((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (renameError) {
+      setError(getErrorMessage(renameError));
+    }
+  }
+
+  async function handleArchiveChat(chat: ChatListItem) {
+    if (chat.kind === "base" || isGenerating) {
+      return;
+    }
+    if (!window.confirm(`Архивировать чат '${chat.title}'?`)) {
+      return;
+    }
+    try {
+      await archiveChat(chat.id);
+      const refreshed = await listChats();
+      setChats(refreshed);
+      if (sessionId === chat.id) {
+        const next = pickInitialChatId(refreshed, null);
+        setSessionId(next);
+      }
+    } catch (archiveError) {
+      setError(getErrorMessage(archiveError));
+    }
+  }
+
+  async function handleDeleteChat(chat: ChatListItem) {
+    if (chat.kind === "base" || isGenerating) {
+      return;
+    }
+    if (!window.confirm(`Удалить чат '${chat.title}'?`)) {
+      return;
+    }
+    try {
+      await deleteChat(chat.id);
+      const refreshed = await listChats();
+      setChats(refreshed);
+      if (sessionId === chat.id) {
+        const next = pickInitialChatId(refreshed, null);
+        setSessionId(next);
+      }
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError));
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = input.trim();
-    if (!text) {
+    if (!text || !sessionId) {
       return;
     }
 
     const filesToSend = [...selectedFiles];
     setInput("");
-    await sendUserMessage(text, filesToSend);
+    await sendUserMessageInSession(sessionId, text, filesToSend);
   }
 
-  async function sendUserMessage(text: string, filesToUpload: File[]): Promise<void> {
-    const currentSessionId = await ensureSession();
-    if (!currentSessionId) {
-      setError("Не удалось создать backend-сессию.");
-      return;
-    }
-
+  async function sendUserMessageInSession(currentSessionId: string, text: string, filesToUpload: File[]) {
     setError(null);
     setIsGenerating(true);
 
@@ -160,9 +303,7 @@ export default function ChatPage() {
           onToken: (token) => {
             setMessages((prev) =>
               prev.map((message) =>
-                message.id === assistantId
-                  ? { ...message, text: `${message.text}${token}`, streaming: true }
-                  : message
+                message.id === assistantId ? { ...message, text: `${message.text}${token}`, streaming: true } : message
               )
             );
           },
@@ -187,9 +328,7 @@ export default function ChatPage() {
             );
           },
           onDone: () => {
-            setMessages((prev) =>
-              prev.map((item) => (item.id === assistantId ? { ...item, streaming: false } : item))
-            );
+            setMessages((prev) => prev.map((item) => (item.id === assistantId ? { ...item, streaming: false } : item)));
           },
         }
       );
@@ -211,268 +350,155 @@ export default function ChatPage() {
     }
   }
 
-  async function ensureSession(): Promise<string | null> {
-    if (sessionId) {
-      return sessionId;
-    }
-    try {
-      const created = await createSession();
-      setSessionId(created.session_id);
-      return created.session_id;
-    } catch {
-      return null;
-    }
-  }
-
-  async function handleClearSession() {
-    if (isGenerating) {
-      return;
-    }
-    setError(null);
-    try {
-      if (sessionId) {
-        await deleteSession(sessionId);
-      }
-      const created = await createSession();
-      setSessionId(created.session_id);
-      setMessages([]);
-      setSelectedFiles([]);
-      setEditingId(null);
-      setEditingText("");
-    } catch (clearError) {
-      setError(getErrorMessage(clearError));
-    }
-  }
-
-  function startEdit(message: ChatMessage) {
-    if (message.role !== "user" || isGenerating) {
-      return;
-    }
-    setEditingId(message.id);
-    setEditingText(message.text);
-    setError(null);
-  }
-
-  function cancelEdit() {
-    setEditingId(null);
-    setEditingText("");
-  }
-
-  async function saveEdit() {
-    const nextText = editingText.trim();
-    if (!editingId || !nextText || isGenerating) {
-      return;
-    }
-
-    const targetIndex = messages.findIndex((message) => message.id === editingId && message.role === "user");
-    if (targetIndex < 0) {
-      cancelEdit();
-      return;
-    }
-
-    const head = messages.slice(0, targetIndex).filter((item) => item.role === "user").map((item) => item.text);
-    const replayUserMessages = [...head, nextText];
-
-    setEditingId(null);
-    setEditingText("");
-    setSelectedFiles([]);
-    setMessages([]);
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      if (sessionId) {
-        await deleteSession(sessionId);
-      }
-      const created = await createSession();
-      setSessionId(created.session_id);
-
-      for (const userText of replayUserMessages) {
-        await sendUserMessageInSession(created.session_id, userText);
-      }
-    } catch (editError) {
-      setError(getErrorMessage(editError));
-    } finally {
-      setIsGenerating(false);
-    }
-  }
-
-  async function sendUserMessageInSession(currentSessionId: string, text: string) {
-    const userId = makeId("user");
-    const assistantId = makeId("assistant");
-
-    setMessages((prev) => [
-      ...prev,
-      { id: userId, role: "user", text },
-      { id: assistantId, role: "assistant", text: "", thinking: "", streaming: true },
-    ]);
-
-    await streamChat(
-      { session_id: currentSessionId, message: text },
-      {
-        onToken: (token) => {
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantId
-                ? { ...message, text: `${message.text}${token}`, streaming: true }
-                : message
-            )
-          );
-        },
-        onThinking: (chunk) => {
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantId
-                ? { ...message, thinking: `${message.thinking ?? ""}${chunk}`, streaming: true }
-                : message
-            )
-          );
-        },
-        onError: (message) => {
-          setError(normalizeChatError(message));
-          setMessages((prev) =>
-            prev.map((item) =>
-              item.id === assistantId
-                ? { ...item, text: item.text || "Не удалось получить ответ от Asya.", streaming: false }
-                : item
-            )
-          );
-        },
-        onDone: () => {
-          setMessages((prev) =>
-            prev.map((item) => (item.id === assistantId ? { ...item, streaming: false } : item))
-          );
-        },
-      }
-    );
-  }
-
   const sessionStatusText = useMemo(() => {
     if (!sessionId) {
-      return "Сессия: создаётся...";
+      return "Чат: не выбран";
     }
-    return `Сессия: ${sessionId.slice(0, 8)}...`;
+    return `Чат: ${sessionId.slice(0, 8)}...`;
   }, [sessionId]);
 
   return (
     <section className="page" aria-label="Чат Asya">
       <div className="page__row">
         <h2 className="page__title">Чат</h2>
-        <button type="button" className="chat-action-button" onClick={handleClearSession} disabled={isGenerating}>
-          Очистить сессию
+        <button type="button" className="chat-action-button" onClick={handleCreateChat} disabled={isGenerating || chatsLoading}>
+          Новый чат
         </button>
       </div>
-      <p className="status-text">{sessionStatusText}</p>
-      {error ? <p className="status-text status-text--error">{error}</p> : null}
 
-      <div className="chat-list">
-        {!hasMessages ? <p className="status-text">Сообщений пока нет. Напишите первый запрос.</p> : null}
-        {messages.map((message) => (
-          <article
-            key={message.id}
-            className={`chat-bubble ${message.role === "user" ? "chat-bubble--user" : "chat-bubble--assistant"}`}
-          >
-            <div className="chat-bubble__header">
-              <p className="chat-bubble__role">{message.role === "user" ? "Вы" : "Asya"}</p>
-              {message.role === "user" ? (
-                <button
-                  type="button"
-                  className="chat-edit-button"
-                  onClick={() => startEdit(message)}
-                  disabled={isGenerating}
-                >
-                  Редактировать
-                </button>
-              ) : null}
-            </div>
-            {message.role === "assistant" && message.thinking?.trim() ? (
-              <details className="chat-bubble__thinking" open={Boolean(message.streaming)}>
-                <summary className="chat-bubble__thinking-summary">Размышления модели</summary>
-                <p className="chat-bubble__thinking-text">{message.thinking}</p>
-              </details>
-            ) : null}
-            <p className="chat-bubble__text">{message.text}</p>
-            {message.streaming ? <p className="chat-bubble__streaming">Печатает...</p> : null}
-          </article>
-        ))}
-      </div>
+      <div className="chat-layout">
+        <aside className="chat-sidebar" aria-label="Список чатов">
+          <p className="status-text">{sessionStatusText}</p>
+          {chatsLoading ? <p className="status-text">Загрузка чатов...</p> : null}
+          {chatsError ? <p className="status-text status-text--error">{chatsError}</p> : null}
 
-      {editingId ? (
-        <div className="chat-edit-panel">
-          <label className="settings-form__label" htmlFor="chat-edit-input">
-            Редактирование сообщения
-          </label>
-          <textarea
-            id="chat-edit-input"
-            className="chat-form__input"
-            value={editingText}
-            onChange={(event) => setEditingText(event.target.value)}
-            rows={3}
-          />
-          <div className="chat-edit-panel__actions">
-            <button type="button" className="chat-form__submit" onClick={saveEdit} disabled={isGenerating}>
-              Сохранить и получить новый ответ
-            </button>
-            <button type="button" className="chat-action-button" onClick={cancelEdit} disabled={isGenerating}>
-              Отмена
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      <form className="chat-form" onSubmit={handleSubmit}>
-        <div className="chat-files">
-          <label className="settings-form__label" htmlFor="chat-files-input">
-            Файлы к сообщению (до {MAX_FILES_PER_MESSAGE})
-          </label>
-          <input
-            id="chat-files-input"
-            className="chat-files__input"
-            type="file"
-            multiple
-            onChange={handleSelectFiles}
-            disabled={isGenerating || !sessionId}
-          />
-          {selectedFiles.length ? (
-            <ul className="chat-files__list" aria-label="Выбранные файлы">
-              {selectedFiles.map((file, index) => (
-                <li key={makeFileKey(file)} className="chat-files__item">
-                  <span className="chat-files__name">
-                    {file.name} ({formatSize(file.size)})
-                  </span>
+          <ul className="chat-sidebar__list">
+            {chats.map((chat) => {
+              const isActive = chat.id === sessionId;
+              const isBase = chat.kind === "base";
+              return (
+                <li key={chat.id} className="chat-sidebar__item">
                   <button
                     type="button"
-                    className="chat-edit-button"
-                    onClick={() => removeSelectedFile(index)}
+                    className={`chat-sidebar__select${isActive ? " chat-sidebar__select--active" : ""}`}
+                    onClick={() => setSessionId(chat.id)}
                     disabled={isGenerating}
                   >
-                    Удалить
+                    {isBase ? "Base-chat" : chat.title}
                   </button>
+                  {!isBase ? (
+                    <div className="chat-sidebar__actions">
+                      <button type="button" className="chat-edit-button" onClick={() => void handleRenameChat(chat)} disabled={isGenerating}>
+                        Переим.
+                      </button>
+                      <button type="button" className="chat-edit-button" onClick={() => void handleArchiveChat(chat)} disabled={isGenerating}>
+                        Архив
+                      </button>
+                      <button type="button" className="chat-edit-button" onClick={() => void handleDeleteChat(chat)} disabled={isGenerating}>
+                        Удалить
+                      </button>
+                    </div>
+                  ) : null}
                 </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="status-text">Файлы не выбраны.</p>
-          )}
-        </div>
+              );
+            })}
+          </ul>
+        </aside>
 
-        <label className="sr-only" htmlFor="chat-input">
-          Сообщение
-        </label>
-        <textarea
-          id="chat-input"
-          className="chat-form__input"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          rows={3}
-          placeholder="Введите сообщение"
-        />
-        <button type="submit" className="chat-form__submit" disabled={!canSend || !input.trim()}>
-          {isGenerating ? "Генерация..." : "Отправить"}
-        </button>
-      </form>
+        <div className="chat-main">
+          {error ? <p className="status-text status-text--error">{error}</p> : null}
+          {messagesError ? <p className="status-text status-text--error">{messagesError}</p> : null}
+          {messagesLoading ? <p className="status-text">Загрузка истории...</p> : null}
+
+          <div className="chat-list">
+            {!hasMessages && !messagesLoading ? <p className="status-text">Сообщений пока нет. Напишите первый запрос.</p> : null}
+            {messages.map((message) => (
+              <article
+                key={message.id}
+                className={`chat-bubble ${message.role === "user" ? "chat-bubble--user" : "chat-bubble--assistant"}`}
+              >
+                <div className="chat-bubble__header">
+                  <p className="chat-bubble__role">{message.role === "user" ? "Вы" : "Asya"}</p>
+                </div>
+                {message.role === "assistant" && message.thinking?.trim() ? (
+                  <details className="chat-bubble__thinking" open={Boolean(message.streaming)}>
+                    <summary className="chat-bubble__thinking-summary">Размышления модели</summary>
+                    <p className="chat-bubble__thinking-text">{message.thinking}</p>
+                  </details>
+                ) : null}
+                <p className="chat-bubble__text">{message.text}</p>
+                {message.streaming ? <p className="chat-bubble__streaming">Печатает...</p> : null}
+              </article>
+            ))}
+          </div>
+
+          <form className="chat-form" onSubmit={handleSubmit}>
+            <div className="chat-files">
+              <label className="settings-form__label" htmlFor="chat-files-input">
+                Файлы к сообщению (до {MAX_FILES_PER_MESSAGE})
+              </label>
+              <input
+                id="chat-files-input"
+                className="chat-files__input"
+                type="file"
+                multiple
+                onChange={handleSelectFiles}
+                disabled={isGenerating || !sessionId}
+              />
+              {selectedFiles.length ? (
+                <ul className="chat-files__list" aria-label="Выбранные файлы">
+                  {selectedFiles.map((file, index) => (
+                    <li key={makeFileKey(file)} className="chat-files__item">
+                      <span className="chat-files__name">
+                        {file.name} ({formatSize(file.size)})
+                      </span>
+                      <button
+                        type="button"
+                        className="chat-edit-button"
+                        onClick={() => removeSelectedFile(index)}
+                        disabled={isGenerating}
+                      >
+                        Удалить
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="status-text">Файлы не выбраны.</p>
+              )}
+            </div>
+
+            <label className="sr-only" htmlFor="chat-input">
+              Сообщение
+            </label>
+            <textarea
+              id="chat-input"
+              className="chat-form__input"
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              rows={3}
+              placeholder="Введите сообщение"
+            />
+            <button type="submit" className="chat-form__submit" disabled={!canSend || !input.trim()}>
+              {isGenerating ? "Генерация..." : "Отправить"}
+            </button>
+          </form>
+        </div>
+      </div>
     </section>
   );
+}
+
+function pickInitialChatId(chats: ChatListItem[], initialSessionId: string | null): string | null {
+  if (initialSessionId && chats.some((chat) => chat.id === initialSessionId && !chat.is_archived)) {
+    return initialSessionId;
+  }
+  const base = chats.find((chat) => chat.kind === "base" && !chat.is_archived);
+  if (base) {
+    return base.id;
+  }
+  const first = chats.find((chat) => !chat.is_archived);
+  return first?.id ?? null;
 }
 
 function makeId(prefix: string): string {

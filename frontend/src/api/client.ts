@@ -1,11 +1,23 @@
 import type {
+  AccessRequestApproveResponse,
+  AccessRequestResponse,
+  AccessRequestSubmitRequest,
+  AccessRequestSubmitResponse,
+  AuthLoginRequest,
+  AuthRegisterRequest,
+  AuthRegisterResponse,
+  AuthUser,
+  ChatCreateRequest,
+  ChatListItem,
+  ChatMessageItem,
+  ChatRenameRequest,
   ChatStreamRequest,
   HealthResponse,
   ModelInfo,
   ReasoningProbeRequest,
   ReasoningProbeResponse,
-  SessionFilesUploadResponse,
   SessionCreateResponse,
+  SessionFilesUploadResponse,
   SettingsResponse,
   SettingsUpdateRequest,
   UsageOverviewResponse,
@@ -13,6 +25,7 @@ import type {
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
@@ -68,7 +81,10 @@ export function createSession(): Promise<SessionCreateResponse> {
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  const response = await fetch(`/api/session/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+  const response = await fetch(`/api/session/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response, `Ошибка удаления сессии (${response.status})`));
   }
@@ -81,6 +97,7 @@ export async function uploadSessionFiles(sessionId: string, files: File[]): Prom
   }
   const response = await fetch(`/api/session/${encodeURIComponent(sessionId)}/files`, {
     method: "POST",
+    credentials: "include",
     body: formData,
   });
   if (!response.ok) {
@@ -99,6 +116,7 @@ interface StreamHandlers {
 export async function streamChat(request: ChatStreamRequest, handlers: StreamHandlers): Promise<void> {
   const response = await fetch("/api/chat/stream", {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
@@ -126,6 +144,91 @@ export async function streamChat(request: ChatStreamRequest, handlers: StreamHan
       boundary = buffer.indexOf("\n\n");
     }
   }
+}
+
+export function listChats(): Promise<ChatListItem[]> {
+  return apiFetch<ChatListItem[]>("/api/chats");
+}
+
+export function createChat(body: ChatCreateRequest): Promise<ChatListItem> {
+  return apiFetch<ChatListItem>("/api/chats", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function renameChat(chatId: string, body: ChatRenameRequest): Promise<ChatListItem> {
+  return apiFetch<ChatListItem>(`/api/chats/${encodeURIComponent(chatId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function archiveChat(chatId: string): Promise<ChatListItem> {
+  return apiFetch<ChatListItem>(`/api/chats/${encodeURIComponent(chatId)}/archive`, {
+    method: "POST",
+  });
+}
+
+export async function deleteChat(chatId: string): Promise<void> {
+  const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, `Ошибка удаления чата (${response.status})`));
+  }
+}
+
+export function getChatMessages(chatId: string): Promise<ChatMessageItem[]> {
+  return apiFetch<ChatMessageItem[]>(`/api/chats/${encodeURIComponent(chatId)}/messages`);
+}
+
+export function authMe(): Promise<AuthUser> {
+  return apiFetch<AuthUser>("/api/auth/me");
+}
+
+export function authLogin(body: AuthLoginRequest): Promise<AuthUser> {
+  return apiFetch<AuthUser>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function authLogout(): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>("/api/auth/logout", {
+    method: "POST",
+  });
+}
+
+export function authRegister(body: AuthRegisterRequest): Promise<AuthRegisterResponse> {
+  return apiFetch<AuthRegisterResponse>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function submitAccessRequest(body: AccessRequestSubmitRequest): Promise<AccessRequestSubmitResponse> {
+  return apiFetch<AccessRequestSubmitResponse>("/api/access-requests", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function listAdminAccessRequests(): Promise<AccessRequestResponse[]> {
+  return apiFetch<AccessRequestResponse[]>("/api/admin/access-requests");
+}
+
+export function approveAdminAccessRequest(requestId: string): Promise<AccessRequestApproveResponse> {
+  return apiFetch<AccessRequestApproveResponse>(`/api/admin/access-requests/${encodeURIComponent(requestId)}/approve`, {
+    method: "POST",
+  });
+}
+
+export function rejectAdminAccessRequest(requestId: string): Promise<AccessRequestSubmitResponse> {
+  return apiFetch<AccessRequestSubmitResponse>(`/api/admin/access-requests/${encodeURIComponent(requestId)}/reject`, {
+    method: "POST",
+  });
 }
 
 async function extractErrorMessage(response: Response, fallbackMessage: string): Promise<string> {

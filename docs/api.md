@@ -9,9 +9,13 @@
 - `/models`
 - `/settings`
 - `/chat`
+- `/chats`
 - `/session`
 - `/files` (реализовано как `/session/{session_id}/files`)
 - `/usage`
+- `/auth`
+- `/access-requests`
+- `/admin/access-requests`
 
 ## Health
 
@@ -86,6 +90,96 @@
 Ошибки:
 - `400` при валидации
 
+## Auth (v1)
+
+### `POST /api/auth/register`
+Регистрирует пользователя при `AUTH_REGISTRATION_MODE=open`.
+
+Тело:
+- `email`
+- `display_name`
+- `password`
+
+Поведение:
+- при `open`: создаётся пользователь со статусом `active`, пароль хранится только как `pbkdf2_sha256` hash, автоматически создаётся `Base-chat`;
+- при `closed`: создаётся `AccessRequest` со статусом `pending`, пользователь не создаётся.
+
+Успех `200`:
+- `status=registered` + `user`, или
+- `status=request_saved` (если регистрация закрыта).
+
+## Access Requests / Beta Flow (v1)
+
+### `POST /api/access-requests`
+Публичная подача заявки на beta-доступ.
+
+Тело:
+- `email`
+- `display_name`
+
+Поведение:
+- создаёт заявку со статусом `pending`;
+- если уже есть `pending` заявка на этот email, возвращает её же (предсказуемая idempotent-поведение).
+
+Успех `200`:
+- `status: "pending"`
+- `request: { id, email, display_name, status, ... }`
+
+### `GET /api/admin/access-requests`
+Список заявок. Только для `role=admin`.
+
+Ошибки:
+- `401` без авторизации;
+- `403` если пользователь не admin.
+
+### `POST /api/admin/access-requests/{request_id}/approve`
+Аппрув заявки. Только для `role=admin`.
+
+Поведение:
+- заявка должна быть `pending`;
+- admin не может аппрувить заявку на свой собственный email;
+- после approve создаётся новый пользователь (или активируется существующий);
+- гарантируется `Base-chat` для пользователя.
+- в текущем dev-режиме реальная отправка email/magic-link не выполняется в рамках этого endpoint.
+
+### `POST /api/admin/access-requests/{request_id}/reject`
+Отклонение заявки. Только для `role=admin`.
+
+Поведение:
+- заявка должна быть `pending`;
+- admin не может отклонять заявку на свой собственный email.
+
+### `POST /api/auth/login`
+Логин по email+паролю.
+
+Тело:
+- `email`
+- `password`
+
+Успех `200`:
+- возвращает профиль пользователя;
+- в профиле возвращается `preferred_chat_id` (Base-chat или последний доступный чат пользователя);
+- устанавливает `HttpOnly` cookie с opaque session token (имя из `AUTH_COOKIE_NAME`).
+
+Ошибки:
+- `401` при неверном пароле/email;
+- `401` если пользователь не `active` (`pending`/`disabled`).
+
+### `POST /api/auth/logout`
+Инвалидирует текущую сессию:
+- текущий session token помечается `revoked_at` в БД;
+- cookie удаляется.
+
+Успех: `200` (`{ "status": "ok" }`).
+
+### `GET /api/auth/me`
+Возвращает текущего пользователя по session cookie.
+
+Успех `200`: профиль пользователя с `preferred_chat_id` (Base-chat или последний доступный чат).
+
+Ошибки:
+- `401` если cookie отсутствует/просрочена/отозвана или пользователь не `active`.
+
 ## Chat
 
 ### `POST /api/chat/stream`
@@ -103,6 +197,7 @@ SSE события:
 - `event: done` -> `{ "usage": ... }`
 
 Примечания:
+- endpoint требует авторизацию (`current user`);
 - backend использует только контекст текущей сессии;
 - для документов retrieval идет через embeddings/векторный индекс сессии;
 - запрос с изображениями блокируется заранее только если модель явно `supports_vision=false`;
@@ -112,10 +207,45 @@ SSE события:
 - `event: thinking` эмитится, если в delta провайдера есть `reasoning_content` / `reasoning` / `thinking` (для stream) или соответствующие поля в `message.*` (для non-stream fallback). Reasoning не дублируется в `event: token`, не сохраняется в истории сессии и не отправляется обратно провайдеру в последующих сообщениях;
 - для reasoning-моделей, у которых текущий VseLLM upstream не пробрасывает reasoning через стрим (например, `deepseek-r1-*`, `openai/o1-*`, `openai/o3-*`), backend заранее переходит на non-stream запрос и эмитит `event: thinking` (chunked) до `event: token` — поведение SSE-контракта при этом не меняется.
 
+## Chats
+
+### `GET /api/chats`
+Список чатов текущего пользователя (`Base-chat` + обычные не удалённые чаты).
+
+### `POST /api/chats`
+Создаёт обычный чат.
+
+Тело:
+- `title`
+
+### `PATCH /api/chats/{chat_id}`
+Переименовывает чат.
+
+Тело:
+- `title`
+
+### `POST /api/chats/{chat_id}/archive`
+Архивирует обычный чат.
+
+Ошибки:
+- `400` для `Base-chat`
+
+### `DELETE /api/chats/{chat_id}`
+Удаляет обычный чат по текущей backend-логике (soft-delete + cleanup runtime/file/usage артефактов).
+
+Ошибки:
+- `400` для `Base-chat`
+
+### `GET /api/chats/{chat_id}/messages`
+Возвращает историю сообщений чата из БД.
+
 ## Session
 
 ### `POST /api/session`
 Создает сессию.
+
+Примечание:
+- в переходном слое Asya 0.2 `session_id` = `chat_id` из БД.
 
 Успех: `201`, тело:
 - `session_id`
@@ -133,6 +263,9 @@ SSE события:
 Ошибки:
 - `404` с текстом `Сессия не найдена.`
 
+Примечание:
+- доступ только к сессиям текущего пользователя.
+
 ### `DELETE /api/session/{session_id}`
 Удаляет сессию и временные данные (сообщения, файлы, векторы, usage по сессии).
 
@@ -140,6 +273,7 @@ SSE события:
 
 Ошибки:
 - `404` с текстом `Сессия не найдена.`
+- `400` для `Base-chat`.
 
 ## Files
 
@@ -166,6 +300,9 @@ SSE события:
 - `files[]` (`file_id`, `filename`, `content_type`, `size_bytes`)
 - `file_ids[]`
 
+Примечание по 0.2:
+- metadata загруженных файлов теперь сохраняются в БД (`file_meta`) с привязкой к `user_id` и `chat_id`.
+
 Типовые ошибки:
 - `404` `Сессия не найдена.`
 - `400` по лимитам/формату/повреждённым файлам
@@ -180,6 +317,9 @@ SSE события:
 - `cost` (`status=unavailable`, без расчета стоимости)
 - `runtime` (`active_sessions`, `selected_model`, `embedding_model`)
 
+Примечание по 0.2:
+- `chat`/`embeddings` usage агрегируются по `usage_records` текущего пользователя в БД.
+
 ### `GET /api/usage/session/{session_id}`
 Usage по конкретной сессии:
 - `chat`
@@ -189,6 +329,9 @@ Usage по конкретной сессии:
 
 Ошибки:
 - `404` `Сессия не найдена.`
+
+Примечание по 0.2:
+- endpoint возвращает данные только по сессии, принадлежащей текущему пользователю.
 
 ## Локальная раздача frontend через backend
 Когда `SERVE_FRONTEND=true` и `frontend/dist` собран:
