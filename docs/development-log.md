@@ -2455,3 +2455,20 @@
   - Ручной e2e-прогон rollback UI в браузере не выполнялся в этом шаге.
 - Риски/следующие шаги:
   - В rollback используется strategy logical-hide/archive для отсутствующих в snapshot записей; при будущем переходе на soft-delete policy стоит унифицировать семантику для всех memory сущностей.
+
+## 2026-05-02 (Asya 0.4 finalization: merge в main)
+- Что сделано:
+  - Завершён merge PR #3 (`0.4/finalization` -> `main`).
+  - В `main` вошли:
+    - alpha/beta access flow (`SignupToken`, setup-password link, SMTP/mock transport);
+    - chat action routing с `pending -> confirm -> execute`;
+    - расширенное безопасное activity logging для интеграционных/observer действий;
+    - deployment readiness (`Caddyfile`, `docker-compose.prod.yml`, обновлён `.env.example`);
+    - обновлённые docs (`api`, `architecture`, `decisions`, `deployment`, `acceptance v0.4`, `README`).
+  - Доведена типизация до зелёного `mypy app` в Python 3.12 container.
+  - Добавлен стабильный fallback для окружений без локального Python 3.12: `make backend-py312-*`.
+- Какие проверки запущены:
+  - `make backend-py312-all` — успешно (`pytest`, `ruff`, `mypy`).
+  - frontend container pipeline — успешно (`lint`, `test`, `build`).
+- Что не проверено и почему:
+  - Автоматический e2e browser-flow для full user journey не запускался (в проекте отсутствует отдельный e2e harness в рамках этого шага).
