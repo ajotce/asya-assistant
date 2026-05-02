@@ -49,9 +49,16 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set([
 interface ChatPageProps {
   initialSessionId?: string | null;
   currentUserRole?: string;
+  observerDiscussDraft?: string | null;
+  onObserverDiscussConsumed?: () => void;
 }
 
-export default function ChatPage({ initialSessionId = null, currentUserRole = "user" }: ChatPageProps) {
+export default function ChatPage({
+  initialSessionId = null,
+  currentUserRole = "user",
+  observerDiscussDraft = null,
+  onObserverDiscussConsumed,
+}: ChatPageProps) {
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [chatsLoading, setChatsLoading] = useState(true);
   const [chatsError, setChatsError] = useState<string | null>(null);
@@ -237,6 +244,30 @@ export default function ChatPage({ initialSessionId = null, currentUserRole = "u
     setSessionId(fallback);
   }, [visibleChats, sessionId]);
 
+  useEffect(() => {
+    const chatId = sessionId;
+    if (!observerDiscussDraft || !chatId || isGenerating) {
+      return;
+    }
+    const safeChatId: string = chatId;
+    const safeDraft: string = observerDiscussDraft;
+    let active = true;
+    async function sendDiscussDraft() {
+      try {
+        await sendUserMessageInSession(safeChatId, safeDraft, []);
+      } finally {
+        if (active) {
+          onObserverDiscussConsumed?.();
+        }
+      }
+    }
+    void sendDiscussDraft();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [observerDiscussDraft, sessionId, isGenerating]);
+
   async function handleVoiceToggle() {
     if (isGenerating || !canSend) return;
     if (voiceRecorder.isRecording) {
@@ -304,6 +335,23 @@ export default function ChatPage({ initialSessionId = null, currentUserRole = "u
     setError(null);
     try {
       const chat = await createChat({ title: "Новый чат", space_id: selectedSpaceId });
+      setChats((prev) => [...prev.filter((item) => item.id !== chat.id), chat]);
+      setSessionId(chat.id);
+      setMessages([]);
+      setSelectedFiles([]);
+      setInput("");
+    } catch (createError) {
+      setError(getErrorMessage(createError));
+    }
+  }
+
+  async function handleCreatePrivateChat() {
+    if (isGenerating) {
+      return;
+    }
+    setError(null);
+    try {
+      const chat = await createChat({ title: "Приватный чат", space_id: selectedSpaceId, kind: "private_encrypted" });
       setChats((prev) => [...prev.filter((item) => item.id !== chat.id), chat]);
       setSessionId(chat.id);
       setMessages([]);
@@ -595,9 +643,24 @@ export default function ChatPage({ initialSessionId = null, currentUserRole = "u
     <section className="page" aria-label="Чат Asya">
       <div className="page__row">
         <h2 className="page__title">Чат</h2>
-        <button type="button" className="chat-action-button" onClick={handleCreateChat} disabled={isGenerating || chatsLoading}>
-          Новый чат
-        </button>
+        <div className="chat-edit-panel__actions">
+          <button
+            type="button"
+            className="chat-action-button"
+            onClick={handleCreateChat}
+            disabled={isGenerating || chatsLoading}
+          >
+            Новый чат
+          </button>
+          <button
+            type="button"
+            className="chat-action-button"
+            onClick={handleCreatePrivateChat}
+            disabled={isGenerating || chatsLoading}
+          >
+            Приватный чат
+          </button>
+        </div>
       </div>
 
       <div className="chat-layout">

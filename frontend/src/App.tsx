@@ -7,7 +7,9 @@ import { useTheme } from "./hooks/useTheme";
 import AuthPage from "./pages/AuthPage";
 import ActivityPage from "./pages/ActivityPage";
 import ChatPage from "./pages/ChatPage";
+import DiaryPage from "./pages/DiaryPage";
 import MemoryPage from "./pages/MemoryPage";
+import ObserverPage from "./pages/ObserverPage";
 import SettingsPage from "./pages/SettingsPage";
 import StatusPage from "./pages/StatusPage";
 import type { AuthUser } from "./types/api";
@@ -24,6 +26,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [preferredChatId, setPreferredChatId] = useState<string | null>(null);
+  const [observerDiscussDraft, setObserverDiscussDraft] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -139,7 +142,27 @@ export default function App() {
           <div className="tab-panels">
             {mountedTabs.chat ? (
               <section className="tab-panel" hidden={activeTab !== "chat"}>
-                <ChatPage initialSessionId={preferredChatId} currentUserRole={currentUser.role} />
+                <ChatPage
+                  initialSessionId={preferredChatId}
+                  currentUserRole={currentUser.role}
+                  observerDiscussDraft={observerDiscussDraft}
+                  onObserverDiscussConsumed={() => setObserverDiscussDraft(null)}
+                />
+              </section>
+            ) : null}
+            {mountedTabs.diary ? (
+              <section className="tab-panel" hidden={activeTab !== "diary"}>
+                <DiaryPage />
+              </section>
+            ) : null}
+            {mountedTabs.observer ? (
+              <section className="tab-panel" hidden={activeTab !== "observer"}>
+                <ObserverPage
+                  onDiscuss={(context) => {
+                    setObserverDiscussDraft(context);
+                    handleTabChange("chat");
+                  }}
+                />
               </section>
             ) : null}
             {mountedTabs.memory ? (
@@ -183,6 +206,8 @@ function getErrorMessage(error: unknown): string {
 function buildInitialMountedTabs(initialTab: AppTab): Record<AppTab, boolean> {
   return {
     chat: initialTab === "chat",
+    diary: initialTab === "diary",
+    observer: initialTab === "observer",
     memory: initialTab === "memory",
     activity: initialTab === "activity",
     settings: initialTab === "settings",
@@ -201,6 +226,12 @@ function getTabFromPath(pathname: string): AppTab {
   if (pathname.startsWith("/settings")) {
     return "settings";
   }
+  if (pathname.startsWith("/diary")) {
+    return "diary";
+  }
+  if (pathname.startsWith("/observer")) {
+    return "observer";
+  }
   if (pathname.startsWith("/memory")) {
     return "memory";
   }
@@ -216,6 +247,12 @@ function getTabFromPath(pathname: string): AppTab {
 function getPathForTab(tab: AppTab): string {
   if (tab === "settings") {
     return "/settings";
+  }
+  if (tab === "diary") {
+    return "/diary";
+  }
+  if (tab === "observer") {
+    return "/observer";
   }
   if (tab === "memory") {
     return "/memory";
