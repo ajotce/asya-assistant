@@ -42,3 +42,29 @@ def test_chat_crud_and_base_chat_restrictions(tmp_path, monkeypatch) -> None:
     delete_archived = client.delete(f"/api/chats/{chat_id}")
     assert delete_archived.status_code == 204
     app.dependency_overrides.clear()
+
+
+def test_chat_and_messages_are_isolated_between_users(tmp_path, monkeypatch) -> None:
+    client_a = build_authed_client(tmp_path, monkeypatch, "owner@example.com", "Owner")
+    created = client_a.post("/api/chats", json={"title": "Private"})
+    assert created.status_code == 201
+    chat_id = created.json()["id"]
+
+    stream = client_a.post(
+        "/api/chat/stream",
+        json={"session_id": chat_id, "message": "secret message"},
+    )
+    assert stream.status_code == 200
+
+    client_b = build_authed_client(tmp_path, monkeypatch, "other@example.com", "Other")
+    read_by_b = client_b.get(f"/api/chats/{chat_id}/messages")
+    assert read_by_b.status_code == 404
+    rename_by_b = client_b.patch(f"/api/chats/{chat_id}", json={"title": "Hacked"})
+    assert rename_by_b.status_code == 404
+    archive_by_b = client_b.post(f"/api/chats/{chat_id}/archive")
+    assert archive_by_b.status_code == 404
+    delete_by_b = client_b.delete(f"/api/chats/{chat_id}")
+    assert delete_by_b.status_code == 404
+    usage_by_b = client_b.get(f"/api/usage/session/{chat_id}")
+    assert usage_by_b.status_code == 404
+    app.dependency_overrides.clear()

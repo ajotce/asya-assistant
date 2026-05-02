@@ -181,3 +181,30 @@ cd backend && ASYA_DB_PATH=./data/asya-0.2.sqlite3 python3 -m alembic -c alembic
 - admin-пользователь видит в `Настройки` раздел `Admin: Заявки на доступ`;
 - раздел показывает pending заявку;
 - non-admin пользователям этот раздел не отображается.
+
+## 17) Hardening smoke checklist (Asya 0.2)
+- User-data endpoints работают только в рамках владельца:
+  - `session/session-files`, `chats/messages`, `usage/session`, `chat/stream`.
+- Пользователь A не может читать/изменять/удалять данные пользователя B:
+  - `GET /api/session/{id}`, `DELETE /api/session/{id}` -> `404` для B;
+  - `GET /api/chats/{id}/messages`, `PATCH/POST archive/DELETE /api/chats/{id}` -> `404` для B;
+  - `GET /api/usage/session/{id}` -> `404` для B;
+  - `POST /api/session/{id}/files` -> `404` для B.
+- Access request admin endpoint-ы защищены:
+  - без авторизации -> `401`;
+  - для non-admin -> `403`, включая `approve/reject`.
+- Logout/session revoke:
+  - после `POST /api/auth/logout` токен больше не проходит `/api/auth/me`;
+  - `auth_sessions.revoked_at` у текущей сессии заполняется.
+- Истечение session token:
+  - при `AUTH_SESSION_TTL_HOURS=0` токен немедленно недействителен для `/api/auth/me`.
+- Base-chat:
+  - повторные `login/logout` не дублируют `Base-chat` (остаётся ровно один активный).
+- Persistence:
+  - после “restart” backend (новый app client с той же SQLite) история чатов в БД сохраняется.
+- Streaming после auth:
+  - авторизованный пользователь получает SSE (`event: token/done`) из `/api/chat/stream`.
+- Files/retrieval после auth:
+  - upload в `/api/session/{id}/files` работает для владельца и блокируется для чужой сессии;
+  - retrieval-контекст строится только по файлам текущей сессии пользователя.
+- `settings` в текущем шаге остаются глобальными (`/api/settings`), не user-specific.

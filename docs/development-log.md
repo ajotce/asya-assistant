@@ -1,5 +1,35 @@
 # Development Log
 
+## 2026-05-02 (Hardening Asya 0.2: auth/data isolation checks)
+- Что сделано:
+  - Проведён аудит user-data endpoint-ов: `session*`, `chats*`, `chat/stream`, `usage*`, `auth*`, `admin/access-requests*`.
+  - Усилены backend-тесты изоляции A/B:
+    - пользователь B не может читать/изменять/удалять чужой чат и его сообщения;
+    - пользователь B не может получить usage чужого чата;
+    - non-admin не может выполнять `approve/reject` access request.
+  - Добавлены тесты по auth hardening:
+    - `logout` действительно ревокает текущую web-сессию (проверка `auth_sessions.revoked_at`);
+    - истёкший токен (`AUTH_SESSION_TTL_HOURS=0`) не проходит `/api/auth/me`.
+  - Добавлен тест, что `Base-chat` не дублируется при повторных login/logout.
+  - Добавлен тест persistence: история чата сохраняется после “restart backend” (новый клиент на той же SQLite БД).
+  - Обновлён `docs/testing.md`: добавлен hardening smoke checklist для 0.2.
+- Какие файлы изменены:
+  - `backend/tests/test_auth.py`
+  - `backend/tests/test_chats_api.py`
+  - `backend/tests/test_session.py`
+  - `backend/tests/test_access_requests.py`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `85 passed`.
+  - `make lint` -> не выполнен: недоступен Docker daemon.
+  - `make build-frontend` -> не выполнен: недоступен Docker daemon.
+  - ручной Docker smoke по README -> не выполнен: недоступен Docker daemon (`permission denied` к `docker.sock`).
+- Что не проверено и почему:
+  - frontend lint/build и docker smoke не проверены из-за недоступного Docker daemon в текущей среде.
+- Риски/следующие шаги:
+  - когда Docker daemon будет доступен, нужно повторить `make lint`, `make build-frontend` и полный smoke из README.
+
 ## 2026-05-02 (Минимальный admin flow для заявок на доступ)
 - Что сделано:
   - Проверена backend-защита admin endpoint-ов (`role=admin`) через `get_current_admin_user`.

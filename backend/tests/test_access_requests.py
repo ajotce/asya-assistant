@@ -164,6 +164,15 @@ def test_admin_endpoints_require_auth_and_admin_role(tmp_path, monkeypatch) -> N
 
     forbidden = user_client.get("/api/admin/access-requests")
     assert forbidden.status_code == 403
+
+    req = user_client.post("/api/access-requests", json={"email": "target@example.com", "display_name": "Target"})
+    assert req.status_code == 200
+    req_id = req.json()["request"]["id"]
+
+    forbidden_approve = user_client.post(f"/api/admin/access-requests/{req_id}/approve")
+    assert forbidden_approve.status_code == 403
+    forbidden_reject = user_client.post(f"/api/admin/access-requests/{req_id}/reject")
+    assert forbidden_reject.status_code == 403
     app.dependency_overrides.clear()
 
 
