@@ -107,6 +107,7 @@ export interface ChatListItem {
 export interface ChatCreateRequest {
   title: string;
   space_id?: string | null;
+  kind?: string;
 }
 
 export interface ChatRenameRequest {
