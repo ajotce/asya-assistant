@@ -64,7 +64,7 @@ class UsageRecordRepository:
     def delete_for_chat_user(self, *, user_id: str, chat_id: str) -> int:
         stmt = delete(UsageRecord).where(UsageRecord.user_id == user_id, UsageRecord.chat_id == chat_id)
         result = self._session.execute(stmt)
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)
 
     def _aggregate(self, where_clause) -> UsageRecordAggregate:
         stmt = select(

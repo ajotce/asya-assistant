@@ -548,6 +548,17 @@ body {
   cursor: not-allowed;
 }
 
+.chat-form__submit--recording {
+  background: #d32f2f;
+  border-color: #d32f2f;
+  animation: pulse-recording 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-recording {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .chat-action-button,
 .chat-edit-button {
   border: 1px solid var(--border-input);

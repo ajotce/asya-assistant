@@ -8,12 +8,22 @@ import type {
   AuthLoginRequest,
   AuthRegisterRequest,
   AuthRegisterResponse,
+  AuthSetupPasswordRequest,
   AuthUser,
   ChatCreateRequest,
   ChatListItem,
   ChatMessageItem,
   ChatRenameRequest,
   ChatStreamRequest,
+  DiaryEntryItem,
+  DiaryEntryCreateRequest,
+  DiaryEntryUpdateRequest,
+  DiarySettingsPatchRequest,
+  DiarySettingsResponse,
+  ObservationItem,
+  ObservationPostponeRequest,
+  ObservationRuleItem,
+  ObservationRuleUpsertRequest,
   BehaviorRuleCreateRequest,
   BehaviorRuleItem,
   BehaviorRuleUpdateRequest,
@@ -41,6 +51,9 @@ import type {
   SpaceMemorySettingsUpdateRequest,
   SpaceRenameRequest,
   UsageOverviewResponse,
+  VoiceSettings,
+  VoiceSettingsUpdateRequest,
+  VoiceSTTResponse,
 } from "../types/api";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -383,6 +396,13 @@ export function authRegister(body: AuthRegisterRequest): Promise<AuthRegisterRes
   });
 }
 
+export function authSetupPassword(body: AuthSetupPasswordRequest): Promise<AuthUser> {
+  return apiFetch<AuthUser>("/api/auth/setup-password", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export function submitAccessRequest(body: AccessRequestSubmitRequest): Promise<AccessRequestSubmitResponse> {
   return apiFetch<AccessRequestSubmitResponse>("/api/access-requests", {
     method: "POST",
@@ -419,6 +439,72 @@ async function extractErrorMessage(response: Response, fallbackMessage: string):
     return fallbackMessage;
   }
   return fallbackMessage;
+}
+
+export function getVoiceSettings(): Promise<VoiceSettings> {
+  return apiFetch<VoiceSettings>("/api/voice/settings");
+}
+
+export function updateVoiceSettings(body: VoiceSettingsUpdateRequest): Promise<VoiceSettings> {
+  return apiFetch<VoiceSettings>("/api/voice/settings", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function sendVoiceSTT(audioBlob: Blob): Promise<VoiceSTTResponse> {
+  const response = await fetch("/api/voice/stt", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "audio/webm" },
+    body: audioBlob,
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, "Ошибка распознавания речи"));
+  }
+  return (await response.json()) as VoiceSTTResponse;
+}
+
+export async function synthesizeVoiceText(body: { text: string }): Promise<ArrayBuffer> {
+  const response = await fetch("/api/voice/tts", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, "Ошибка синтеза речи"));
+  }
+  return response.arrayBuffer();
+}
+
+export interface TelegramLinkTokenResponse {
+  one_time_token: string;
+  expires_at: string;
+  bot_start_url: string;
+}
+
+export interface TelegramLinkStatusResponse {
+  is_linked: boolean;
+  telegram_user_id?: string | null;
+  telegram_username?: string | null;
+  telegram_chat_id?: string | null;
+}
+
+export function getTelegramStatus(): Promise<TelegramLinkStatusResponse> {
+  return apiFetch<TelegramLinkStatusResponse>("/api/integrations/telegram/status");
+}
+
+export function createTelegramLinkToken(): Promise<TelegramLinkTokenResponse> {
+  return apiFetch<TelegramLinkTokenResponse>("/api/integrations/telegram/link-token", {
+    method: "POST",
+  });
+}
+
+export function unlinkTelegram(): Promise<{ status: string; unlinked: boolean }> {
+  return apiFetch<{ status: string; unlinked: boolean }>("/api/integrations/telegram/unlink", {
+    method: "POST",
+  });
 }
 
 function parseSseEvent(rawEvent: string, handlers: StreamHandlers) {
@@ -460,4 +546,121 @@ function parseSseEvent(rawEvent: string, handlers: StreamHandlers) {
       handlers.onDone();
     }
   }
+}
+
+export function getDiarySettings(): Promise<DiarySettingsResponse> {
+  return apiFetch<DiarySettingsResponse>("/api/diary/settings");
+}
+
+export function patchDiarySettings(body: DiarySettingsPatchRequest): Promise<DiarySettingsResponse> {
+  return apiFetch<DiarySettingsResponse>("/api/diary/settings", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function listDiaryEntries(query?: string, limit?: number): Promise<DiaryEntryItem[]> {
+  const params = new URLSearchParams();
+  if (query) params.set("q", query);
+  if (limit !== undefined) params.set("limit", String(limit));
+  const qs = params.toString();
+  return apiFetch<DiaryEntryItem[]>(`/api/diary/entries${qs ? `?${qs}` : ""}`);
+}
+
+export function createDiaryEntry(body: DiaryEntryCreateRequest): Promise<DiaryEntryItem> {
+  return apiFetch<DiaryEntryItem>("/api/diary/entries", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function createDiaryEntryAudio(
+  audio: Blob,
+  title?: string,
+  content?: string,
+): Promise<DiaryEntryItem> {
+  const formData = new FormData();
+  formData.append("audio", audio, "entry.webm");
+  formData.append("title", title || "Голосовая запись");
+  formData.append("content", content || "");
+  const response = await fetch("/api/diary/entries/audio", {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, `Ошибка загрузки аудио (${response.status})`));
+  }
+  return (await response.json()) as DiaryEntryItem;
+}
+
+export function getDiaryEntry(entryId: string): Promise<DiaryEntryItem> {
+  return apiFetch<DiaryEntryItem>(`/api/diary/entries/${encodeURIComponent(entryId)}`);
+}
+
+export function updateDiaryEntry(entryId: string, body: DiaryEntryUpdateRequest): Promise<DiaryEntryItem> {
+  return apiFetch<DiaryEntryItem>(`/api/diary/entries/${encodeURIComponent(entryId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteDiaryEntry(entryId: string): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/api/diary/entries/${encodeURIComponent(entryId)}`, {
+    method: "DELETE",
+  });
+}
+
+export function listObserverRules(): Promise<ObservationRuleItem[]> {
+  return apiFetch<ObservationRuleItem[]>("/api/observer/rules");
+}
+
+export function upsertObserverRule(body: ObservationRuleUpsertRequest): Promise<ObservationRuleItem> {
+  return apiFetch<ObservationRuleItem>("/api/observer/rules", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function listObservations(
+  status?: string,
+  detector?: string,
+  limit?: number,
+): Promise<ObservationItem[]> {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (detector) params.set("detector", detector);
+  if (limit !== undefined) params.set("limit", String(limit));
+  const qs = params.toString();
+  return apiFetch<ObservationItem[]>(`/api/observer/observations${qs ? `?${qs}` : ""}`);
+}
+
+export function runObserver(): Promise<{ created: number }> {
+  return apiFetch<{ created: number }>("/api/observer/observations/run", {
+    method: "POST",
+  });
+}
+
+export function dismissObservation(observationId: string): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(
+    `/api/observer/observations/${encodeURIComponent(observationId)}/dismiss`,
+    { method: "POST" },
+  );
+}
+
+export function actionedObservation(observationId: string): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(
+    `/api/observer/observations/${encodeURIComponent(observationId)}/actioned`,
+    { method: "POST" },
+  );
+}
+
+export function postponeObservation(
+  observationId: string,
+  body: ObservationPostponeRequest,
+): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(
+    `/api/observer/observations/${encodeURIComponent(observationId)}/postpone`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
 }

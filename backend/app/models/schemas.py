@@ -128,6 +128,7 @@ class ChatCreateRequest(BaseModel):
 
     title: str = Field(min_length=1, max_length=255)
     space_id: Optional[str] = Field(default=None, min_length=1, max_length=36)
+    kind: str = Field(default="regular", min_length=1, max_length=64)
 
 
 class ChatRenameRequest(BaseModel):
@@ -141,6 +142,92 @@ class ChatMessageItemResponse(BaseModel):
     role: str
     content: str
     created_at: str
+
+
+class DiarySettingsResponse(BaseModel):
+    briefing_enabled: bool
+    search_enabled: bool
+    memories_enabled: bool
+    evening_prompt_enabled: bool
+    created_at: str
+    updated_at: str
+
+
+class DiarySettingsPatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    briefing_enabled: bool
+    search_enabled: bool
+    memories_enabled: bool
+    evening_prompt_enabled: bool
+
+
+class DiaryEntryItemResponse(BaseModel):
+    id: str
+    title: str
+    content: str
+    transcript: str
+    topics: list[str]
+    decisions: list[str]
+    mentions: list[str]
+    source_audio_path: Optional[str] = None
+    processing_status: str
+    processing_error: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class DiaryEntryCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(default="Запись дневника", min_length=1, max_length=255)
+    content: str = Field(default="", max_length=20000)
+
+
+class DiaryEntryUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=255)
+    content: str = Field(default="", max_length=20000)
+
+
+class ObservationRuleItemResponse(BaseModel):
+    id: str
+    detector: str
+    enabled: bool
+    threshold_config: dict
+    description: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class ObservationRuleUpsertRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    detector: str = Field(min_length=1, max_length=64)
+    enabled: bool = True
+    threshold_config: dict = Field(default_factory=dict)
+    description: Optional[str] = Field(default=None, max_length=2000)
+
+
+class ObservationItemResponse(BaseModel):
+    id: str
+    detector: str
+    title: str
+    details: str
+    severity: str
+    status: str
+    context_payload: dict
+    observed_at: str
+    postponed_until: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class ObservationPostponeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    postponed_until: str
 
 
 class SettingsResponse(BaseModel):
@@ -269,6 +356,14 @@ class AccessRequestApproveResponse(BaseModel):
     status: str
     request: AccessRequestResponse
     user: AuthUserResponse
+    setup_link: str
+
+
+class AuthSetupPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=24, max_length=255)
+    password: str = Field(min_length=8, max_length=200)
 
 
 class SpaceListItemResponse(BaseModel):
@@ -310,6 +405,70 @@ class SpaceMemorySettingsUpdateRequest(BaseModel):
     memory_write_enabled: bool
     behavior_rules_enabled: bool
     personality_overlay_enabled: bool
+
+
+class IntegrationConnectionResponse(BaseModel):
+    provider: str
+    status: str
+    scopes: list[str]
+    connected_at: Optional[str] = None
+    last_refresh_at: Optional[str] = None
+    last_sync_at: Optional[str] = None
+    safe_error_metadata: Optional[dict] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class TelegramLinkTokenResponse(BaseModel):
+    one_time_token: str
+    expires_at: str
+    bot_start_url: str
+
+
+class TelegramLinkStatusResponse(BaseModel):
+    is_linked: bool
+    telegram_user_id: Optional[str] = None
+    telegram_username: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
+
+
+class TelegramUnlinkResponse(BaseModel):
+    status: str
+    unlinked: bool
+
+
+class VoiceSettingsResponse(BaseModel):
+    assistant_name: str
+    voice_gender: str
+    stt_provider: str
+    tts_provider: str
+    tts_enabled: bool
+
+
+class VoiceSettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    assistant_name: str = Field(min_length=1, max_length=120)
+    voice_gender: str = Field(min_length=1, max_length=16)
+    stt_provider: str = Field(min_length=1, max_length=64)
+    tts_provider: str = Field(min_length=1, max_length=64)
+    tts_enabled: bool
+
+
+class VoiceSTTResponse(BaseModel):
+    text: str
+    provider: str
+
+
+class VoiceTTSRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1, max_length=12000)
+
+
+class VoiceTTSResponse(BaseModel):
+    provider: str
+    mime_type: str
 
 
 class MemoryFactItemResponse(BaseModel):

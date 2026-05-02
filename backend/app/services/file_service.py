@@ -252,7 +252,7 @@ class FileService:
 
     def _extract_pdf_text(self, filename: str, target_path: Path) -> str:
         try:
-            import fitz  # PyMuPDF
+            import fitz  # type: ignore[import-untyped]  # PyMuPDF
         except ImportError as exc:  # pragma: no cover
             raise FileValidationError("Сервис временно не готов к обработке PDF-файлов.", status_code=503) from exc
 

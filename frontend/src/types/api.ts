@@ -191,6 +191,11 @@ export interface AuthRegisterResponse {
   detail?: string | null;
 }
 
+export interface AuthSetupPasswordRequest {
+  token: string;
+  password: string;
+}
+
 export interface AccessRequestSubmitRequest {
   email: string;
   display_name: string;
@@ -218,6 +223,7 @@ export interface AccessRequestApproveResponse {
   status: string;
   request: AccessRequestResponse;
   user: AuthUser;
+  setup_link: string;
 }
 
 export interface SpaceListItem {
@@ -394,4 +400,105 @@ export interface MemorySnapshotSummary extends MemorySnapshotItem {
   episodes_count: number;
   personality_profiles_count: number;
   space_settings_count: number;
+}
+
+export interface DiarySettingsResponse {
+  briefing_enabled: boolean;
+  search_enabled: boolean;
+  memories_enabled: boolean;
+  evening_prompt_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiarySettingsPatchRequest {
+  briefing_enabled: boolean;
+  search_enabled: boolean;
+  memories_enabled: boolean;
+  evening_prompt_enabled: boolean;
+}
+
+export interface DiaryEntryItem {
+  id: string;
+  title: string;
+  content: string;
+  transcript: string;
+  topics: string[];
+  decisions: string[];
+  mentions: string[];
+  source_audio_path?: string | null;
+  processing_status: string;
+  processing_error?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiaryEntryCreateRequest {
+  title?: string;
+  content?: string;
+}
+
+export interface DiaryEntryUpdateRequest {
+  title: string;
+  content: string;
+}
+
+export interface ObservationRuleItem {
+  id: string;
+  detector: string;
+  enabled: boolean;
+  threshold_config: Record<string, unknown>;
+  description?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ObservationRuleUpsertRequest {
+  detector: string;
+  enabled: boolean;
+  threshold_config?: Record<string, unknown>;
+  description?: string | null;
+}
+
+export interface ObservationItem {
+  id: string;
+  detector: string;
+  title: string;
+  details: string;
+  severity: string;
+  status: string;
+  context_payload: Record<string, unknown>;
+  observed_at: string;
+  postponed_until?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ObservationPostponeRequest {
+  postponed_until: string;
+}
+
+export interface VoiceSettings {
+  assistant_name: string;
+  voice_gender: string;
+  stt_provider: string;
+  tts_provider: string;
+  tts_enabled: boolean;
+}
+
+export interface VoiceSettingsUpdateRequest {
+  assistant_name: string;
+  voice_gender: string;
+  stt_provider: string;
+  tts_provider: string;
+  tts_enabled: boolean;
+}
+
+export interface VoiceSTTResponse {
+  text: string;
+  provider: string;
+}
+
+export interface VoiceTTSRequest {
+  text: string;
 }

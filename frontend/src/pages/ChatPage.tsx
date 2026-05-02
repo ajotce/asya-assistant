@@ -8,15 +8,19 @@ import {
   deleteChat,
   getSpaceSettings,
   getChatMessages,
+  getVoiceSettings,
   listSpaces,
   listChats,
   renameSpace,
   renameChat,
+  sendVoiceSTT,
   streamChat,
+  synthesizeVoiceText,
   updateSpaceSettings,
   uploadSessionFiles,
 } from "../api/client";
-import type { ChatListItem, SpaceListItem, SpaceMemorySettingsResponse } from "../types/api";
+import type { ChatListItem, SpaceListItem, SpaceMemorySettingsResponse, VoiceSettings } from "../types/api";
+import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 
 interface ChatMessage {
   id: string;
@@ -69,6 +73,9 @@ export default function ChatPage({ initialSessionId = null, currentUserRole = "u
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings | null>(null);
+  const voiceRecorder = useVoiceRecorder();
 
   const hasMessages = messages.length > 0;
   const canSend = !isGenerating && Boolean(sessionId);
@@ -196,6 +203,22 @@ export default function ChatPage({ initialSessionId = null, currentUserRole = "u
     };
   }, [selectedSpaceId]);
 
+  useEffect(() => {
+    let active = true;
+    async function loadVoice() {
+      try {
+        const data = await getVoiceSettings();
+        if (!active) return;
+        setVoiceSettings(data);
+      } catch {
+        if (!active) return;
+        setVoiceSettings(null);
+      }
+    }
+    void loadVoice();
+    return () => { active = false; };
+  }, []);
+
   const visibleChats = useMemo(() => {
     if (!selectedSpaceId) {
       return chats.filter((chat) => !chat.is_archived);
@@ -213,6 +236,26 @@ export default function ChatPage({ initialSessionId = null, currentUserRole = "u
     const fallback = pickInitialChatId(visibleChats, null);
     setSessionId(fallback);
   }, [visibleChats, sessionId]);
+
+  async function handleVoiceToggle() {
+    if (isGenerating || !canSend) return;
+    if (voiceRecorder.isRecording) {
+      const blob = await voiceRecorder.stop();
+      if (!blob) return;
+      try {
+        setError(null);
+        const stt = await sendVoiceSTT(blob);
+        const text = (stt.text || "").trim();
+        if (text) {
+          await sendUserMessageInSession(sessionId!, text, []);
+        }
+      } catch (sttError) {
+        setError(getErrorMessage(sttError));
+      }
+    } else {
+      await voiceRecorder.start();
+    }
+  }
 
   function handleSelectFiles(event: ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(event.target.files ?? []);
@@ -505,7 +548,16 @@ export default function ChatPage({ initialSessionId = null, currentUserRole = "u
             );
           },
           onDone: () => {
-            setMessages((prev) => prev.map((item) => (item.id === assistantId ? { ...item, streaming: false } : item)));
+            setMessages((prev) => {
+              const updated = prev.map((item) =>
+                item.id === assistantId ? { ...item, streaming: false } : item
+              );
+              const assistantMsg = updated.find((m) => m.id === assistantId);
+              if (voiceSettings?.tts_enabled && assistantMsg?.text.trim()) {
+                void playTTS(assistantMsg.text);
+              }
+              return updated;
+            });
           },
         }
       );
@@ -767,6 +819,16 @@ export default function ChatPage({ initialSessionId = null, currentUserRole = "u
             <button type="submit" className="chat-form__submit" disabled={!canSend || !input.trim()}>
               {isGenerating ? "Генерация..." : "Отправить"}
             </button>
+            {voiceRecorder.isSupported ? (
+              <button
+                type="button"
+                className={`chat-form__submit${voiceRecorder.isRecording ? " chat-form__submit--recording" : ""}`}
+                onClick={() => void handleVoiceToggle()}
+                disabled={!canSend}
+              >
+                {voiceRecorder.isRecording ? "Стоп" : "Микрофон"}
+              </button>
+            ) : null}
           </form>
         </div>
       </div>
@@ -904,6 +966,19 @@ function isImageUpload(file: File | undefined, uploadedContentType: string): boo
   }
   const extension = getFileExtension(file.name);
   return ALLOWED_IMAGE_EXTENSIONS.has(extension) || file.type.toLowerCase().startsWith("image/");
+}
+
+async function playTTS(text: string): Promise<void> {
+  try {
+    const audioBuffer = await synthesizeVoiceText({ text });
+    const blob = new Blob([audioBuffer], { type: "audio/mpeg" });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.onended = () => URL.revokeObjectURL(url);
+    await audio.play();
+  } catch {
+    // best-effort: audio playback failure should never break chat
+  }
 }
 
 function getErrorMessage(error: unknown): string {

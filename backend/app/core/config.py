@@ -41,8 +41,95 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
     auth_session_ttl_hours: int = Field(default=168, alias="AUTH_SESSION_TTL_HOURS")
     auth_session_hash_secret: str = Field(default="dev-change-me", alias="AUTH_SESSION_HASH_SECRET")
+    signup_token_ttl_hours: int = Field(default=48, alias="SIGNUP_TOKEN_TTL_HOURS")
+    public_base_url: str = Field(default="http://localhost:8000", alias="PUBLIC_BASE_URL")
     master_encryption_key: str = Field(default="", alias="MASTER_ENCRYPTION_KEY")
     memory_extraction_enabled: bool = Field(default=True, alias="MEMORY_EXTRACTION_ENABLED")
+    oauth_state_ttl_seconds: int = Field(default=900, alias="OAUTH_STATE_TTL_SECONDS")
+
+    telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
+    telegram_bot_username: str = Field(default="", alias="TELEGRAM_BOT_USERNAME")
+    telegram_link_token_ttl_seconds: int = Field(default=900, alias="TELEGRAM_LINK_TOKEN_TTL_SECONDS")
+    telegram_link_webhook_secret: str = Field(default="", alias="TELEGRAM_LINK_WEBHOOK_SECRET")
+
+    yandex_speechkit_api_key: str = Field(default="", alias="YANDEX_SPEECHKIT_API_KEY")
+    yandex_speechkit_folder_id: str = Field(default="", alias="YANDEX_SPEECHKIT_FOLDER_ID")
+    yandex_speechkit_stt_url: str = Field(
+        default="https://stt.api.cloud.yandex.net/speech/v1/stt:recognize",
+        alias="YANDEX_SPEECHKIT_STT_URL",
+    )
+    yandex_speechkit_tts_url: str = Field(
+        default="https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize",
+        alias="YANDEX_SPEECHKIT_TTS_URL",
+    )
+
+    gigachat_api_key: str = Field(default="", alias="GIGACHAT_API_KEY")
+    gigachat_stt_url: str = Field(
+        default="https://gigachat.devices.sberbank.ru/api/v1/audio/transcriptions",
+        alias="GIGACHAT_STT_URL",
+    )
+    gigachat_tts_url: str = Field(
+        default="https://gigachat.devices.sberbank.ru/api/v1/audio/speech",
+        alias="GIGACHAT_TTS_URL",
+    )
+
+    voice_max_audio_bytes: int = Field(default=15728640, alias="VOICE_MAX_AUDIO_BYTES")
+    voice_tts_enabled_default: bool = Field(default=False, alias="VOICE_TTS_ENABLED_DEFAULT")
+    diary_audio_dir: str = Field(default="./data/diary_audio", alias="DIARY_AUDIO_DIR")
+    scheduler_enabled: bool = Field(default=True, alias="SCHEDULER_ENABLED")
+    observer_interval_minutes: int = Field(default=15, alias="OBSERVER_INTERVAL_MINUTES")
+
+    linear_oauth_client_id: str = Field(default="", alias="LINEAR_OAUTH_CLIENT_ID")
+    linear_oauth_client_secret: str = Field(default="", alias="LINEAR_OAUTH_CLIENT_SECRET")
+    linear_oauth_authorize_url: str = Field(
+        default="https://linear.app/oauth/authorize",
+        alias="LINEAR_OAUTH_AUTHORIZE_URL",
+    )
+    linear_oauth_token_url: str = Field(
+        default="https://api.linear.app/oauth/token",
+        alias="LINEAR_OAUTH_TOKEN_URL",
+    )
+    linear_oauth_revoke_url: str = Field(
+        default="https://api.linear.app/oauth/revoke",
+        alias="LINEAR_OAUTH_REVOKE_URL",
+    )
+
+    google_oauth_client_id: str = Field(default="", alias="GOOGLE_OAUTH_CLIENT_ID")
+    google_oauth_client_secret: str = Field(default="", alias="GOOGLE_OAUTH_CLIENT_SECRET")
+    google_oauth_authorize_url: str = Field(
+        default="https://accounts.google.com/o/oauth2/v2/auth",
+        alias="GOOGLE_OAUTH_AUTHORIZE_URL",
+    )
+    google_oauth_token_url: str = Field(
+        default="https://oauth2.googleapis.com/token",
+        alias="GOOGLE_OAUTH_TOKEN_URL",
+    )
+    google_oauth_revoke_url: str = Field(
+        default="https://oauth2.googleapis.com/revoke",
+        alias="GOOGLE_OAUTH_REVOKE_URL",
+    )
+
+    todoist_oauth_client_id: str = Field(default="", alias="TODOIST_OAUTH_CLIENT_ID")
+    todoist_oauth_client_secret: str = Field(default="", alias="TODOIST_OAUTH_CLIENT_SECRET")
+    todoist_oauth_authorize_url: str = Field(
+        default="https://app.todoist.com/oauth/authorize",
+        alias="TODOIST_OAUTH_AUTHORIZE_URL",
+    )
+    todoist_oauth_token_url: str = Field(
+        default="https://api.todoist.com/oauth/access_token",
+        alias="TODOIST_OAUTH_TOKEN_URL",
+    )
+    todoist_oauth_revoke_url: str = Field(
+        default="https://api.todoist.com/sync/v9/access_tokens/revoke",
+        alias="TODOIST_OAUTH_REVOKE_URL",
+    )
+    email_transport: str = Field(default="mock", alias="EMAIL_TRANSPORT")
+    email_from: str = Field(default="noreply@asya.local", alias="EMAIL_FROM")
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_username: str = Field(default="", alias="SMTP_USERNAME")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
 
     @property
     def vsellm_api_key_configured(self) -> bool:

@@ -21,8 +21,24 @@ class MessageRepository:
         value = self._session.execute(stmt).scalar_one()
         return int(value)
 
-    def create(self, *, chat_id: str, user_id: Optional[str], role: str, content: str) -> Message:
-        message = Message(chat_id=chat_id, user_id=user_id, role=role, content=content)
+    def create(
+        self,
+        *,
+        chat_id: str,
+        user_id: Optional[str],
+        role: str,
+        content: str,
+        content_encrypted: bytes | None = None,
+        encryption_salt: str | None = None,
+    ) -> Message:
+        message = Message(
+            chat_id=chat_id,
+            user_id=user_id,
+            role=role,
+            content=content,
+            content_encrypted=content_encrypted,
+            encryption_salt=encryption_salt,
+        )
         self._session.add(message)
         self._session.flush()
         return message

@@ -29,8 +29,14 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path, monkeypatch) -> None:
     assert "spaces" in inspector.get_table_names()
     assert "memory_episodes" in inspector.get_table_names()
     assert "activity_logs" in inspector.get_table_names()
+    assert "integration_connections" in inspector.get_table_names()
+    assert "oauth_states" in inspector.get_table_names()
+    assert "telegram_account_links" in inspector.get_table_names()
+    assert "telegram_link_tokens" in inspector.get_table_names()
+    assert "user_voice_settings" in inspector.get_table_names()
+    assert "signup_tokens" in inspector.get_table_names()
 
     with engine.connect() as conn:
         revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert revision == "20260502_04"
+    assert revision == "20260502_08"
     get_settings.cache_clear()

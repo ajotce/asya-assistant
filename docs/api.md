@@ -1,12 +1,10 @@
 # API (Asya Local)
 
-Документ описывает:
-- текущие endpoint-ы (фактическое состояние 0.2);
-- целевые API-группы 0.3 (план, без гарантий полной реализации на текущем шаге).
+Документ описывает фактическое API после завершения v0.3 и foundation-слоя интеграций v0.4.
 
 Базовый префикс: `/api`
 
-## 1. Фактические API группы (0.2)
+## 1. Фактические API группы
 - `/health`
 - `/models`
 - `/settings`
@@ -17,6 +15,9 @@
 - `/auth`
 - `/access-requests`
 - `/admin/access-requests`
+- `/integrations`
+- `/integrations/telegram`
+- `/voice`
 
 Все user-data endpoint-ы должны работать только в рамках `current user`.
 
@@ -26,7 +27,55 @@
 - `404` вместо утечки факта существования чужих user-scoped сущностей.
 - Никогда не возвращать секреты, токены, ключи, plaintext защищённых данных.
 
-## 3. Целевые API группы Asya 0.3 (план)
+## 3. Integrations API (v0.4 foundation)
+
+- `GET /api/integrations` — список статусов подключений по поддерживаемым provider.
+- `GET /api/integrations/{provider}` — состояние конкретного provider.
+- `DELETE /api/integrations/{provider}` — безопасное отключение интеграции текущего пользователя.
+
+Поддерживаемые provider:
+- `linear`
+- `google_calendar`
+- `todoist`
+- `gmail`
+- `google_drive`
+- `telegram`
+
+Статусы:
+- `not_connected`
+- `connected`
+- `expired`
+- `revoked`
+- `error`
+
+Ограничения:
+- endpoint-ы user-scoped;
+- токены/refresh-токены никогда не возвращаются в API;
+- metadata ошибок хранится и возвращается только в safe-виде (`safe_error_metadata`).
+
+## 4. OAuth/PKCE foundation (service layer)
+
+Реализован backend service-слой для OAuth-подключений (без публичных callback endpoint-ов в этом шаге):
+- базовые сущности:
+  - `OAuthProviderConfig`
+  - `OAuthTokens`
+  - `OAuthState`
+  - `OAuthIntegration`
+- методы:
+  - `authorization_url(user_id, redirect_uri, scopes)`
+  - `exchange_code(code, state)`
+  - `refresh_access_token(refresh_token)`
+  - `revoke(token)`
+  - `get_authenticated_client(user_id)`
+
+PKCE и state:
+- `code_challenge_method=S256`
+- state хранится в БД (`oauth_states`)
+- state одноразовый
+- state имеет TTL
+- state привязан к `user_id` и `provider`
+
+## 5. Целевые API группы Asya 0.3 (план)
 
 ### 3.1 Spaces
 - `GET /api/spaces`
@@ -71,6 +120,16 @@
 ## 4. Совместимость с chat endpoint
 
 `POST /api/chat/stream` в 0.3 остаётся основным endpoint генерации, но контекст может дополняться релевантной памятью, правилами и personality overlay текущего пространства.
+
+Дополнение v0.4 finalization:
+- `POST /api/auth/setup-password` — установка пароля по одноразовому signup token;
+- `POST /api/admin/access-requests/{id}/approve` теперь возвращает `setup_link`;
+- в `POST /api/chat/stream` добавлен command-routing для tools:
+  - `/tool calendar list|create ...`
+  - `/tool todoist list|create ...`
+  - `/tool linear update ...`
+  - `/tool gmail search|draft ...`
+  - `/confirm <pending_action_id>` для исполнения pending action.
 
 ## 5. Статус реализации 0.3 (актуально)
 
@@ -183,3 +242,21 @@ Spaces API во frontend (используется в `ChatPage`):
 
 Чаты:
 - `POST /api/chats` принимает optional `space_id` и создаёт чат в выбранном пространстве.
+
+## 10. Voice API (v0.4)
+
+- `GET  /api/voice/settings` — получить настройки голоса пользователя
+- `PUT  /api/voice/settings` — обновить настройки голоса
+- `POST /api/voice/stt` — распознавание речи (body: сырое аудио, Content-Type: audio/webm)
+- `POST /api/voice/tts` — синтез речи (body: `{"text": "..."}`)
+
+Лимиты: максимальный размер аудио для STT — 15 MB (`VOICE_MAX_AUDIO_BYTES`).
+
+## 11. Telegram Integration API (v0.4)
+
+- `GET  /api/integrations/telegram/status` — статус привязки аккаунта
+- `POST /api/integrations/telegram/link-token` — создать one-time токен для привязки
+- `POST /api/integrations/telegram/unlink` — отвязать аккаунт
+- `POST /api/integrations/telegram/notify-test` — отправить тестовое уведомление
+
+Привязка: пользователь получает `one_time_token`, переходит по ссылке `https://t.me/<bot>?start=<token>` в Telegram — бот обрабатывает `/start <token>` и связывает аккаунты.

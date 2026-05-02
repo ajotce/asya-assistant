@@ -12,7 +12,7 @@ class AccessRequestNotifier:
     def on_submitted(self, request: AccessRequest) -> None:
         raise NotImplementedError
 
-    def on_approved(self, request: AccessRequest, user: User) -> None:
+    def on_approved(self, request: AccessRequest, user: User, setup_link: str) -> None:
         raise NotImplementedError
 
     def on_rejected(self, request: AccessRequest) -> None:
@@ -33,12 +33,13 @@ class DevLogAccessRequestNotifier(AccessRequestNotifier):
             request.display_name,
         )
 
-    def on_approved(self, request: AccessRequest, user: User) -> None:
+    def on_approved(self, request: AccessRequest, user: User, setup_link: str) -> None:
         logger.info(
-            "access_request_approved id=%s email=%s user_id=%s",
+            "access_request_approved id=%s email=%s user_id=%s setup_link=%s",
             request.id,
             request.email,
             user.id,
+            setup_link,
         )
 
     def on_rejected(self, request: AccessRequest) -> None:

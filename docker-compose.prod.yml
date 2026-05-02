@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      FRONTEND_DIST_PATH: /app/frontend-dist
+      APP_ENV: production
+      ASYA_HOST: 0.0.0.0
+    volumes:
+      - asya_data:/app/data
+      - asya_tmp:/app/tmp
+      - ./frontend/dist:/app/frontend-dist:ro
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  asya_data:
+  asya_tmp:
+  caddy_data:
+  caddy_config:

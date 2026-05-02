@@ -315,8 +315,8 @@ class VseLLMClient:
                     return parsed
 
         if isinstance(capabilities, list):
-            lowered = {str(value).strip().lower() for value in capabilities}
-            if {"chat", "chat_completions", "chat-completions", "chat_completion"} & lowered:
+            lowered_caps = {str(value).strip().lower() for value in capabilities}
+            if {"chat", "chat_completions", "chat-completions", "chat_completion"} & lowered_caps:
                 return True
         return None
 

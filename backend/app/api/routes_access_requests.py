@@ -75,7 +75,7 @@ def approve_access_request(
 ) -> AccessRequestApproveResponse:
     service = AccessRequestService(session)
     try:
-        request, user = service.approve_request(request_id=request_id, admin_user=admin_user)
+        request, user, setup_link = service.approve_request(request_id=request_id, admin_user=admin_user)
     except AccessRequestNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except AccessRequestError as exc:
@@ -85,6 +85,7 @@ def approve_access_request(
         status="approved",
         request=_to_access_request_response(request),
         user=_to_user_response(user),
+        setup_link=setup_link,
     )
 
 

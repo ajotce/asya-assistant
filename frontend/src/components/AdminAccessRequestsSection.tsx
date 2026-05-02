@@ -38,7 +38,7 @@ export default function AdminAccessRequestsSection() {
     try {
       const response = await approveAdminAccessRequest(requestId);
       setItems((prev) => prev.filter((item) => item.id !== requestId));
-      setSuccess(`Заявка одобрена: ${response.user.email}. Пользователь активирован, Base-chat создан.`);
+      setSuccess(`Заявка одобрена: ${response.user.email}. Setup link: ${response.setup_link}`);
     } catch (approveError) {
       setError(getErrorMessage(approveError));
     } finally {
@@ -70,9 +70,7 @@ export default function AdminAccessRequestsSection() {
         </button>
       </div>
 
-      <p className="status-text">
-        Dev-mode: email/magic-link отправка не подключена. Одобрение только активирует пользователя и создаёт Base-chat.
-      </p>
+      <p className="status-text">Approve создаёт one-time setup link и отправляет его по email (smtp/mock).</p>
       {error ? <p className="status-text status-text--error">{error}</p> : null}
       {success ? <p className="status-text status-text--ok">{success}</p> : null}
 

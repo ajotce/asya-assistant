@@ -44,6 +44,7 @@ class UserStatus(str, Enum):
 class ChatKind(str, Enum):
     REGULAR = "regular"
     BASE = "base"
+    PRIVATE_ENCRYPTED = "private_encrypted"
 
 
 class MessageRole(str, Enum):
@@ -118,6 +119,13 @@ class ActivityEventType(str, Enum):
     MEMORY_USED_IN_RESPONSE = "memory_used_in_response"
     MEMORY_SNAPSHOT_CREATED = "memory_snapshot_created"
     MEMORY_ROLLBACK = "memory_rollback"
+    NOTIFICATION_SENT = "notification_sent"
+    DIARY_ENTRY_PROCESSED = "diary_entry_processed"
+    OBSERVATION_CREATED = "observation_created"
+    OBSERVATION_UPDATED = "observation_updated"
+    NOTIFICATION_CENTER = "notification_center"
+    INTEGRATION_ACTION_EXECUTED = "integration_action_executed"
+    OBSERVER_SYNC = "observer_sync"
 
 
 class ActivityEntityType(str, Enum):
@@ -130,3 +138,52 @@ class ActivityEntityType(str, Enum):
     PERSONALITY_PROFILE = "personality_profile"
     MEMORY_CHANGE = "memory_change"
     MEMORY_SNAPSHOT = "memory_snapshot"
+    NOTIFICATION = "notification"
+    DIARY_ENTRY = "diary_entry"
+    OBSERVATION = "observation"
+    INTEGRATION_ACTION = "integration_action"
+    OBSERVER = "observer"
+
+
+class VoiceProvider(str, Enum):
+    MOCK = "mock"
+    YANDEX_SPEECHKIT = "yandex_speechkit"
+    GIGACHAT = "gigachat"
+
+
+class VoiceGender(str, Enum):
+    FEMALE = "female"
+    MALE = "male"
+    NEUTRAL = "neutral"
+    DIARY_ENTRY = "diary_entry"
+    OBSERVATION = "observation"
+
+
+class IntegrationProvider(str, Enum):
+    LINEAR = "linear"
+    GOOGLE_CALENDAR = "google_calendar"
+    TODOIST = "todoist"
+    GMAIL = "gmail"
+    GOOGLE_DRIVE = "google_drive"
+    TELEGRAM = "telegram"
+
+
+class IntegrationConnectionStatus(str, Enum):
+    NOT_CONNECTED = "not_connected"
+    CONNECTED = "connected"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+    ERROR = "error"
+
+
+class ObservationStatus(str, Enum):
+    NEW = "new"
+    SEEN = "seen"
+    DISMISSED = "dismissed"
+    ACTIONED = "actioned"
+
+
+class ObservationSeverity(str, Enum):
+    INFO = "info"
+    WARNING = "warning"
+    CRITICAL = "critical"

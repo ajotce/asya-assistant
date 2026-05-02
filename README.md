@@ -9,7 +9,7 @@ Asya Local — локальная PWA-версия персонального И
 ### 1. Подготовка окружения
 Нужны:
 - Docker + Docker Compose
-- `python3` (для `make test`)
+- `python3` (локально, если запускаете backend тесты без контейнера)
 
 ### 2. Подготовка переменных
 ```bash
@@ -59,10 +59,31 @@ make build-frontend  # сборка frontend
 make test            # backend pytest
 ```
 
+Backend требует Python `>=3.12`. Если локально версия ниже (например, 3.9), используйте контейнерные команды:
+
+```bash
+make backend-py312-pytest
+make backend-py312-ruff
+make backend-py312-mypy
+make backend-py312-all
+```
+
 Frontend unit-тесты:
 ```bash
 docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"
 ```
+
+## Alpha/Beta onboarding (v0.4)
+
+- Публичная форма: `POST /api/access-requests`.
+- Admin approve/reject: `/api/admin/access-requests/*`.
+- При approve создаётся one-time setup link (`/setup-password?token=...`) для задания пароля.
+- Это не passwordless login: после setup пользователь входит через обычный email+password.
+
+## Production запуск (Caddy)
+
+- Локальный сценарий остаётся через `docker-compose.yml`.
+- Production: `docker compose -f docker-compose.prod.yml up --build -d`.
 
 ## Документы проекта
 - `AGENTS.md`

@@ -9,6 +9,7 @@ from app.db.models.user import User
 from app.db.models.common import ChatKind
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.user_repository import UserRepository
+from app.services.private_chat_crypto import generate_private_salt
 from app.services.space_service import SpaceService
 
 
@@ -81,7 +82,14 @@ class ChatServiceV2:
             raise ChatNotFoundError("Чат не найден.")
         return chat
 
-    def create_chat(self, user: User | str, title: str, *, space_id: str | None = None) -> Chat:
+    def create_chat(
+        self,
+        user: User | str,
+        title: str,
+        *,
+        space_id: str | None = None,
+        kind: ChatKind = ChatKind.REGULAR,
+    ) -> Chat:
         resolved_user = user if isinstance(user, User) else self._users.get_by_id(user)
         if resolved_user is None:
             raise ChatNotFoundError("Пользователь не найден.")
@@ -97,8 +105,10 @@ class ChatServiceV2:
             user_id=resolved_user.id,
             space_id=resolved_space_id,
             title=title.strip() or "Новый чат",
-            kind=ChatKind.REGULAR,
+            kind=kind,
         )
+        if kind == ChatKind.PRIVATE_ENCRYPTED:
+            chat.private_salt = generate_private_salt()
         self._session.commit()
         self._session.refresh(chat)
         return chat
