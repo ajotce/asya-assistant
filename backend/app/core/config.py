@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     auth_session_ttl_hours: int = Field(default=168, alias="AUTH_SESSION_TTL_HOURS")
     auth_session_hash_secret: str = Field(default="dev-change-me", alias="AUTH_SESSION_HASH_SECRET")
     master_encryption_key: str = Field(default="", alias="MASTER_ENCRYPTION_KEY")
+    memory_extraction_enabled: bool = Field(default=True, alias="MEMORY_EXTRACTION_ENABLED")
 
     @property
     def vsellm_api_key_configured(self) -> bool:

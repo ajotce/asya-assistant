@@ -29,6 +29,10 @@ make build-frontend
 docker compose up --build
 ```
 
+При старте backend автоматически запускает Alembic bootstrap:
+- для чистой БД применяется `upgrade head`;
+- для legacy БД 0.2 без `alembic_version` выполняется безопасный `stamp` до `20260502_03` и затем `upgrade` до актуальной схемы v0.3.
+
 ### 5. Проверка, что всё поднялось
 В новом терминале:
 ```bash

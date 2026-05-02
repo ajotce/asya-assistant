@@ -24,6 +24,7 @@ def get_chat_service(current_user: User, db_session: Session) -> ChatService:
     return ChatService(
         settings=settings,
         current_user_id=current_user.id,
+        db_session=db_session,
         chat_repository=chat_repo,
         message_repository=MessageRepository(db_session),
         file_store=file_store,

@@ -5,8 +5,11 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.db.models.chat import Chat
+from app.db.models.user import User
 from app.db.models.common import ChatKind
 from app.repositories.chat_repository import ChatRepository
+from app.repositories.user_repository import UserRepository
+from app.services.space_service import SpaceService
 
 
 class ChatNotFoundError(ValueError):
@@ -21,13 +24,16 @@ class ChatServiceV2:
     def __init__(self, session: Session, chat_repository: Optional[ChatRepository] = None) -> None:
         self._session = session
         self._chats = chat_repository or ChatRepository(session)
+        self._spaces = SpaceService(session)
+        self._users = UserRepository(session)
 
-    def ensure_single_active_base_chat(self, user_id: str) -> Chat:
+    def ensure_single_active_base_chat(self, user_id: str, *, space_id: str | None = None) -> Chat:
         base_chats = self._chats.list_base_chats(user_id)
 
         if not base_chats:
             base_chat = self._chats.create(
                 user_id=user_id,
+                space_id=space_id,
                 title="Base-chat",
                 kind=ChatKind.BASE,
                 is_archived=False,
@@ -75,8 +81,24 @@ class ChatServiceV2:
             raise ChatNotFoundError("Чат не найден.")
         return chat
 
-    def create_chat(self, user_id: str, title: str) -> Chat:
-        chat = self._chats.create(user_id=user_id, title=title.strip() or "Новый чат", kind=ChatKind.REGULAR)
+    def create_chat(self, user: User | str, title: str, *, space_id: str | None = None) -> Chat:
+        resolved_user = user if isinstance(user, User) else self._users.get_by_id(user)
+        if resolved_user is None:
+            raise ChatNotFoundError("Пользователь не найден.")
+
+        resolved_space_id = None
+        if space_id is not None:
+            resolved_space = self._spaces.get_space_for_user(user=resolved_user, space_id=space_id)
+            resolved_space_id = resolved_space.id
+        else:
+            resolved_space_id = self._spaces.get_default_space(resolved_user).id
+
+        chat = self._chats.create(
+            user_id=resolved_user.id,
+            space_id=resolved_space_id,
+            title=title.strip() or "Новый чат",
+            kind=ChatKind.REGULAR,
+        )
         self._session.commit()
         self._session.refresh(chat)
         return chat

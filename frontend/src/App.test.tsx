@@ -12,7 +12,27 @@ import {
   rejectAdminAccessRequest,
   createSession,
   listChats,
+  listSpaces,
+  getSpaceSettings,
+  updateSpaceSettings,
   getChatMessages,
+  listMemoryEpisodes,
+  listMemorySnapshots,
+  createMemorySnapshot,
+  getMemorySnapshotSummary,
+  rollbackMemorySnapshot,
+  listActivityLog,
+  listMemoryFacts,
+  listMemoryRules,
+  getPersonalityProfile,
+  createMemoryFact,
+  createMemoryRule,
+  disableMemoryRule,
+  updateMemoryRule,
+  updateMemoryFact,
+  updateMemoryFactStatus,
+  forbidMemoryFact,
+  updatePersonalityProfile,
   getHealth,
   getModels,
   getSettings,
@@ -34,7 +54,30 @@ vi.mock("./api/client", () => ({
   rejectAdminAccessRequest: vi.fn(),
   createSession: vi.fn(),
   listChats: vi.fn(),
+  listSpaces: vi.fn(),
+  getSpaceSettings: vi.fn(),
+  updateSpaceSettings: vi.fn(),
+  createSpace: vi.fn(),
+  renameSpace: vi.fn(),
+  archiveSpace: vi.fn(),
   getChatMessages: vi.fn(),
+  listMemoryFacts: vi.fn(),
+  listActivityLog: vi.fn(),
+  listMemoryRules: vi.fn(),
+  listMemoryEpisodes: vi.fn(),
+  listMemorySnapshots: vi.fn(),
+  createMemorySnapshot: vi.fn(),
+  getMemorySnapshotSummary: vi.fn(),
+  rollbackMemorySnapshot: vi.fn(),
+  getPersonalityProfile: vi.fn(),
+  createMemoryFact: vi.fn(),
+  createMemoryRule: vi.fn(),
+  disableMemoryRule: vi.fn(),
+  updateMemoryRule: vi.fn(),
+  updateMemoryFact: vi.fn(),
+  updateMemoryFactStatus: vi.fn(),
+  forbidMemoryFact: vi.fn(),
+  updatePersonalityProfile: vi.fn(),
   deleteSession: vi.fn(),
   streamChat: vi.fn(),
   uploadSessionFiles: vi.fn(),
@@ -51,7 +94,27 @@ describe("App routing", () => {
 
     vi.mocked(createSession).mockReset();
     vi.mocked(listChats).mockReset();
+    vi.mocked(listSpaces).mockReset();
+    vi.mocked(getSpaceSettings).mockReset();
+    vi.mocked(updateSpaceSettings).mockReset();
     vi.mocked(getChatMessages).mockReset();
+    vi.mocked(listMemoryFacts).mockReset();
+    vi.mocked(listActivityLog).mockReset();
+    vi.mocked(listMemoryRules).mockReset();
+    vi.mocked(listMemoryEpisodes).mockReset();
+    vi.mocked(listMemorySnapshots).mockReset();
+    vi.mocked(createMemorySnapshot).mockReset();
+    vi.mocked(getMemorySnapshotSummary).mockReset();
+    vi.mocked(rollbackMemorySnapshot).mockReset();
+    vi.mocked(getPersonalityProfile).mockReset();
+    vi.mocked(createMemoryFact).mockReset();
+    vi.mocked(createMemoryRule).mockReset();
+    vi.mocked(disableMemoryRule).mockReset();
+    vi.mocked(updateMemoryRule).mockReset();
+    vi.mocked(updateMemoryFact).mockReset();
+    vi.mocked(updateMemoryFactStatus).mockReset();
+    vi.mocked(forbidMemoryFact).mockReset();
+    vi.mocked(updatePersonalityProfile).mockReset();
     vi.mocked(authMe).mockReset();
     vi.mocked(authLogin).mockReset();
     vi.mocked(authRegister).mockReset();
@@ -143,13 +206,56 @@ describe("App routing", () => {
         id: "base-chat-1",
         title: "Base-chat",
         kind: "base",
+        space_id: "space-default-1",
         is_archived: false,
         created_at: "2026-05-02T00:00:00Z",
         updated_at: "2026-05-02T00:00:00Z",
         message_count: 0,
       },
     ]);
+    vi.mocked(listSpaces).mockResolvedValue([
+      {
+        id: "space-default-1",
+        name: "Default",
+        is_default: true,
+        is_admin_only: false,
+        is_archived: false,
+        created_at: "2026-05-02T00:00:00Z",
+        updated_at: "2026-05-02T00:00:00Z",
+      },
+    ]);
+    vi.mocked(getSpaceSettings).mockResolvedValue({
+      space_id: "space-default-1",
+      memory_read_enabled: true,
+      memory_write_enabled: true,
+      behavior_rules_enabled: true,
+      personality_overlay_enabled: true,
+      created_at: "2026-05-02T00:00:00Z",
+      updated_at: "2026-05-02T00:00:00Z",
+    });
     vi.mocked(getChatMessages).mockResolvedValue([]);
+    vi.mocked(listMemoryFacts).mockResolvedValue([]);
+    vi.mocked(listActivityLog).mockResolvedValue([]);
+    vi.mocked(listMemoryRules).mockResolvedValue([]);
+    vi.mocked(listMemoryEpisodes).mockResolvedValue([]);
+    vi.mocked(listMemorySnapshots).mockResolvedValue([]);
+    vi.mocked(createMemorySnapshot).mockResolvedValue({} as never);
+    vi.mocked(getMemorySnapshotSummary).mockResolvedValue({} as never);
+    vi.mocked(rollbackMemorySnapshot).mockResolvedValue({} as never);
+    vi.mocked(getPersonalityProfile).mockResolvedValue({
+      id: "persona-1",
+      scope: "base",
+      name: "Asya",
+      tone: "balanced",
+      style_notes: "",
+      humor_level: 1,
+      initiative_level: 1,
+      can_gently_disagree: true,
+      address_user_by_name: true,
+      is_active: true,
+      created_at: "2026-05-02T00:00:00Z",
+      updated_at: "2026-05-02T00:00:00Z",
+    });
     vi.mocked(uploadSessionFiles).mockResolvedValue({
       session_id: "session-12345678",
       files: [],

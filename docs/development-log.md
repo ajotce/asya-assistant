@@ -1,4 +1,254 @@
 # Development Log
+## 2026-05-02 (Asya 0.3: frontend UI памяти и личности)
+- Что сделано:
+  - Добавлена новая вкладка `Память` в frontend navigation.
+  - Реализована страница `MemoryPage`:
+    - факты профиля (просмотр + действия: подтвердить, редактировать, устарело, запретить, скрыть);
+    - правила поведения (просмотр, ручное создание, отключение);
+    - эпизоды памяти (просмотр);
+    - personality profile (редактирование tone/humor/initiative/disagree/name-address/style notes).
+  - Добавлены frontend API-клиент и типы для memory/personality endpoint-ов.
+  - Технические ID не показываются в UI.
+  - Добавлены frontend unit tests для `MemoryPage` и обновлены тесты `App` под новую вкладку.
+- Какие файлы изменены:
+  - `frontend/src/components/NavTabs.tsx`
+  - `frontend/src/App.tsx`
+  - `frontend/src/pages/MemoryPage.tsx`
+  - `frontend/src/pages/MemoryPage.test.tsx`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/styles/app.css`
+  - `frontend/src/App.test.tsx`
+  - `docs/memory.md`
+  - `docs/personality.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make lint`, `make build-frontend`, `make test`, frontend unit tests (`npm test` в docker).
+
+## 2026-05-02 (Asya 0.3: frontend UI пространств)
+- Что сделано:
+  - В `ChatPage` добавлен UI пространств: список, создание, переименование, архивирование, выбор текущего пространства.
+  - Список чатов теперь фильтруется по выбранному пространству.
+  - `Base-chat` помечен в UI как базовый (`Base-chat (базовый)`).
+  - Добавлен блок per-space memory settings:
+    - `memory_read_enabled`,
+    - `memory_write_enabled`,
+    - `behavior_rules_enabled`,
+    - `personality_overlay_enabled`.
+  - Для admin показывается `Asya-dev` (если доступен); для non-admin скрывается во frontend и backend.
+  - Добавлены loading/error состояния для spaces/settings.
+  - Состояние чата при переключении вкладок сохранено (компонент остаётся mounted).
+- Какие файлы изменены:
+  - `frontend/src/types/api.ts`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/App.tsx`
+  - `frontend/src/pages/ChatPage.tsx`
+  - `frontend/src/pages/ChatPage.test.tsx`
+  - `frontend/src/App.test.tsx`
+  - `frontend/src/styles/app.css`
+  - `docs/spaces.md`
+  - `docs/api.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make lint`, `make build-frontend`, `make test`, frontend unit tests (см. текущий запуск).
+
+## 2026-05-02 (Asya 0.3: базовая управляемая личность)
+- Что сделано:
+  - Расширен `AssistantPersonalityProfile`: добавлены `humor_level`, `initiative_level`, `can_gently_disagree`, `address_user_by_name`.
+  - Расширены API `GET/PUT /api/personality` и добавлены `GET/PUT /api/personality/overlay/{space_id}`.
+  - Реализован space personality overlay без перезаписи base profile.
+  - Личность интегрирована в chat context (параметры tone/humor/initiative/disagree/name-address + ограничения на стиль).
+  - При явной жалобе пользователя на ошибочный ответ в контекст добавляется инструкция предложить сохранить правило.
+  - Автосоздание `BehaviorRule` после ошибки выполняется только по явной команде пользователя (`сохрани/добавь/запомни правило`).
+- Какие файлы изменены:
+  - `backend/app/db/models/assistant_personality_profile.py`
+  - `backend/alembic/versions/20260502_04_memory_spaces_foundation.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/services/memory_service.py`
+  - `backend/app/repositories/personality_profile_repository.py`
+  - `backend/app/api/routes_memory.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/services/memory_extraction_service.py`
+  - `backend/tests/test_memory_api.py`
+  - `backend/tests/test_memory_extraction.py`
+  - `backend/tests/test_chat.py`
+  - `docs/personality.md`
+  - `docs/memory.md`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` (см. текущий запуск).
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались: frontend не менялся.
+
+## 2026-05-02 (Asya 0.3: memory retrieval подключён к ответам ассистента)
+- Что сделано:
+  - `ChatService` расширен memory-aware context assembly для `POST /api/chat/stream`.
+  - Реализован retrieval релевантной памяти текущего пользователя: profile facts, behavior rules, episodes, personality base + space overlay.
+  - Учтены `space_memory_settings`: `memory_read_enabled`, `behavior_rules_enabled`, `personality_overlay_enabled`.
+  - Добавлена фильтрация статусов: `forbidden/deleted` исключаются; `outdated` отбрасывается при конфликте с `confirmed`.
+  - Добавлен activity event `memory_used_in_response` (без полного prompt/секретов).
+  - Сохранён существующий file retrieval/vision pipeline.
+  - Добавлены тесты на user isolation, forbidden/deleted фильтр, space memory off, rule in context и совместимость с file retrieval.
+- Какие файлы изменены:
+  - `backend/app/services/chat_service.py`
+  - `backend/app/repositories/user_profile_fact_repository.py`
+  - `backend/app/repositories/memory_episode_repository.py`
+  - `backend/app/repositories/behavior_rule_repository.py`
+  - `backend/app/repositories/personality_profile_repository.py`
+  - `backend/app/db/models/common.py`
+  - `backend/tests/test_chat.py`
+  - `docs/memory.md`
+  - `docs/personality.md`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `106 passed`.
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались: frontend не изменялся.
+- Риски/следующие шаги:
+  - Эпизодическая релевантность пока эвристическая (по текстовому overlap); следующим шагом можно перевести на embedding retrieval по `memory_chunks`.
+
+## 2026-05-02 (Asya 0.3: safe memory extraction from chat dialogs)
+- Что сделано:
+  - Добавлен `MemoryExtractionService` с безопасным pipeline извлечения памяти из user/assistant turn.
+  - Pipeline подключён в `ChatService.stream_chat` как post-processing после сохранения assistant response.
+  - Добавлен feature-flag `MEMORY_EXTRACTION_ENABLED` для временного отключения extraction.
+  - Реализованы сценарии extraction:
+    - `запомни` -> факт со статусом `confirmed`;
+    - обычные user-facts -> `needs_review`;
+    - `забудь` -> релевантные факты переводятся в `forbidden`.
+  - Добавлены safety guardrails: секреты (password/token/api-key/payment-like data) не сохраняются.
+  - Ошибки extraction изолированы (`best-effort`) и не ломают SSE response flow.
+- Какие файлы изменены:
+  - `backend/app/services/memory_extraction_service.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/core/config.py`
+  - `backend/app/repositories/memory_episode_repository.py`
+  - `backend/app/services/memory_service.py`
+  - `backend/tests/test_memory_extraction.py`
+  - `backend/tests/test_chat.py`
+  - `docs/memory.md`
+  - `docs/architecture.md`
+  - `docs/api.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> см. итог.
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались: frontend не менялся.
+- Риски/следующие шаги:
+  - Текущий extractor эвристический; для повышения качества можно добавить model-based structured extraction с теми же safety-фильтрами и audit.
+## 2026-05-02 (Asya 0.3: backend memory service + API)
+- Что сделано:
+  - Реализован `MemoryService` + repository слой для facts, rules, episodes(list), personality profile, memory changes(versioning), activity log.
+  - Добавлены user-scoped API endpoint-ы `/api/memory/*`, `/api/personality`, `/api/activity-log`.
+  - Добавлена status-модель памяти: `confirmed/inferred/needs_review/outdated/forbidden/deleted`.
+  - Реализован active-list фильтр: `forbidden/deleted` не попадают в default list.
+  - Реализован version record: при изменениях facts/rules/personality пишется `memory_changes.old_value/new_value`.
+  - Реализован activity log для memory/rules/personality операций.
+- Какие файлы изменены:
+  - `backend/app/services/memory_service.py`
+  - `backend/app/api/routes_memory.py`
+  - `backend/app/repositories/behavior_rule_repository.py`
+  - `backend/app/repositories/memory_episode_repository.py`
+  - `backend/app/repositories/memory_change_repository.py`
+  - `backend/app/repositories/personality_profile_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/main.py`
+  - `backend/tests/test_memory_api.py`
+  - `docs/memory.md`
+  - `docs/api.md`
+  - `docs/activity-log.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> см. итог.
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались: frontend не менялся.
+- Риски/следующие шаги:
+  - Пока нет автоматического извлечения памяти из чата (вне scope этого шага).
+  - Пока нет интеграции memory/rules в prompt/chat context (вне scope этого шага).
+## 2026-05-02 (Asya 0.3: backend spaces service + API)
+- Что сделано:
+  - Реализован backend слой пользовательских пространств: repository + `SpaceService` + API routes.
+  - Добавлено автоматическое создание дефолтного пространства `Default` при создании пользователя.
+  - `Base-chat` сохранён как обязательный и теперь создаётся в дефолтном пространстве пользователя.
+  - Добавлена поддержка `space_id` в `POST /api/chats` и в ответах chat list/create/rename/archive.
+  - Реализовано служебное admin-only пространство `Asya-dev`:
+    - создаётся автоматически только для admin;
+    - не видно обычным пользователям;
+    - обычный пользователь не может его создать;
+    - `Asya-dev` нельзя переименовать/архивировать обычной операцией.
+  - Добавлены user-scoped endpoint-ы spaces/settings и проверки изоляции между пользователями.
+- Какие файлы изменены:
+  - `backend/app/services/space_service.py`
+  - `backend/app/repositories/space_repository.py`
+  - `backend/app/services/user_service.py`
+  - `backend/app/services/chat_service_v2.py`
+  - `backend/app/repositories/chat_repository.py`
+  - `backend/app/api/routes_spaces.py`
+  - `backend/app/api/routes_chats.py`
+  - `backend/app/main.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_spaces_api.py`
+  - `docs/spaces.md`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `cd backend && python3 -m pytest -q tests/test_spaces_api.py tests/test_chats_api.py tests/test_auth.py` -> PASS.
+  - `make test` -> см. итоговый шаг.
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались, так как frontend в этом шаге не менялся.
+- Риски/следующие шаги:
+  - Следующий шаг: добавить activity log события для операций со spaces/settings.
+## 2026-05-02 (Asya 0.3: backend DB-основа memory/personality/spaces/activity)
+- Что сделано:
+  - Добавлены SQLAlchemy-модели и enum-ы для DB-основы Asya 0.3: `spaces`, `space_memory_settings`, `user_profile_facts`, `memory_episodes`, `memory_chunks`, `behavior_rules`, `assistant_personality_profiles`, `memory_changes`, `memory_snapshots`, `activity_logs`.
+  - Добавлено поле `chats.space_id` (nullable) для связи чата с пространством.
+  - Создана Alembic-миграция `20260502_04_memory_spaces_foundation.py` (все изменения схемы только через Alembic).
+  - Добавлены базовые user-scoped репозитории: `SpaceRepository`, `UserProfileFactRepository`, `ActivityLogRepository`.
+  - Добавлены тесты для моделей/миграции/репозиториев с проверкой user-scoped изоляции.
+  - Обновлены документы `docs/architecture.md`, `docs/api.md`, `docs/memory.md`, `docs/spaces.md`, `docs/activity-log.md`.
+- Какие файлы изменены:
+  - `backend/app/db/models/common.py`
+  - `backend/app/db/models/chat.py`
+  - `backend/app/db/models/space.py`
+  - `backend/app/db/models/space_memory_settings.py`
+  - `backend/app/db/models/user_profile_fact.py`
+  - `backend/app/db/models/memory_episode.py`
+  - `backend/app/db/models/memory_chunk.py`
+  - `backend/app/db/models/behavior_rule.py`
+  - `backend/app/db/models/assistant_personality_profile.py`
+  - `backend/app/db/models/memory_change.py`
+  - `backend/app/db/models/memory_snapshot.py`
+  - `backend/app/db/models/activity_log.py`
+  - `backend/app/db/models/__init__.py`
+  - `backend/alembic/versions/20260502_04_memory_spaces_foundation.py`
+  - `backend/app/repositories/space_repository.py`
+  - `backend/app/repositories/user_profile_fact_repository.py`
+  - `backend/app/repositories/activity_log_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/tests/test_db_models.py`
+  - `backend/tests/test_alembic_migration.py`
+  - `backend/tests/test_memory_repositories.py`
+  - `docs/architecture.md`
+  - `docs/api.md`
+  - `docs/memory.md`
+  - `docs/spaces.md`
+  - `docs/activity-log.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> см. текущий шаг выполнения.
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались: frontend в этом шаге не менялся.
+- Риски/следующие шаги:
+  - Следующим шагом добавить service/API слой с обязательными user/space ownership checks на всех CRUD операциях.
 
 ## 2026-05-02 (Финальная приёмка v0.2 завершена: Docker smoke + full checks)
 - Что сделано:
@@ -1926,3 +2176,205 @@
   - Не реализован frontend-каркас этапа 2 с экранами Chat/Settings/Status.
 - Следующий рекомендуемый шаг:
   - Этап 1: backend-каркас FastAPI с конфигурацией и health-check в Docker.
+
+## 2026-05-02 (Документация и проектные правила обновлены под Asya 0.3)
+- Что сделано:
+  - Обновлены проектные правила `AGENTS.md` и `CLAUDE.md` под актуальный фокус Asya 0.3:
+    - память, личность, пространства, лента памяти, лента активности;
+    - сохранены ограничения scope (без интеграций/голоса/дневника/тихого наблюдателя/web search/биллинга);
+    - сохранены требования безопасности 0.2 (auth, user isolation, no secrets, no `.env`, no cross-user leakage).
+  - Добавлены новые профильные документы:
+    - `docs/memory.md`
+    - `docs/personality.md`
+    - `docs/spaces.md`
+    - `docs/activity-log.md`
+  - Синхронизированы ключевые документы:
+    - `docs/architecture.md`
+    - `docs/api.md`
+    - `docs/development.md`
+    - `docs/testing.md`
+    - `docs/decisions.md`
+- Какие файлы изменены:
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `docs/memory.md`
+  - `docs/personality.md`
+  - `docs/spaces.md`
+  - `docs/activity-log.md`
+  - `docs/architecture.md`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/decisions.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - Выполнена ручная проверка структуры и логической согласованности обновлённых markdown-документов.
+- Что не проверено и почему:
+  - `make test`, `make lint`, `make build-frontend` не запускались, потому что изменения только документационные и не затрагивают бизнес-логику/код.
+  - Markdown-линтер не запускался: отдельный markdown-lint workflow/команда в проекте не зафиксированы.
+- Риски/следующие шаги:
+  - Следующий этап — реализация schema/API слоёв 0.3 (spaces/memory/activity) строго по обновлённым документам и с обязательными тестами на user isolation.
+
+## 2026-05-02 (Frontend: UI памяти и личности Asya 0.3)
+- Что сделано:
+  - Доработана вкладка `Память` в frontend (`MemoryPage`):
+    - показ фактов профиля, правил поведения, эпизодов и personality-профиля;
+    - для фактов/правил/эпизодов добавлены читаемые статусы, источник и даты `created/updated`;
+    - добавлены действия по памяти: `Подтвердить`, `Редактировать`, `Устарело`, `Запретить`, `Скрыть` для фактов;
+    - добавлены ручное создание факта/правила и редактирование правила;
+    - добавлен блок личности Asya (tone, humor, мягкое возражение, обращение по имени, краткость/подробность, style notes);
+    - добавлены явные состояния `loading`, `empty`, `error` и кнопка ручного обновления данных.
+  - Расширен frontend API client:
+    - добавлен `updateMemoryRule` (`PATCH /api/memory/rules/{rule_id}`);
+    - добавлен тип `BehaviorRuleUpdateRequest`.
+  - Обновлены frontend unit tests для Memory UI и App API mocks.
+  - Обновлены документы: `docs/memory.md`, `docs/personality.md`, `docs/testing.md`.
+- Какие файлы изменены:
+  - `frontend/src/pages/MemoryPage.tsx`
+  - `frontend/src/pages/MemoryPage.test.tsx`
+  - `frontend/src/App.test.tsx`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `docs/memory.md`
+  - `docs/personality.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make lint` — успешно
+  - `make build-frontend` — успешно
+  - `make test` — успешно (`109 passed`)
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"` — успешно (`23 passed`)
+- Что не проверено и почему:
+  - Отдельная ручная UX-проверка в браузере не выполнялась в этом шаге (ограничились unit/build/lint/test).
+- Риски/следующие шаги:
+  - Редактирование фактов/правил пока через `window.prompt` (минимальный UX); следующая итерация — inline/modal формы редактирования.
+
+## 2026-05-02 (Asya 0.3: Activity feed backend + frontend)
+- Что сделано:
+  - Backend activity log расширен фильтрами в `GET /api/activity-log`:
+    - `limit`, `event_type`, `entity_type`, `space_id`, `date_from`, `date_to`.
+  - Добавлено user-scoped логирование действий пространства в `SpaceService`:
+    - `space_created`, `space_updated`, `space_archived`,
+    - обновление `space_settings` с безопасным `meta` (bool-флаги).
+  - Добавлены snapshots API и события активности:
+    - `POST /api/memory/snapshots` (создание snapshot),
+    - `GET /api/memory/snapshots` (список snapshot),
+    - activity event `memory_snapshot_created`.
+  - Сохранена безопасность активности:
+    - user-scoped выборка,
+    - в ленту не пишутся полный prompt/секреты,
+    - проверка доступа к `space_id` при фильтрации активности.
+  - Frontend:
+    - добавлена вкладка `Активность` (`ActivityPage`),
+    - добавлены фильтры по типу события, типу сущности, пространству и дате,
+    - показ понятных человекочитаемых событий без тех-ID.
+  - Обновлены backend/frontend тесты для activity/snapshot/space events и UI активности.
+- Какие файлы изменены:
+  - `backend/app/api/routes_memory.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/repositories/activity_log_repository.py`
+  - `backend/app/repositories/memory_snapshot_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/services/memory_service.py`
+  - `backend/app/services/space_service.py`
+  - `backend/tests/test_memory_api.py`
+  - `backend/tests/test_spaces_api.py`
+  - `frontend/src/App.tsx`
+  - `frontend/src/App.test.tsx`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/components/NavTabs.tsx`
+  - `frontend/src/pages/ActivityPage.tsx`
+  - `frontend/src/pages/ActivityPage.test.tsx`
+  - `frontend/src/styles/app.css`
+  - `frontend/src/types/api.ts`
+  - `docs/activity-log.md`
+  - `docs/api.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` — успешно (`111 passed`)
+  - `make lint` — успешно
+  - `make build-frontend` — успешно
+- Что не проверено и почему:
+  - Отдельные e2e/ручные UI-сценарии во встроенном браузере не запускались в этом шаге.
+- Риски/следующие шаги:
+  - Фильтр по дате сейчас принимает ISO-строки вручную; следующий шаг — date/datetime-пикеры и пресеты периода в UI.
+
+# 2026-05-02 (Asya 0.3: финальная интеграция и приёмка)
+- Что сделано:
+  - Проведена финальная приёмка v0.3 по backend/frontend + документации.
+  - Исправлен frontend unit test `ActivityPage`: устранена неоднозначная проверка текста (`getByText` -> `getAllByText`).
+  - Исправлен production/runtime блокер Docker:
+    - backend image теперь содержит `alembic/` и `alembic.ini`;
+    - добавлен bootstrap миграций `app/bootstrap_db.py`;
+    - при старте контейнера выполняется bootstrap + `alembic upgrade head`.
+  - Для legacy БД 0.2 без `alembic_version` добавлен безопасный сценарий:
+    - `alembic stamp 20260502_03` (только при обнаружении `users` и отсутствии `spaces`),
+    - затем upgrade до `20260502_04` (memory/spaces foundation).
+  - Выполнен manual smoke:
+    - `docker compose up --build`;
+    - проверка `/api/health`, `/`, `manifest.webmanifest`;
+    - auth/register/login;
+    - проверка `Default` space и `Base-chat`;
+    - создание space + обновление per-space settings;
+    - ручная память + forbid + snapshots + rollback + activity-log;
+    - cross-user memory access -> `404`;
+    - проверка admin visibility `Asya-dev` и скрытия для non-admin.
+- Какие файлы изменены:
+  - `backend/Dockerfile`
+  - `backend/app/bootstrap_db.py`
+  - `frontend/src/pages/ActivityPage.test.tsx`
+  - `README.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` — успешно (`113 passed`)
+  - `make lint` — успешно
+  - `make build-frontend` — успешно
+  - `docker run --rm -v \"$PWD/frontend:/work\" -w /work node:20-alpine sh -lc \"npm ci && npm test\"` — успешно (`26 passed`)
+- Что не проверено и почему:
+  - Полноценный визуальный e2e UI-прогон в браузере не автоматизирован в рамках этого шага; smoke выполнен API-first и проверкой статической выдачи frontend.
+- Риски/следующие шаги:
+  - Legacy bootstrap предполагает, что существующая БД без `alembic_version` соответствует ревизии `20260502_03`; для нестандартных/ручных схем нужен отдельный migration playbook.
+
+## 2026-05-02 (Asya 0.3: Snapshots + Rollback памяти)
+- Что сделано:
+  - Расширена snapshot-модель и сервис памяти:
+    - snapshot теперь включает факты, правила, personality (base + overlays), per-space memory settings, episode metadata;
+    - реализованы `list`, `summary`, `rollback` для snapshot.
+  - Реализован rollback `POST /api/memory/snapshots/{snapshot_id}/rollback`:
+    - восстановление состояния памяти пользователя из snapshot;
+    - user-scoped доступ (чужой snapshot -> 404);
+    - без физического удаления: для отсутствующих в snapshot записей используется логическое архивирование/скрытие;
+    - создаются события `memory_changes` (`rollback`) и `activity_logs` (`memory_rollback`).
+  - Добавлена lazy auto-snapshot стратегия без scheduler:
+    - weekly snapshot при первом memory-изменении новой недели;
+    - snapshot при аномально большом числе изменений после последнего snapshot (порог в коде).
+  - Frontend `MemoryPage`:
+    - блок snapshots: создание, список, summary, rollback с явным подтверждением.
+  - Обновлены тесты backend/frontend для snapshot/rollback сценариев.
+- Какие файлы изменены:
+  - `backend/app/repositories/memory_snapshot_repository.py`
+  - `backend/app/repositories/memory_change_repository.py`
+  - `backend/app/services/memory_service.py`
+  - `backend/app/api/routes_memory.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_memory_api.py`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/pages/MemoryPage.tsx`
+  - `frontend/src/pages/MemoryPage.test.tsx`
+  - `frontend/src/App.test.tsx`
+  - `docs/memory.md`
+  - `docs/activity-log.md`
+  - `docs/api.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` — успешно (`113 passed`)
+  - `make lint` — успешно
+  - `make build-frontend` — успешно
+- Что не проверено и почему:
+  - Ручной e2e-прогон rollback UI в браузере не выполнялся в этом шаге.
+- Риски/следующие шаги:
+  - В rollback используется strategy logical-hide/archive для отсутствующих в snapshot записей; при будущем переходе на soft-delete policy стоит унифицировать семантику для всех memory сущностей.

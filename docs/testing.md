@@ -1,211 +1,70 @@
 # Testing
 
-Документ фиксирует фактические команды проверки текущей версии Asya Local.
+Документ фиксирует обязательные проверки для Asya 0.2/0.3.
 
-## Предусловия
-- Для frontend-команд используется Docker (`node:20-alpine`), если локального `npm` нет.
-- Для backend тестов нужен `python3`.
+## 1. Обязательные команды
+```bash
+make test
+make lint
+make build-frontend
+```
 
-## 1) Frontend test script
-Команда:
+Frontend unit tests:
 ```bash
 docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"
 ```
 
-Ожидаемый результат:
-- `vitest run` завершается без ошибок
-- `Test Files ... passed`
-- покрыты базовые сценарии:
-  - `App` (прямое открытие `/status`, сохранение runtime-состояния чата при `Чат -> Настройки -> Чат`, отсутствие повторного создания сессии при возврате на вкладку чата)
-  - `ChatPage` (рендер, отправка, streaming, отображение блока «Размышления модели» при наличии reasoning, отсутствие блока для обычных моделей, ошибки)
-  - `SettingsPage` (модель, системный промт, предупреждение и disabled option для моделей с явным `supports_chat=false`, бейджи `🧠`/`✅` и probe-секция reasoning)
-  - `StatusPage` (интерактивные статус-карточки, раскрытие деталей, понятная ошибка `/api/health`, graceful-деградация при ошибке `/api/usage`, наличие toggle автообновления)
-
-## 2) Lint
-Команда:
+Manual smoke (README flow):
 ```bash
-make lint
+docker compose up --build
+curl http://localhost:${ASYA_PORT:-8000}/api/health
 ```
 
-Ожидаемый результат:
-- запускается `eslint "src/**/*.{ts,tsx}"`
-- команда завершается с кодом `0`
+## 2. Security regression checklist
+- user-scoped endpoints недоступны для чужого пользователя (`404`/`403` по контракту).
+- auth/session revoke работает (`/api/auth/logout`).
+- admin-only endpoint-ы защищены (`401`/`403`).
+- нет утечки секретов в API payload/логах.
 
-## 3) Backend тесты
-Команда:
-```bash
-make test
-```
+## 3. Дополнительные проверки для Asya 0.3
 
-Ожидаемый результат:
-- `pytest` завершается без падений
-- текущий baseline: `86 passed` (возможны предупреждения, не блокирующие запуск)
-- для совместимости моделей покрыты сценарии:
-  - нормализация `supports_chat`/`supports_stream` из provider metadata (`supports_*`, `capabilities`, `endpoints`);
-  - понятная маппинга provider body ошибок в chat;
-  - fallback non-stream при явной provider-ошибке streaming;
-- для streaming размышлений покрыты сценарии:
-  - `event: thinking` эмитится при `delta.reasoning_content` от провайдера, reasoning не попадает в историю сессии;
-  - non-stream fallback с `message.reasoning_content` отдаёт `event: thinking` до `event: token`;
-  - для reasoning-моделей с известными ID (`deepseek-r1-*`, `o1`, `o3`) backend заранее уходит в non-stream и chunk'ает reasoning + ответ в SSE;
-- для probe reasoning-моделей покрыты сценарии:
-  - эвристика `is_likely_reasoning_model` по ID;
-  - `probe_reasoning_streaming` распознаёт `delta.reasoning_content`;
-  - `POST /api/models/probe-reasoning` фильтрует кандидатов эвристикой, использует кэш и поддерживает `force=true`;
-  - `POST /api/models/probe-reasoning` принимает явный `model_ids[]` и не зовёт `get_models()`.
+### Memory
+- записи памяти создаются только для текущего `user_id`;
+- `forbidden/deleted` не попадают в retrieval и chat context;
+- операции confirm/forbid/edit/rollback отражаются в memory feed.
+- frontend: вкладка `Память` показывает факты/правила/эпизоды и статусные действия (confirm/edit/outdated/forbid/hide для фактов);
+- frontend: для правил доступны create/edit/disable;
+- frontend: отображаются source + статус + created/updated для сущностей памяти;
+- frontend: есть `loading/empty/error` состояния и ручное обновление секции памяти;
+- frontend: технические ID не отображаются в UI.
+- snapshots: manual snapshot создаётся и попадает в список/summary;
+- rollback: восстанавливает состояние фактов/правил из snapshot;
+- rollback user-scoped: чужой snapshot недоступен;
+- rollback пишет activity event `memory_rollback` и memory change kind `rollback`.
 
-## 4) Frontend сборка
-Команда:
-```bash
-make build-frontend
-```
+### Spaces
+- пользователь не видит чужие пространства;
+- чат нельзя открыть/изменить в чужом пространстве;
+- `Asya-dev` недоступен non-admin пользователю.
+- frontend: при выборе пространства отображаются только чаты этого пространства;
+- frontend: переключение вкладок не сбрасывает runtime-state чата;
+- frontend: loading/error для spaces/settings отрисовываются и не ломают чат.
 
-Ожидаемый результат:
-- выполняется `tsc --noEmit && vite build`
-- в `frontend/dist` появляются актуальные артефакты сборки
-- команда завершается с кодом `0`
+### Personality/Rules
+- изменения профиля личности и правил user-scoped;
+- space overlay не «протекает» в другие пространства.
+- frontend: доступны редактирование personality параметров (tone/humor/initiative/disagree/name-address) и создание правил вручную.
 
-## 5) Smoke локального запуска
-```bash
-cp .env.example .env
-make build-frontend
-docker compose up -d --build
-PORT=$(grep '^ASYA_PORT=' .env | cut -d= -f2)
-curl "http://localhost:${PORT}/api/health"
-curl "http://localhost:${PORT}/" | head -n 2
-docker compose down
-```
+### Activity log
+- события логируются по ключевым действиям;
+- события user-scoped;
+- в событиях нет секретов.
+- доступны фильтры `event_type/entity_type/space/date_from/date_to` в `GET /api/activity-log`;
+- события admin-only пространства не видны обычному пользователю (из-за user-scope + space-access check).
+- frontend: вкладка `Активность` показывает события понятным языком и не показывает технические ID/prompt.
 
-Ожидаемый результат:
-- `/api/health` -> `200`, JSON с `status: "ok"`
-- `/` -> HTML (`<!doctype html>`)
-
-## 6) Проверка Alembic-конфига
-Команда:
-```bash
-cd backend && python3 -m alembic -c alembic.ini current
-```
-
-Ожидаемый результат:
-- команда выполняется без падения Alembic env/config;
-- для пустого `backend/alembic/versions` допустим ответ без ревизии (`None`/пусто).
-
-## 7) Проверка Alembic upgrade на чистой БД
-Команда:
-```bash
-cd backend && ASYA_DB_PATH=./data/asya-0.2.sqlite3 python3 -m alembic -c alembic.ini upgrade head
-```
-
-Ожидаемый результат:
-- миграция `20260502_01` применяется без ошибок;
-- в SQLite создаются таблицы: `users`, `auth_sessions`, `chats`, `messages`, `file_meta`, `usage_records`, `access_requests`, `encrypted_secrets`, `user_settings`;
-- таблица `alembic_version` содержит текущую ревизию `20260502_03`.
-
-## 8) Тесты сервисов users/chats
-Покрытие в `backend/tests/test_user_chat_services.py`:
-- создание пользователя автоматически создаёт `Base-chat`;
-- у пользователя сохраняется один активный `Base-chat`;
-- CRUD операций чата (create/rename/archive/soft-delete);
-- защита `Base-chat` от archive/delete;
-- изоляция данных: пользователь A не видит и не читает чат пользователя B.
-
-## 9) Тесты auth v1
-Покрытие в `backend/tests/test_auth.py`:
-- регистрация пользователя (`/api/auth/register`) и auto-инициализация сессии после login;
-- login/logout/me happy-path;
-- неправильный пароль;
-- запрет login для `pending`/`disabled`;
-- токен после logout больше не даёт доступ к `/api/auth/me`;
-- `login/me` возвращают `preferred_chat_id` для перехода в Base-chat/последний доступный чат;
-- режим `AUTH_REGISTRATION_MODE=closed` сохраняет `AccessRequest` вместо создания пользователя.
-
-## 10) Тесты access request flow
-Покрытие в `backend/tests/test_access_requests.py`:
-- публичная подача заявки в `pending`;
-- в заявке сохраняется `reason` (почему пользователь хочет доступ);
-- предсказуемая обработка повторной заявки на тот же email (возврат той же pending-записи);
-- admin-only доступ к списку и действиям approve/reject;
-- без авторизации admin endpoint-ы возвращают `401`, для non-admin — `403`;
-- запрет self-approve;
-- после approve создаётся/активируется пользователь и создаётся `Base-chat`.
-
-## 11) Тесты migration-layer session/chat в БД
-Покрытие:
-- `backend/tests/test_session.py`:
-  - CRUD сессии через auth-user;
-  - изоляция: пользователь B не может читать/удалять сессию пользователя A.
-- `backend/tests/test_usage.py`:
-  - usage/session endpoint работает с message history из БД;
-  - ownership-check для session usage.
-- `backend/tests/test_chat.py`:
-  - сохранён SSE smoke, контракт streaming не сломан.
-
-## 12) Тесты file metadata и usage records в БД
-Покрытие:
-- `backend/tests/test_files.py`:
-  - upload требует ownership сессии (изоляция между пользователями);
-  - прежние лимиты и валидации файлов сохранены.
-- `backend/tests/test_usage.py`:
-  - usage overview/session читают DB-агрегации `UsageRecord`;
-  - usage/session недоступен для чужой сессии (`404`).
-
-## 13) Тесты шифрования секретов
-Покрытие:
-- `backend/tests/test_secret_crypto_service.py`:
-  - encrypt/decrypt roundtrip;
-  - разные ciphertext для одинакового plaintext (nonce/IV поведение Fernet);
-  - ошибка при неверном ключе;
-  - ошибка при отсутствии `MASTER_ENCRYPTION_KEY`.
-- `backend/tests/test_encrypted_secret_service.py`:
-  - `EncryptedSecretService` сохраняет в БД только ciphertext;
-  - значение успешно расшифровывается тем же ключом.
-
-## 14) Frontend auth UI
-Покрытие в `frontend/src/App.test.tsx`:
-- при неавторизованном `/api/auth/me` показывается экран входа;
-- успешный login открывает вкладку `Чат`;
-- при авторизованном пользователе `ChatPage` использует `preferred_chat_id` и не создаёт новую сессию автоматически.
-
-## 15) Multiple chats UI/API
-Покрытие:
-- `backend/tests/test_chats_api.py`:
-  - список чатов содержит `Base-chat`;
-  - доступно чтение истории чата;
-  - CRUD обычного чата (create/rename/archive/delete);
-  - `Base-chat` нельзя удалить через обычный delete endpoint.
-- `frontend/src/pages/ChatPage.test.tsx`:
-  - базовый список чатов рендерится;
-  - отправка/streaming по выбранному чату сохраняет текущий UX.
-
-## 16) Frontend admin access requests UI
-Покрытие в `frontend/src/App.test.tsx`:
-- admin-пользователь видит в `Настройки` раздел `Admin: Заявки на доступ`;
-- раздел показывает pending заявку;
-- non-admin пользователям этот раздел не отображается.
-
-## 17) Hardening smoke checklist (Asya 0.2)
-- User-data endpoints работают только в рамках владельца:
-  - `session/session-files`, `chats/messages`, `usage/session`, `chat/stream`.
-- Пользователь A не может читать/изменять/удалять данные пользователя B:
-  - `GET /api/session/{id}`, `DELETE /api/session/{id}` -> `404` для B;
-  - `GET /api/chats/{id}/messages`, `PATCH/POST archive/DELETE /api/chats/{id}` -> `404` для B;
-  - `GET /api/usage/session/{id}` -> `404` для B;
-  - `POST /api/session/{id}/files` -> `404` для B.
-- Access request admin endpoint-ы защищены:
-  - без авторизации -> `401`;
-  - для non-admin -> `403`, включая `approve/reject`.
-- Logout/session revoke:
-  - после `POST /api/auth/logout` токен больше не проходит `/api/auth/me`;
-  - `auth_sessions.revoked_at` у текущей сессии заполняется.
-- Истечение session token:
-  - при `AUTH_SESSION_TTL_HOURS=0` токен немедленно недействителен для `/api/auth/me`.
-- Base-chat:
-  - повторные `login/logout` не дублируют `Base-chat` (остаётся ровно один активный).
-- Persistence:
-  - после “restart” backend (новый app client с той же SQLite) история чатов в БД сохраняется.
-- Streaming после auth:
-  - авторизованный пользователь получает SSE (`event: token/done`) из `/api/chat/stream`.
-- Files/retrieval после auth:
-  - upload в `/api/session/{id}/files` работает для владельца и блокируется для чужой сессии;
-  - retrieval-контекст строится только по файлам текущей сессии пользователя.
-- `settings` user-scoped: пользователь A не видит настройки пользователя B.
+## 4. Документационные изменения
+Если менялась только документация:
+- тесты приложения можно не запускать;
+- обязательно сделать ручную проверку markdown-файлов (структура, ссылки, логическая непротиворечивость);
+- если markdown-линтер в проекте отсутствует, это явно указывается в отчёте.

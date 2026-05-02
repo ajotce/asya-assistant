@@ -1,6 +1,8 @@
 import type {
   AccessRequestApproveResponse,
   AccessRequestResponse,
+  ActivityLogItem,
+  ActivityLogListRequest,
   AccessRequestSubmitRequest,
   AccessRequestSubmitResponse,
   AuthLoginRequest,
@@ -12,14 +14,32 @@ import type {
   ChatMessageItem,
   ChatRenameRequest,
   ChatStreamRequest,
+  BehaviorRuleCreateRequest,
+  BehaviorRuleItem,
+  BehaviorRuleUpdateRequest,
   HealthResponse,
+  MemoryEpisodeItem,
+  MemoryFactCreateRequest,
+  MemoryFactItem,
+  MemoryFactStatusUpdateRequest,
+  MemoryFactUpdateRequest,
+  MemorySnapshotCreateRequest,
+  MemorySnapshotItem,
+  MemorySnapshotSummary,
   ModelInfo,
+  PersonalityProfile,
+  PersonalityProfileUpdateRequest,
   ReasoningProbeRequest,
   ReasoningProbeResponse,
   SessionCreateResponse,
   SessionFilesUploadResponse,
   SettingsResponse,
   SettingsUpdateRequest,
+  SpaceCreateRequest,
+  SpaceListItem,
+  SpaceMemorySettingsResponse,
+  SpaceMemorySettingsUpdateRequest,
+  SpaceRenameRequest,
   UsageOverviewResponse,
 } from "../types/api";
 
@@ -182,6 +202,161 @@ export async function deleteChat(chatId: string): Promise<void> {
 
 export function getChatMessages(chatId: string): Promise<ChatMessageItem[]> {
   return apiFetch<ChatMessageItem[]>(`/api/chats/${encodeURIComponent(chatId)}/messages`);
+}
+
+export function listSpaces(): Promise<SpaceListItem[]> {
+  return apiFetch<SpaceListItem[]>("/api/spaces");
+}
+
+export function createSpace(body: SpaceCreateRequest): Promise<SpaceListItem> {
+  return apiFetch<SpaceListItem>("/api/spaces", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function renameSpace(spaceId: string, body: SpaceRenameRequest): Promise<SpaceListItem> {
+  return apiFetch<SpaceListItem>(`/api/spaces/${encodeURIComponent(spaceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function archiveSpace(spaceId: string): Promise<SpaceListItem> {
+  return apiFetch<SpaceListItem>(`/api/spaces/${encodeURIComponent(spaceId)}/archive`, {
+    method: "POST",
+  });
+}
+
+export function getSpaceSettings(spaceId: string): Promise<SpaceMemorySettingsResponse> {
+  return apiFetch<SpaceMemorySettingsResponse>(`/api/spaces/${encodeURIComponent(spaceId)}/settings`);
+}
+
+export function updateSpaceSettings(
+  spaceId: string,
+  body: SpaceMemorySettingsUpdateRequest
+): Promise<SpaceMemorySettingsResponse> {
+  return apiFetch<SpaceMemorySettingsResponse>(`/api/spaces/${encodeURIComponent(spaceId)}/settings`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function listMemoryFacts(activeOnly = true): Promise<MemoryFactItem[]> {
+  return apiFetch<MemoryFactItem[]>(`/api/memory/facts?active_only=${activeOnly ? "true" : "false"}`);
+}
+
+export function createMemoryFact(body: MemoryFactCreateRequest): Promise<MemoryFactItem> {
+  return apiFetch<MemoryFactItem>("/api/memory/facts", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateMemoryFact(factId: string, body: MemoryFactUpdateRequest): Promise<MemoryFactItem> {
+  return apiFetch<MemoryFactItem>(`/api/memory/facts/${encodeURIComponent(factId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateMemoryFactStatus(factId: string, body: MemoryFactStatusUpdateRequest): Promise<MemoryFactItem> {
+  return apiFetch<MemoryFactItem>(`/api/memory/facts/${encodeURIComponent(factId)}/status`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function forbidMemoryFact(factId: string): Promise<MemoryFactItem> {
+  return apiFetch<MemoryFactItem>(`/api/memory/facts/${encodeURIComponent(factId)}/forbid`, {
+    method: "POST",
+  });
+}
+
+export function listMemoryRules(activeOnly = false): Promise<BehaviorRuleItem[]> {
+  return apiFetch<BehaviorRuleItem[]>(`/api/memory/rules?active_only=${activeOnly ? "true" : "false"}`);
+}
+
+export function createMemoryRule(body: BehaviorRuleCreateRequest): Promise<BehaviorRuleItem> {
+  return apiFetch<BehaviorRuleItem>("/api/memory/rules", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateMemoryRule(ruleId: string, body: BehaviorRuleUpdateRequest): Promise<BehaviorRuleItem> {
+  return apiFetch<BehaviorRuleItem>(`/api/memory/rules/${encodeURIComponent(ruleId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function disableMemoryRule(ruleId: string): Promise<BehaviorRuleItem> {
+  return apiFetch<BehaviorRuleItem>(`/api/memory/rules/${encodeURIComponent(ruleId)}/disable`, {
+    method: "POST",
+  });
+}
+
+export function listMemoryEpisodes(activeOnly = true): Promise<MemoryEpisodeItem[]> {
+  return apiFetch<MemoryEpisodeItem[]>(`/api/memory/episodes?active_only=${activeOnly ? "true" : "false"}`);
+}
+
+export function getPersonalityProfile(): Promise<PersonalityProfile> {
+  return apiFetch<PersonalityProfile>("/api/personality");
+}
+
+export function updatePersonalityProfile(body: PersonalityProfileUpdateRequest): Promise<PersonalityProfile> {
+  return apiFetch<PersonalityProfile>("/api/personality", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function listActivityLog(filters: ActivityLogListRequest = {}): Promise<ActivityLogItem[]> {
+  const params = new URLSearchParams();
+  if (filters.limit !== undefined) {
+    params.set("limit", String(filters.limit));
+  }
+  if (filters.event_type) {
+    params.set("event_type", filters.event_type);
+  }
+  if (filters.entity_type) {
+    params.set("entity_type", filters.entity_type);
+  }
+  if (filters.space_id) {
+    params.set("space_id", filters.space_id);
+  }
+  if (filters.date_from) {
+    params.set("date_from", filters.date_from);
+  }
+  if (filters.date_to) {
+    params.set("date_to", filters.date_to);
+  }
+  const query = params.toString();
+  const path = query ? `/api/activity-log?${query}` : "/api/activity-log";
+  return apiFetch<ActivityLogItem[]>(path);
+}
+
+export function createMemorySnapshot(body: MemorySnapshotCreateRequest): Promise<MemorySnapshotItem> {
+  return apiFetch<MemorySnapshotItem>("/api/memory/snapshots", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function listMemorySnapshots(spaceId?: string): Promise<MemorySnapshotItem[]> {
+  const query = spaceId ? `?space_id=${encodeURIComponent(spaceId)}` : "";
+  return apiFetch<MemorySnapshotItem[]>(`/api/memory/snapshots${query}`);
+}
+
+export function getMemorySnapshotSummary(snapshotId: string): Promise<MemorySnapshotSummary> {
+  return apiFetch<MemorySnapshotSummary>(`/api/memory/snapshots/${encodeURIComponent(snapshotId)}`);
+}
+
+export function rollbackMemorySnapshot(snapshotId: string): Promise<MemorySnapshotItem> {
+  return apiFetch<MemorySnapshotItem>(`/api/memory/snapshots/${encodeURIComponent(snapshotId)}/rollback`, {
+    method: "POST",
+  });
 }
 
 export function authMe(): Promise<AuthUser> {

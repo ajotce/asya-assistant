@@ -9,6 +9,7 @@ from app.db.models.user import User
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.user_repository import UserRepository
 from app.services.chat_service_v2 import ChatServiceV2
+from app.services.space_service import SpaceService
 
 
 class UserAlreadyExistsError(ValueError):
@@ -21,6 +22,7 @@ class UserService:
         self._users = UserRepository(session)
         self._chats = ChatRepository(session)
         self._chat_service = ChatServiceV2(session, chat_repository=self._chats)
+        self._space_service = SpaceService(session)
 
     def create_user(
         self,
@@ -42,7 +44,8 @@ class UserService:
             role=role,
             status=status,
         )
-        self._chat_service.ensure_single_active_base_chat(user.id)
+        default_space, _ = self._space_service.ensure_default_spaces(user)
+        self._chat_service.ensure_single_active_base_chat(user.id, space_id=default_space.id)
         self._session.commit()
         self._session.refresh(user)
         return user

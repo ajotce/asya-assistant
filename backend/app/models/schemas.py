@@ -116,6 +116,7 @@ class ChatListItemResponse(BaseModel):
     id: str
     title: str
     kind: str
+    space_id: Optional[str] = None
     is_archived: bool
     created_at: str
     updated_at: str
@@ -126,6 +127,7 @@ class ChatCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str = Field(min_length=1, max_length=255)
+    space_id: Optional[str] = Field(default=None, min_length=1, max_length=36)
 
 
 class ChatRenameRequest(BaseModel):
@@ -267,3 +269,193 @@ class AccessRequestApproveResponse(BaseModel):
     status: str
     request: AccessRequestResponse
     user: AuthUserResponse
+
+
+class SpaceListItemResponse(BaseModel):
+    id: str
+    name: str
+    is_default: bool
+    is_admin_only: bool
+    is_archived: bool
+    created_at: str
+    updated_at: str
+
+
+class SpaceCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+
+
+class SpaceRenameRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+
+
+class SpaceMemorySettingsResponse(BaseModel):
+    space_id: str
+    memory_read_enabled: bool
+    memory_write_enabled: bool
+    behavior_rules_enabled: bool
+    personality_overlay_enabled: bool
+    created_at: str
+    updated_at: str
+
+
+class SpaceMemorySettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    memory_read_enabled: bool
+    memory_write_enabled: bool
+    behavior_rules_enabled: bool
+    personality_overlay_enabled: bool
+
+
+class MemoryFactItemResponse(BaseModel):
+    id: str
+    key: str
+    value: str
+    status: str
+    source: str
+    space_id: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class MemoryFactCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=120)
+    value: str = Field(min_length=1, max_length=4000)
+    status: str = Field(min_length=1, max_length=32)
+    source: str = Field(default="user", min_length=1, max_length=120)
+    space_id: Optional[str] = Field(default=None, min_length=1, max_length=36)
+
+
+class MemoryFactUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=120)
+    value: str = Field(min_length=1, max_length=4000)
+    source: Optional[str] = Field(default=None, min_length=1, max_length=120)
+
+
+class MemoryFactStatusUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str = Field(min_length=1, max_length=32)
+
+
+class BehaviorRuleItemResponse(BaseModel):
+    id: str
+    title: str
+    instruction: str
+    scope: str
+    strictness: str
+    source: str
+    status: str
+    space_id: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class BehaviorRuleCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=200)
+    instruction: str = Field(min_length=1, max_length=6000)
+    scope: str = Field(min_length=1, max_length=32)
+    strictness: str = Field(min_length=1, max_length=32)
+    source: str = Field(min_length=1, max_length=32)
+    status: str = Field(default="active", min_length=1, max_length=32)
+    space_id: Optional[str] = Field(default=None, min_length=1, max_length=36)
+
+
+class BehaviorRuleUpdateRequest(BehaviorRuleCreateRequest):
+    pass
+
+
+class MemoryEpisodeItemResponse(BaseModel):
+    id: str
+    chat_id: str
+    summary: str
+    status: str
+    source: str
+    space_id: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class MemoryChangeItemResponse(BaseModel):
+    id: str
+    entity_type: str
+    entity_id: str
+    change_kind: str
+    old_value: Optional[dict] = None
+    new_value: Optional[dict] = None
+    space_id: Optional[str] = None
+    created_at: str
+
+
+class ActivityLogItemResponse(BaseModel):
+    id: str
+    event_type: str
+    entity_type: str
+    entity_id: str
+    summary: str
+    meta: Optional[dict] = None
+    space_id: Optional[str] = None
+    created_at: str
+
+
+class MemorySnapshotCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(min_length=1, max_length=200)
+    space_id: Optional[str] = Field(default=None, min_length=1, max_length=36)
+
+
+class MemorySnapshotItemResponse(BaseModel):
+    id: str
+    label: str
+    space_id: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class MemorySnapshotSummaryResponse(MemorySnapshotItemResponse):
+    facts_count: int
+    rules_count: int
+    episodes_count: int
+    personality_profiles_count: int
+    space_settings_count: int
+
+
+class PersonalityProfileResponse(BaseModel):
+    id: str
+    scope: str
+    space_id: Optional[str] = None
+    name: str
+    tone: str
+    style_notes: str
+    humor_level: int
+    initiative_level: int
+    can_gently_disagree: bool
+    address_user_by_name: bool
+    is_active: bool
+    created_at: str
+    updated_at: str
+
+
+class PersonalityProfileUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    tone: str = Field(min_length=1, max_length=120)
+    style_notes: str = Field(default="", max_length=6000)
+    humor_level: int = Field(default=1, ge=0, le=2)
+    initiative_level: int = Field(default=1, ge=0, le=2)
+    can_gently_disagree: bool = True
+    address_user_by_name: bool = True
+    is_active: bool = True

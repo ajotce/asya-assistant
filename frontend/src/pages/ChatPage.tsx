@@ -1,16 +1,22 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
+  archiveSpace,
   archiveChat,
+  createSpace,
   createChat,
   deleteChat,
+  getSpaceSettings,
   getChatMessages,
+  listSpaces,
   listChats,
+  renameSpace,
   renameChat,
   streamChat,
+  updateSpaceSettings,
   uploadSessionFiles,
 } from "../api/client";
-import type { ChatListItem } from "../types/api";
+import type { ChatListItem, SpaceListItem, SpaceMemorySettingsResponse } from "../types/api";
 
 interface ChatMessage {
   id: string;
@@ -38,13 +44,22 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set([
 
 interface ChatPageProps {
   initialSessionId?: string | null;
+  currentUserRole?: string;
 }
 
-export default function ChatPage({ initialSessionId = null }: ChatPageProps) {
+export default function ChatPage({ initialSessionId = null, currentUserRole = "user" }: ChatPageProps) {
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [chatsLoading, setChatsLoading] = useState(true);
   const [chatsError, setChatsError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(initialSessionId);
+  const [spaces, setSpaces] = useState<SpaceListItem[]>([]);
+  const [spacesLoading, setSpacesLoading] = useState(true);
+  const [spacesError, setSpacesError] = useState<string | null>(null);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [spaceSettings, setSpaceSettings] = useState<SpaceMemorySettingsResponse | null>(null);
+  const [spaceSettingsLoading, setSpaceSettingsLoading] = useState(false);
+  const [spaceSettingsError, setSpaceSettingsError] = useState<string | null>(null);
+  const [spaceSettingsSaving, setSpaceSettingsSaving] = useState(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -61,37 +76,46 @@ export default function ChatPage({ initialSessionId = null }: ChatPageProps) {
   useEffect(() => {
     let active = true;
 
-    async function loadChatsOnStart() {
+    async function loadInitialData() {
       setChatsLoading(true);
+      setSpacesLoading(true);
       setChatsError(null);
+      setSpacesError(null);
       try {
-        const list = await listChats();
+        const [chatList, spaceList] = await Promise.all([listChats(), listSpaces()]);
         if (!active) {
           return;
         }
-        setChats(list);
+        const visibleSpaces = filterSpacesForUser(spaceList, currentUserRole);
+        setSpaces(visibleSpaces);
+        setChats(chatList);
 
-        const selected = pickInitialChatId(list, initialSessionId);
+        const selected = pickInitialChatId(chatList, initialSessionId);
         if (selected) {
           setSessionId(selected);
         }
+        const initialSpace = pickInitialSpaceId(chatList, visibleSpaces, selected, initialSessionId);
+        setSelectedSpaceId(initialSpace);
       } catch (loadError) {
         if (!active) {
           return;
         }
-        setChatsError(getErrorMessage(loadError));
+        const message = getErrorMessage(loadError);
+        setChatsError(message);
+        setSpacesError(message);
       } finally {
         if (active) {
           setChatsLoading(false);
+          setSpacesLoading(false);
         }
       }
     }
 
-    void loadChatsOnStart();
+    void loadInitialData();
     return () => {
       active = false;
     };
-  }, [initialSessionId]);
+  }, [initialSessionId, currentUserRole]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -136,6 +160,59 @@ export default function ChatPage({ initialSessionId = null }: ChatPageProps) {
       active = false;
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!selectedSpaceId) {
+      setSpaceSettings(null);
+      return;
+    }
+    let active = true;
+
+    async function loadSettings(spaceId: string) {
+      setSpaceSettingsLoading(true);
+      setSpaceSettingsError(null);
+      try {
+        const data = await getSpaceSettings(spaceId);
+        if (!active) {
+          return;
+        }
+        setSpaceSettings(data);
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setSpaceSettings(null);
+        setSpaceSettingsError(getErrorMessage(loadError));
+      } finally {
+        if (active) {
+          setSpaceSettingsLoading(false);
+        }
+      }
+    }
+
+    void loadSettings(selectedSpaceId);
+    return () => {
+      active = false;
+    };
+  }, [selectedSpaceId]);
+
+  const visibleChats = useMemo(() => {
+    if (!selectedSpaceId) {
+      return chats.filter((chat) => !chat.is_archived);
+    }
+    return chats.filter((chat) => !chat.is_archived && chat.space_id === selectedSpaceId);
+  }, [chats, selectedSpaceId]);
+
+  useEffect(() => {
+    if (!visibleChats.length) {
+      return;
+    }
+    if (sessionId && visibleChats.some((chat) => chat.id === sessionId)) {
+      return;
+    }
+    const fallback = pickInitialChatId(visibleChats, null);
+    setSessionId(fallback);
+  }, [visibleChats, sessionId]);
 
   function handleSelectFiles(event: ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(event.target.files ?? []);
@@ -183,14 +260,114 @@ export default function ChatPage({ initialSessionId = null }: ChatPageProps) {
     }
     setError(null);
     try {
-      const chat = await createChat({ title: "Новый чат" });
-      setChats((prev) => [...prev, chat]);
+      const chat = await createChat({ title: "Новый чат", space_id: selectedSpaceId });
+      setChats((prev) => [...prev.filter((item) => item.id !== chat.id), chat]);
       setSessionId(chat.id);
       setMessages([]);
       setSelectedFiles([]);
       setInput("");
     } catch (createError) {
       setError(getErrorMessage(createError));
+    }
+  }
+
+  async function refreshSpacesAndChats(preserveSessionId: string | null) {
+    const [nextSpacesRaw, nextChats] = await Promise.all([listSpaces(), listChats()]);
+    const nextSpaces = filterSpacesForUser(nextSpacesRaw, currentUserRole);
+    setSpaces(nextSpaces);
+    setChats(nextChats);
+    if (selectedSpaceId && !nextSpaces.some((space) => space.id === selectedSpaceId)) {
+      const fallbackSpace = nextSpaces[0]?.id ?? null;
+      setSelectedSpaceId(fallbackSpace);
+    }
+    if (preserveSessionId && nextChats.some((chat) => chat.id === preserveSessionId && !chat.is_archived)) {
+      setSessionId(preserveSessionId);
+      return;
+    }
+    const nextActiveChats = selectedSpaceId
+      ? nextChats.filter((chat) => !chat.is_archived && chat.space_id === selectedSpaceId)
+      : nextChats.filter((chat) => !chat.is_archived);
+    setSessionId(pickInitialChatId(nextActiveChats, null));
+  }
+
+  async function handleCreateSpace() {
+    if (isGenerating) {
+      return;
+    }
+    const name = window.prompt("Название пространства", "Новое пространство")?.trim();
+    if (!name) {
+      return;
+    }
+    try {
+      const created = await createSpace({ name });
+      setSpaces((prev) => [...prev, created]);
+      setSelectedSpaceId(created.id);
+      setError(null);
+    } catch (createError) {
+      setError(getErrorMessage(createError));
+    }
+  }
+
+  async function handleRenameSpace(space: SpaceListItem) {
+    if (isGenerating) {
+      return;
+    }
+    const nextName = window.prompt("Новое название пространства", space.name)?.trim();
+    if (!nextName) {
+      return;
+    }
+    try {
+      const updated = await renameSpace(space.id, { name: nextName });
+      setSpaces((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setError(null);
+    } catch (renameError) {
+      setError(getErrorMessage(renameError));
+    }
+  }
+
+  async function handleArchiveSpace(space: SpaceListItem) {
+    if (isGenerating) {
+      return;
+    }
+    if (!window.confirm(`Архивировать пространство '${space.name}'?`)) {
+      return;
+    }
+    try {
+      await archiveSpace(space.id);
+      await refreshSpacesAndChats(sessionId);
+      setError(null);
+    } catch (archiveError) {
+      setError(getErrorMessage(archiveError));
+    }
+  }
+
+  async function handleUpdateSpaceSetting(
+    key: keyof Pick<
+      SpaceMemorySettingsResponse,
+      "memory_read_enabled" | "memory_write_enabled" | "behavior_rules_enabled" | "personality_overlay_enabled"
+    >,
+    value: boolean
+  ) {
+    if (!selectedSpaceId || !spaceSettings) {
+      return;
+    }
+    const next = { ...spaceSettings, [key]: value };
+    setSpaceSettings(next);
+    setSpaceSettingsSaving(true);
+    setSpaceSettingsError(null);
+    try {
+      const saved = await updateSpaceSettings(selectedSpaceId, {
+        memory_read_enabled: next.memory_read_enabled,
+        memory_write_enabled: next.memory_write_enabled,
+        behavior_rules_enabled: next.behavior_rules_enabled,
+        personality_overlay_enabled: next.personality_overlay_enabled,
+      });
+      setSpaceSettings(saved);
+    } catch (updateError) {
+      setSpaceSettingsError(getErrorMessage(updateError));
+      setSpaceSettings(spaceSettings);
+    } finally {
+      setSpaceSettingsSaving(false);
     }
   }
 
@@ -357,6 +534,11 @@ export default function ChatPage({ initialSessionId = null }: ChatPageProps) {
     return `Чат: ${sessionId.slice(0, 8)}...`;
   }, [sessionId]);
 
+  const selectedSpace = useMemo(
+    () => spaces.find((space) => space.id === selectedSpaceId) ?? null,
+    [spaces, selectedSpaceId]
+  );
+
   return (
     <section className="page" aria-label="Чат Asya">
       <div className="page__row">
@@ -368,12 +550,115 @@ export default function ChatPage({ initialSessionId = null }: ChatPageProps) {
 
       <div className="chat-layout">
         <aside className="chat-sidebar" aria-label="Список чатов">
+          <div className="spaces-panel">
+            <div className="spaces-panel__header">
+              <p className="spaces-panel__title">Пространства</p>
+              <button
+                type="button"
+                className="chat-edit-button"
+                onClick={() => void handleCreateSpace()}
+                disabled={isGenerating || spacesLoading}
+              >
+                + Создать
+              </button>
+            </div>
+            {spacesLoading ? <p className="status-text">Загрузка пространств...</p> : null}
+            {spacesError ? <p className="status-text status-text--error">{spacesError}</p> : null}
+            <ul className="spaces-panel__list">
+              {spaces.map((space) => {
+                const active = space.id === selectedSpaceId;
+                return (
+                  <li key={space.id} className="spaces-panel__item">
+                    <button
+                      type="button"
+                      className={`chat-sidebar__select${active ? " chat-sidebar__select--active" : ""}`}
+                      onClick={() => setSelectedSpaceId(space.id)}
+                      disabled={isGenerating}
+                    >
+                      {space.name}
+                      {space.is_default ? " (по умолчанию)" : ""}
+                      {space.is_admin_only ? " (admin)" : ""}
+                    </button>
+                    {!space.is_default ? (
+                      <div className="chat-sidebar__actions">
+                        <button
+                          type="button"
+                          className="chat-edit-button"
+                          onClick={() => void handleRenameSpace(space)}
+                          disabled={isGenerating}
+                        >
+                          Переим.
+                        </button>
+                        <button
+                          type="button"
+                          className="chat-edit-button"
+                          onClick={() => void handleArchiveSpace(space)}
+                          disabled={isGenerating}
+                        >
+                          Архив
+                        </button>
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+            {selectedSpace ? <p className="status-text">Текущее пространство: {selectedSpace.name}</p> : null}
+            <div className="spaces-settings">
+              <p className="spaces-settings__title">Память пространства</p>
+              {spaceSettingsLoading ? <p className="status-text">Загрузка настроек...</p> : null}
+              {spaceSettingsError ? <p className="status-text status-text--error">{spaceSettingsError}</p> : null}
+              {spaceSettings ? (
+                <>
+                  <label className="spaces-settings__toggle">
+                    <input
+                      type="checkbox"
+                      checked={spaceSettings.memory_read_enabled}
+                      onChange={(event) => void handleUpdateSpaceSetting("memory_read_enabled", event.target.checked)}
+                      disabled={spaceSettingsSaving}
+                    />
+                    Читать память
+                  </label>
+                  <label className="spaces-settings__toggle">
+                    <input
+                      type="checkbox"
+                      checked={spaceSettings.memory_write_enabled}
+                      onChange={(event) => void handleUpdateSpaceSetting("memory_write_enabled", event.target.checked)}
+                      disabled={spaceSettingsSaving}
+                    />
+                    Записывать память
+                  </label>
+                  <label className="spaces-settings__toggle">
+                    <input
+                      type="checkbox"
+                      checked={spaceSettings.behavior_rules_enabled}
+                      onChange={(event) => void handleUpdateSpaceSetting("behavior_rules_enabled", event.target.checked)}
+                      disabled={spaceSettingsSaving}
+                    />
+                    Использовать правила
+                  </label>
+                  <label className="spaces-settings__toggle">
+                    <input
+                      type="checkbox"
+                      checked={spaceSettings.personality_overlay_enabled}
+                      onChange={(event) =>
+                        void handleUpdateSpaceSetting("personality_overlay_enabled", event.target.checked)
+                      }
+                      disabled={spaceSettingsSaving}
+                    />
+                    Использовать personality overlay
+                  </label>
+                </>
+              ) : null}
+            </div>
+          </div>
+
           <p className="status-text">{sessionStatusText}</p>
           {chatsLoading ? <p className="status-text">Загрузка чатов...</p> : null}
           {chatsError ? <p className="status-text status-text--error">{chatsError}</p> : null}
 
           <ul className="chat-sidebar__list">
-            {chats.map((chat) => {
+            {visibleChats.map((chat) => {
               const isActive = chat.id === sessionId;
               const isBase = chat.kind === "base";
               return (
@@ -384,7 +669,7 @@ export default function ChatPage({ initialSessionId = null }: ChatPageProps) {
                     onClick={() => setSessionId(chat.id)}
                     disabled={isGenerating}
                   >
-                    {isBase ? "Base-chat" : chat.title}
+                    {isBase ? "Base-chat (базовый)" : chat.title}
                   </button>
                   {!isBase ? (
                     <div className="chat-sidebar__actions">
@@ -499,6 +784,37 @@ function pickInitialChatId(chats: ChatListItem[], initialSessionId: string | nul
   }
   const first = chats.find((chat) => !chat.is_archived);
   return first?.id ?? null;
+}
+
+function pickInitialSpaceId(
+  chats: ChatListItem[],
+  spaces: SpaceListItem[],
+  selectedChatId: string | null,
+  initialSessionId: string | null
+): string | null {
+  const chatId = selectedChatId || initialSessionId;
+  if (chatId) {
+    const selectedChat = chats.find((chat) => chat.id === chatId && !chat.is_archived);
+    if (selectedChat?.space_id && spaces.some((space) => space.id === selectedChat.space_id)) {
+      return selectedChat.space_id;
+    }
+  }
+  const baseChat = chats.find((chat) => chat.kind === "base" && !chat.is_archived);
+  if (baseChat?.space_id && spaces.some((space) => space.id === baseChat.space_id)) {
+    return baseChat.space_id;
+  }
+  const defaultSpace = spaces.find((space) => space.is_default && !space.is_archived);
+  if (defaultSpace) {
+    return defaultSpace.id;
+  }
+  return spaces.find((space) => !space.is_archived)?.id ?? null;
+}
+
+function filterSpacesForUser(spaces: SpaceListItem[], role: string): SpaceListItem[] {
+  if (role === "admin") {
+    return spaces.filter((space) => !space.is_archived);
+  }
+  return spaces.filter((space) => !space.is_archived && !space.is_admin_only);
 }
 
 function makeId(prefix: string): string {

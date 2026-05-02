@@ -26,8 +26,11 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path, monkeypatch) -> None:
     inspector = inspect(engine)
     assert "users" in inspector.get_table_names()
     assert "usage_records" in inspector.get_table_names()
+    assert "spaces" in inspector.get_table_names()
+    assert "memory_episodes" in inspector.get_table_names()
+    assert "activity_logs" in inspector.get_table_names()
 
     with engine.connect() as conn:
         revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert revision == "20260502_03"
+    assert revision == "20260502_04"
     get_settings.cache_clear()

@@ -97,6 +97,7 @@ export interface ChatListItem {
   id: string;
   title: string;
   kind: string;
+  space_id?: string | null;
   is_archived: boolean;
   created_at: string;
   updated_at: string;
@@ -105,6 +106,7 @@ export interface ChatListItem {
 
 export interface ChatCreateRequest {
   title: string;
+  space_id?: string | null;
 }
 
 export interface ChatRenameRequest {
@@ -216,4 +218,180 @@ export interface AccessRequestApproveResponse {
   status: string;
   request: AccessRequestResponse;
   user: AuthUser;
+}
+
+export interface SpaceListItem {
+  id: string;
+  name: string;
+  is_default: boolean;
+  is_admin_only: boolean;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpaceCreateRequest {
+  name: string;
+}
+
+export interface SpaceRenameRequest {
+  name: string;
+}
+
+export interface SpaceMemorySettingsResponse {
+  space_id: string;
+  memory_read_enabled: boolean;
+  memory_write_enabled: boolean;
+  behavior_rules_enabled: boolean;
+  personality_overlay_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpaceMemorySettingsUpdateRequest {
+  memory_read_enabled: boolean;
+  memory_write_enabled: boolean;
+  behavior_rules_enabled: boolean;
+  personality_overlay_enabled: boolean;
+}
+
+export interface MemoryFactItem {
+  id: string;
+  key: string;
+  value: string;
+  status: string;
+  source: string;
+  space_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryFactCreateRequest {
+  key: string;
+  value: string;
+  status: string;
+  source: string;
+  space_id?: string | null;
+}
+
+export interface MemoryFactUpdateRequest {
+  key: string;
+  value: string;
+  source?: string;
+}
+
+export interface MemoryFactStatusUpdateRequest {
+  status: string;
+}
+
+export interface BehaviorRuleItem {
+  id: string;
+  title: string;
+  instruction: string;
+  scope: string;
+  strictness: string;
+  source: string;
+  status: string;
+  space_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BehaviorRuleCreateRequest {
+  title: string;
+  instruction: string;
+  scope: string;
+  strictness: string;
+  source: string;
+  status: string;
+  space_id?: string | null;
+}
+
+export interface BehaviorRuleUpdateRequest {
+  title: string;
+  instruction: string;
+  scope: string;
+  strictness: string;
+  source: string;
+  status: string;
+  space_id?: string | null;
+}
+
+export interface MemoryEpisodeItem {
+  id: string;
+  chat_id: string;
+  summary: string;
+  status: string;
+  source: string;
+  space_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonalityProfile {
+  id: string;
+  scope: string;
+  space_id?: string | null;
+  name: string;
+  tone: string;
+  style_notes: string;
+  humor_level: number;
+  initiative_level: number;
+  can_gently_disagree: boolean;
+  address_user_by_name: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonalityProfileUpdateRequest {
+  name: string;
+  tone: string;
+  style_notes: string;
+  humor_level: number;
+  initiative_level: number;
+  can_gently_disagree: boolean;
+  address_user_by_name: boolean;
+  is_active: boolean;
+}
+
+export interface ActivityLogItem {
+  id: string;
+  event_type: string;
+  entity_type: string;
+  entity_id: string;
+  summary: string;
+  meta?: Record<string, unknown> | null;
+  space_id?: string | null;
+  created_at: string;
+}
+
+export interface ActivityLogListRequest {
+  limit?: number;
+  event_type?: string;
+  entity_type?: string;
+  space_id?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface MemorySnapshotCreateRequest {
+  label: string;
+  space_id?: string | null;
+}
+
+export interface MemorySnapshotItem {
+  id: string;
+  label: string;
+  space_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemorySnapshotSummary extends MemorySnapshotItem {
+  facts_count: number;
+  rules_count: number;
+  episodes_count: number;
+  personality_profiles_count: number;
+  space_settings_count: number;
 }

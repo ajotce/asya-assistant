@@ -5,7 +5,9 @@ import AppHeader from "./components/AppHeader";
 import NavTabs, { type AppTab } from "./components/NavTabs";
 import { useTheme } from "./hooks/useTheme";
 import AuthPage from "./pages/AuthPage";
+import ActivityPage from "./pages/ActivityPage";
 import ChatPage from "./pages/ChatPage";
+import MemoryPage from "./pages/MemoryPage";
 import SettingsPage from "./pages/SettingsPage";
 import StatusPage from "./pages/StatusPage";
 import type { AuthUser } from "./types/api";
@@ -137,7 +139,17 @@ export default function App() {
           <div className="tab-panels">
             {mountedTabs.chat ? (
               <section className="tab-panel" hidden={activeTab !== "chat"}>
-                <ChatPage initialSessionId={preferredChatId} />
+                <ChatPage initialSessionId={preferredChatId} currentUserRole={currentUser.role} />
+              </section>
+            ) : null}
+            {mountedTabs.memory ? (
+              <section className="tab-panel" hidden={activeTab !== "memory"}>
+                <MemoryPage />
+              </section>
+            ) : null}
+            {mountedTabs.activity ? (
+              <section className="tab-panel" hidden={activeTab !== "activity"}>
+                <ActivityPage />
               </section>
             ) : null}
             {mountedTabs.settings ? (
@@ -171,6 +183,8 @@ function getErrorMessage(error: unknown): string {
 function buildInitialMountedTabs(initialTab: AppTab): Record<AppTab, boolean> {
   return {
     chat: initialTab === "chat",
+    memory: initialTab === "memory",
+    activity: initialTab === "activity",
     settings: initialTab === "settings",
     status: initialTab === "status",
   };
@@ -187,8 +201,14 @@ function getTabFromPath(pathname: string): AppTab {
   if (pathname.startsWith("/settings")) {
     return "settings";
   }
+  if (pathname.startsWith("/memory")) {
+    return "memory";
+  }
   if (pathname.startsWith("/status")) {
     return "status";
+  }
+  if (pathname.startsWith("/activity")) {
+    return "activity";
   }
   return "chat";
 }
@@ -196,6 +216,12 @@ function getTabFromPath(pathname: string): AppTab {
 function getPathForTab(tab: AppTab): string {
   if (tab === "settings") {
     return "/settings";
+  }
+  if (tab === "memory") {
+    return "/memory";
+  }
+  if (tab === "activity") {
+    return "/activity";
   }
   if (tab === "status") {
     return "/status";

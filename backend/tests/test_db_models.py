@@ -21,6 +21,16 @@ def test_sqlalchemy_models_create_expected_tables(tmp_path) -> None:
         "usage_records",
         "access_requests",
         "encrypted_secrets",
+        "spaces",
+        "space_memory_settings",
+        "user_profile_facts",
+        "memory_episodes",
+        "memory_chunks",
+        "behavior_rules",
+        "assistant_personality_profiles",
+        "memory_changes",
+        "memory_snapshots",
+        "activity_logs",
     }
 
     user_indexes = inspector.get_indexes("users")
@@ -31,3 +41,8 @@ def test_sqlalchemy_models_create_expected_tables(tmp_path) -> None:
         tuple(sorted(item["column_names"])) for item in inspector.get_unique_constraints("encrypted_secrets")
     }
     assert ("name", "user_id") in encrypted_secret_uniques
+
+    spaces_uniques = {
+        tuple(sorted(item["column_names"])) for item in inspector.get_unique_constraints("spaces")
+    }
+    assert ("name", "user_id") in spaces_uniques

@@ -15,6 +15,7 @@ from app.repositories.file_meta_repository import FileMetaRepository
 from app.repositories.message_repository import MessageRepository
 from app.repositories.usage_record_repository import UsageRecordRepository
 from app.services.chat_service_v2 import ChatNotFoundError, ChatServiceV2, ProtectedBaseChatError
+from app.services.space_service import SpaceNotFoundError
 from app.storage.runtime import file_store, usage_store, vector_store
 
 router = APIRouter(tags=["chats"])
@@ -33,6 +34,7 @@ def list_chats(
             id=chat.id,
             title=chat.title,
             kind=chat.kind.value,
+            space_id=chat.space_id,
             is_archived=chat.is_archived,
             created_at=chat.created_at.isoformat(),
             updated_at=chat.updated_at.isoformat(),
@@ -48,11 +50,15 @@ def create_chat(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> ChatListItemResponse:
-    chat = ChatServiceV2(db_session).create_chat(current_user.id, payload.title)
+    try:
+        chat = ChatServiceV2(db_session).create_chat(current_user, payload.title, space_id=payload.space_id)
+    except SpaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ChatListItemResponse(
         id=chat.id,
         title=chat.title,
         kind=chat.kind.value,
+        space_id=chat.space_id,
         is_archived=chat.is_archived,
         created_at=chat.created_at.isoformat(),
         updated_at=chat.updated_at.isoformat(),
@@ -76,6 +82,7 @@ def rename_chat(
         id=chat.id,
         title=chat.title,
         kind=chat.kind.value,
+        space_id=chat.space_id,
         is_archived=chat.is_archived,
         created_at=chat.created_at.isoformat(),
         updated_at=chat.updated_at.isoformat(),
@@ -100,6 +107,7 @@ def archive_chat(
         id=chat.id,
         title=chat.title,
         kind=chat.kind.value,
+        space_id=chat.space_id,
         is_archived=chat.is_archived,
         created_at=chat.created_at.isoformat(),
         updated_at=chat.updated_at.isoformat(),

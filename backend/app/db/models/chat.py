@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from sqlalchemy import Boolean, Enum as SAEnum, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,12 +15,19 @@ class Chat(Base, IdMixin, TimestampMixin):
         Index("ix_chats_user_id_kind", "user_id", "kind"),
         Index("ix_chats_user_id_archived", "user_id", "is_archived"),
         Index("ix_chats_user_id_deleted", "user_id", "is_deleted"),
+        Index("ix_chats_user_id_space_id", "user_id", "space_id"),
     )
 
     user_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
+    )
+    space_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("spaces.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)

@@ -54,11 +54,13 @@ class ChatRepository:
         *,
         user_id: str,
         title: str,
+        space_id: str | None = None,
         kind: ChatKind = ChatKind.REGULAR,
         is_archived: bool = False,
     ) -> Chat:
         chat = Chat(
             user_id=user_id,
+            space_id=space_id,
             title=title,
             kind=kind,
             is_archived=is_archived,
