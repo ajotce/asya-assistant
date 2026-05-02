@@ -64,10 +64,10 @@ class TelegramLinkTokenRepository:
             )
         )
         result = self._session.execute(stmt)
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)
 
     def prune_expired(self) -> int:
         now = datetime.now(timezone.utc)
         stmt = delete(TelegramLinkToken).where(TelegramLinkToken.expires_at <= now)
         result = self._session.execute(stmt)
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)

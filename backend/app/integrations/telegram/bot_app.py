@@ -139,8 +139,11 @@ class TelegramBotApp:
 
                 user_voice = voice_settings.get_or_create(user=user)
                 if user_voice.tts_enabled:
+                    from aiogram.types import BufferedInputFile
+
                     tts = voice_service.synthesize(user=user, text=answer_text)
-                    await message.answer_voice(voice=tts.audio_bytes)
+                    voice_file = BufferedInputFile(tts.audio_bytes, filename="asya-voice.ogg")
+                    await message.answer_voice(voice=voice_file)
                 db.commit()
             except Exception:
                 db.rollback()

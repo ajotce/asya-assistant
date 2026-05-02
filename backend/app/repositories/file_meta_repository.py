@@ -59,4 +59,4 @@ class FileMetaRepository:
     def delete_for_chat_user(self, *, chat_id: str, user_id: str) -> int:
         stmt = delete(FileMeta).where(FileMeta.chat_id == chat_id, FileMeta.user_id == user_id)
         result = self._session.execute(stmt)
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)

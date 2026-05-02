@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore[import-untyped]
 
 from app.core.config import get_settings
 from app.db.session import create_session

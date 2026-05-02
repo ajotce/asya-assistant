@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -47,7 +49,7 @@ class MemoryEpisodeRepository:
         space_id: str | None,
         limit: int = 6,
     ) -> list[MemoryEpisode]:
-        space_filter = MemoryEpisode.space_id.is_(None)
+        space_filter: Any = MemoryEpisode.space_id.is_(None)
         if space_id is not None:
             space_filter = or_(space_filter, MemoryEpisode.space_id == space_id)
         stmt = (

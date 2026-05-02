@@ -88,5 +88,5 @@ def test_notification_center_logs_activity(test_session):
 
     from app.repositories.activity_log_repository import ActivityLogRepository
     logs = ActivityLogRepository(session).list_for_user(user.id, limit=5)
-    notification_logs = [l for l in logs if l.event_type == "notification_sent"]
+    notification_logs = [log_item for log_item in logs if log_item.event_type == "notification_sent"]
     assert len(notification_logs) >= 1

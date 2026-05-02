@@ -26,7 +26,10 @@ class SessionStore:
         data = SessionData(session_id=session_id, created_at=created_at)
         with self._lock:
             self._sessions[session_id] = data
-        return self.get_session(session_id)
+        session = self.get_session(session_id)
+        if session is None:
+            raise RuntimeError("Session must exist after creation.")
+        return session
 
     def has_session(self, session_id: str) -> bool:
         with self._lock:

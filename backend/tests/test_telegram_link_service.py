@@ -14,9 +14,7 @@ from app.integrations.telegram.link_service import (
     TelegramLinkError,
     TelegramLinkService,
 )
-from app.repositories.telegram_account_link_repository import TelegramAccountLinkRepository
 from app.repositories.telegram_link_token_repository import TelegramLinkTokenRepository
-from app.repositories.user_repository import UserRepository
 
 
 @pytest.fixture

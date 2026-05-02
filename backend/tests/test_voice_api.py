@@ -1,18 +1,9 @@
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
-from app.api.deps_auth import get_db_session
-from app.db.base import Base
-from app.db.models.user import User
-from app.db.models.user_voice_settings import UserVoiceSettings
-from app.db.models.common import VoiceGender, VoiceProvider
-from app.db.session import get_engine
 from app.main import app
-from app.core.config import get_settings
-from tests.auth_helpers import build_authed_client, setup_test_db
+from tests.auth_helpers import build_authed_client
 
 
 def test_voice_settings_get_defaults(tmp_path, monkeypatch):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import false, or_, select
 from sqlalchemy.orm import Session
@@ -45,7 +45,7 @@ class BehaviorRuleRepository:
         return item
 
     def list_active_for_user_space(self, *, user_id: str, space_id: str | None, limit: int = 12) -> list[BehaviorRule]:
-        scoped_space_rule = false()
+        scoped_space_rule: Any = false()
         if space_id is not None:
             scoped_space_rule = (BehaviorRule.scope == RuleScope.SPACE) & (BehaviorRule.space_id == space_id)
         stmt = (

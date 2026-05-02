@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -58,7 +58,7 @@ class UserProfileFactRepository:
         space_id: str | None,
         limit: int = 20,
     ) -> list[UserProfileFact]:
-        space_filter = UserProfileFact.space_id.is_(None)
+        space_filter: Any = UserProfileFact.space_id.is_(None)
         if space_id is not None:
             space_filter = or_(space_filter, UserProfileFact.space_id == space_id)
         stmt = (

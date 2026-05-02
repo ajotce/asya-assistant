@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.api.deps_auth import get_db_session
 from app.main import app
 from tests.auth_helpers import build_authed_client
 

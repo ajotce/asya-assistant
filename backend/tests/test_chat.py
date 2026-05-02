@@ -1,6 +1,5 @@
 import io
 import tempfile
-from pathlib import Path
 
 import httpx
 from fastapi.testclient import TestClient
