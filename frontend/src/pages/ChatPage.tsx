@@ -1,6 +1,22 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
-import { createSession, deleteSession, streamChat, uploadSessionFiles } from "../api/client";
+import {
+  archiveSpace,
+  archiveChat,
+  createSpace,
+  createChat,
+  deleteChat,
+  getSpaceSettings,
+  getChatMessages,
+  listSpaces,
+  listChats,
+  renameSpace,
+  renameChat,
+  streamChat,
+  updateSpaceSettings,
+  uploadSessionFiles,
+} from "../api/client";
+import type { ChatListItem, SpaceListItem, SpaceMemorySettingsResponse } from "../types/api";
 
 interface ChatMessage {
   id: string;
@@ -26,15 +42,33 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set([
   ".heic",
 ]);
 
-export default function ChatPage() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [input, setInput] = useState("");
+interface ChatPageProps {
+  initialSessionId?: string | null;
+  currentUserRole?: string;
+}
+
+export default function ChatPage({ initialSessionId = null, currentUserRole = "user" }: ChatPageProps) {
+  const [chats, setChats] = useState<ChatListItem[]>([]);
+  const [chatsLoading, setChatsLoading] = useState(true);
+  const [chatsError, setChatsError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(initialSessionId);
+  const [spaces, setSpaces] = useState<SpaceListItem[]>([]);
+  const [spacesLoading, setSpacesLoading] = useState(true);
+  const [spacesError, setSpacesError] = useState<string | null>(null);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [spaceSettings, setSpaceSettings] = useState<SpaceMemorySettingsResponse | null>(null);
+  const [spaceSettingsLoading, setSpaceSettingsLoading] = useState(false);
+  const [spaceSettingsError, setSpaceSettingsError] = useState<string | null>(null);
+  const [spaceSettingsSaving, setSpaceSettingsSaving] = useState(false);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
+
+  const [input, setInput] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState("");
 
   const hasMessages = messages.length > 0;
   const canSend = !isGenerating && Boolean(sessionId);
@@ -42,24 +76,143 @@ export default function ChatPage() {
   useEffect(() => {
     let active = true;
 
-    async function initSession() {
+    async function loadInitialData() {
+      setChatsLoading(true);
+      setSpacesLoading(true);
+      setChatsError(null);
+      setSpacesError(null);
       try {
-        const created = await createSession();
-        if (active) {
-          setSessionId(created.session_id);
+        const [chatList, spaceList] = await Promise.all([listChats(), listSpaces()]);
+        if (!active) {
+          return;
         }
-      } catch (initError) {
+        const visibleSpaces = filterSpacesForUser(spaceList, currentUserRole);
+        setSpaces(visibleSpaces);
+        setChats(chatList);
+
+        const selected = pickInitialChatId(chatList, initialSessionId);
+        if (selected) {
+          setSessionId(selected);
+        }
+        const initialSpace = pickInitialSpaceId(chatList, visibleSpaces, selected, initialSessionId);
+        setSelectedSpaceId(initialSpace);
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        const message = getErrorMessage(loadError);
+        setChatsError(message);
+        setSpacesError(message);
+      } finally {
         if (active) {
-          setError(getErrorMessage(initError));
+          setChatsLoading(false);
+          setSpacesLoading(false);
         }
       }
     }
 
-    initSession();
+    void loadInitialData();
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialSessionId, currentUserRole]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setMessages([]);
+      return;
+    }
+
+    let active = true;
+
+    async function loadMessages(chatId: string) {
+      setMessagesLoading(true);
+      setMessagesError(null);
+      try {
+        const items = await getChatMessages(chatId);
+        if (!active) {
+          return;
+        }
+        setMessages(
+          items
+            .filter((item) => item.role === "user" || item.role === "assistant")
+            .map((item) => ({
+              id: item.id,
+              role: item.role as "user" | "assistant",
+              text: item.content,
+            }))
+        );
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setMessages([]);
+        setMessagesError(getErrorMessage(loadError));
+      } finally {
+        if (active) {
+          setMessagesLoading(false);
+        }
+      }
+    }
+
+    void loadMessages(sessionId);
+    return () => {
+      active = false;
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!selectedSpaceId) {
+      setSpaceSettings(null);
+      return;
+    }
+    let active = true;
+
+    async function loadSettings(spaceId: string) {
+      setSpaceSettingsLoading(true);
+      setSpaceSettingsError(null);
+      try {
+        const data = await getSpaceSettings(spaceId);
+        if (!active) {
+          return;
+        }
+        setSpaceSettings(data);
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setSpaceSettings(null);
+        setSpaceSettingsError(getErrorMessage(loadError));
+      } finally {
+        if (active) {
+          setSpaceSettingsLoading(false);
+        }
+      }
+    }
+
+    void loadSettings(selectedSpaceId);
+    return () => {
+      active = false;
+    };
+  }, [selectedSpaceId]);
+
+  const visibleChats = useMemo(() => {
+    if (!selectedSpaceId) {
+      return chats.filter((chat) => !chat.is_archived);
+    }
+    return chats.filter((chat) => !chat.is_archived && chat.space_id === selectedSpaceId);
+  }, [chats, selectedSpaceId]);
+
+  useEffect(() => {
+    if (!visibleChats.length) {
+      return;
+    }
+    if (sessionId && visibleChats.some((chat) => chat.id === sessionId)) {
+      return;
+    }
+    const fallback = pickInitialChatId(visibleChats, null);
+    setSessionId(fallback);
+  }, [visibleChats, sessionId]);
 
   function handleSelectFiles(event: ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(event.target.files ?? []);
@@ -101,25 +254,192 @@ export default function ChatPage() {
     setSelectedFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
   }
 
+  async function handleCreateChat() {
+    if (isGenerating) {
+      return;
+    }
+    setError(null);
+    try {
+      const chat = await createChat({ title: "Новый чат", space_id: selectedSpaceId });
+      setChats((prev) => [...prev.filter((item) => item.id !== chat.id), chat]);
+      setSessionId(chat.id);
+      setMessages([]);
+      setSelectedFiles([]);
+      setInput("");
+    } catch (createError) {
+      setError(getErrorMessage(createError));
+    }
+  }
+
+  async function refreshSpacesAndChats(preserveSessionId: string | null) {
+    const [nextSpacesRaw, nextChats] = await Promise.all([listSpaces(), listChats()]);
+    const nextSpaces = filterSpacesForUser(nextSpacesRaw, currentUserRole);
+    setSpaces(nextSpaces);
+    setChats(nextChats);
+    if (selectedSpaceId && !nextSpaces.some((space) => space.id === selectedSpaceId)) {
+      const fallbackSpace = nextSpaces[0]?.id ?? null;
+      setSelectedSpaceId(fallbackSpace);
+    }
+    if (preserveSessionId && nextChats.some((chat) => chat.id === preserveSessionId && !chat.is_archived)) {
+      setSessionId(preserveSessionId);
+      return;
+    }
+    const nextActiveChats = selectedSpaceId
+      ? nextChats.filter((chat) => !chat.is_archived && chat.space_id === selectedSpaceId)
+      : nextChats.filter((chat) => !chat.is_archived);
+    setSessionId(pickInitialChatId(nextActiveChats, null));
+  }
+
+  async function handleCreateSpace() {
+    if (isGenerating) {
+      return;
+    }
+    const name = window.prompt("Название пространства", "Новое пространство")?.trim();
+    if (!name) {
+      return;
+    }
+    try {
+      const created = await createSpace({ name });
+      setSpaces((prev) => [...prev, created]);
+      setSelectedSpaceId(created.id);
+      setError(null);
+    } catch (createError) {
+      setError(getErrorMessage(createError));
+    }
+  }
+
+  async function handleRenameSpace(space: SpaceListItem) {
+    if (isGenerating) {
+      return;
+    }
+    const nextName = window.prompt("Новое название пространства", space.name)?.trim();
+    if (!nextName) {
+      return;
+    }
+    try {
+      const updated = await renameSpace(space.id, { name: nextName });
+      setSpaces((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setError(null);
+    } catch (renameError) {
+      setError(getErrorMessage(renameError));
+    }
+  }
+
+  async function handleArchiveSpace(space: SpaceListItem) {
+    if (isGenerating) {
+      return;
+    }
+    if (!window.confirm(`Архивировать пространство '${space.name}'?`)) {
+      return;
+    }
+    try {
+      await archiveSpace(space.id);
+      await refreshSpacesAndChats(sessionId);
+      setError(null);
+    } catch (archiveError) {
+      setError(getErrorMessage(archiveError));
+    }
+  }
+
+  async function handleUpdateSpaceSetting(
+    key: keyof Pick<
+      SpaceMemorySettingsResponse,
+      "memory_read_enabled" | "memory_write_enabled" | "behavior_rules_enabled" | "personality_overlay_enabled"
+    >,
+    value: boolean
+  ) {
+    if (!selectedSpaceId || !spaceSettings) {
+      return;
+    }
+    const next = { ...spaceSettings, [key]: value };
+    setSpaceSettings(next);
+    setSpaceSettingsSaving(true);
+    setSpaceSettingsError(null);
+    try {
+      const saved = await updateSpaceSettings(selectedSpaceId, {
+        memory_read_enabled: next.memory_read_enabled,
+        memory_write_enabled: next.memory_write_enabled,
+        behavior_rules_enabled: next.behavior_rules_enabled,
+        personality_overlay_enabled: next.personality_overlay_enabled,
+      });
+      setSpaceSettings(saved);
+    } catch (updateError) {
+      setSpaceSettingsError(getErrorMessage(updateError));
+      setSpaceSettings(spaceSettings);
+    } finally {
+      setSpaceSettingsSaving(false);
+    }
+  }
+
+  async function handleRenameChat(chat: ChatListItem) {
+    if (chat.kind === "base" || isGenerating) {
+      return;
+    }
+    const nextTitle = window.prompt("Новое название чата", chat.title)?.trim();
+    if (!nextTitle) {
+      return;
+    }
+    try {
+      const updated = await renameChat(chat.id, { title: nextTitle });
+      setChats((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (renameError) {
+      setError(getErrorMessage(renameError));
+    }
+  }
+
+  async function handleArchiveChat(chat: ChatListItem) {
+    if (chat.kind === "base" || isGenerating) {
+      return;
+    }
+    if (!window.confirm(`Архивировать чат '${chat.title}'?`)) {
+      return;
+    }
+    try {
+      await archiveChat(chat.id);
+      const refreshed = await listChats();
+      setChats(refreshed);
+      if (sessionId === chat.id) {
+        const next = pickInitialChatId(refreshed, null);
+        setSessionId(next);
+      }
+    } catch (archiveError) {
+      setError(getErrorMessage(archiveError));
+    }
+  }
+
+  async function handleDeleteChat(chat: ChatListItem) {
+    if (chat.kind === "base" || isGenerating) {
+      return;
+    }
+    if (!window.confirm(`Удалить чат '${chat.title}'?`)) {
+      return;
+    }
+    try {
+      await deleteChat(chat.id);
+      const refreshed = await listChats();
+      setChats(refreshed);
+      if (sessionId === chat.id) {
+        const next = pickInitialChatId(refreshed, null);
+        setSessionId(next);
+      }
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError));
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = input.trim();
-    if (!text) {
+    if (!text || !sessionId) {
       return;
     }
 
     const filesToSend = [...selectedFiles];
     setInput("");
-    await sendUserMessage(text, filesToSend);
+    await sendUserMessageInSession(sessionId, text, filesToSend);
   }
 
-  async function sendUserMessage(text: string, filesToUpload: File[]): Promise<void> {
-    const currentSessionId = await ensureSession();
-    if (!currentSessionId) {
-      setError("Не удалось создать backend-сессию.");
-      return;
-    }
-
+  async function sendUserMessageInSession(currentSessionId: string, text: string, filesToUpload: File[]) {
     setError(null);
     setIsGenerating(true);
 
@@ -160,9 +480,7 @@ export default function ChatPage() {
           onToken: (token) => {
             setMessages((prev) =>
               prev.map((message) =>
-                message.id === assistantId
-                  ? { ...message, text: `${message.text}${token}`, streaming: true }
-                  : message
+                message.id === assistantId ? { ...message, text: `${message.text}${token}`, streaming: true } : message
               )
             );
           },
@@ -187,9 +505,7 @@ export default function ChatPage() {
             );
           },
           onDone: () => {
-            setMessages((prev) =>
-              prev.map((item) => (item.id === assistantId ? { ...item, streaming: false } : item))
-            );
+            setMessages((prev) => prev.map((item) => (item.id === assistantId ? { ...item, streaming: false } : item)));
           },
         }
       );
@@ -211,268 +527,294 @@ export default function ChatPage() {
     }
   }
 
-  async function ensureSession(): Promise<string | null> {
-    if (sessionId) {
-      return sessionId;
-    }
-    try {
-      const created = await createSession();
-      setSessionId(created.session_id);
-      return created.session_id;
-    } catch {
-      return null;
-    }
-  }
-
-  async function handleClearSession() {
-    if (isGenerating) {
-      return;
-    }
-    setError(null);
-    try {
-      if (sessionId) {
-        await deleteSession(sessionId);
-      }
-      const created = await createSession();
-      setSessionId(created.session_id);
-      setMessages([]);
-      setSelectedFiles([]);
-      setEditingId(null);
-      setEditingText("");
-    } catch (clearError) {
-      setError(getErrorMessage(clearError));
-    }
-  }
-
-  function startEdit(message: ChatMessage) {
-    if (message.role !== "user" || isGenerating) {
-      return;
-    }
-    setEditingId(message.id);
-    setEditingText(message.text);
-    setError(null);
-  }
-
-  function cancelEdit() {
-    setEditingId(null);
-    setEditingText("");
-  }
-
-  async function saveEdit() {
-    const nextText = editingText.trim();
-    if (!editingId || !nextText || isGenerating) {
-      return;
-    }
-
-    const targetIndex = messages.findIndex((message) => message.id === editingId && message.role === "user");
-    if (targetIndex < 0) {
-      cancelEdit();
-      return;
-    }
-
-    const head = messages.slice(0, targetIndex).filter((item) => item.role === "user").map((item) => item.text);
-    const replayUserMessages = [...head, nextText];
-
-    setEditingId(null);
-    setEditingText("");
-    setSelectedFiles([]);
-    setMessages([]);
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      if (sessionId) {
-        await deleteSession(sessionId);
-      }
-      const created = await createSession();
-      setSessionId(created.session_id);
-
-      for (const userText of replayUserMessages) {
-        await sendUserMessageInSession(created.session_id, userText);
-      }
-    } catch (editError) {
-      setError(getErrorMessage(editError));
-    } finally {
-      setIsGenerating(false);
-    }
-  }
-
-  async function sendUserMessageInSession(currentSessionId: string, text: string) {
-    const userId = makeId("user");
-    const assistantId = makeId("assistant");
-
-    setMessages((prev) => [
-      ...prev,
-      { id: userId, role: "user", text },
-      { id: assistantId, role: "assistant", text: "", thinking: "", streaming: true },
-    ]);
-
-    await streamChat(
-      { session_id: currentSessionId, message: text },
-      {
-        onToken: (token) => {
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantId
-                ? { ...message, text: `${message.text}${token}`, streaming: true }
-                : message
-            )
-          );
-        },
-        onThinking: (chunk) => {
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantId
-                ? { ...message, thinking: `${message.thinking ?? ""}${chunk}`, streaming: true }
-                : message
-            )
-          );
-        },
-        onError: (message) => {
-          setError(normalizeChatError(message));
-          setMessages((prev) =>
-            prev.map((item) =>
-              item.id === assistantId
-                ? { ...item, text: item.text || "Не удалось получить ответ от Asya.", streaming: false }
-                : item
-            )
-          );
-        },
-        onDone: () => {
-          setMessages((prev) =>
-            prev.map((item) => (item.id === assistantId ? { ...item, streaming: false } : item))
-          );
-        },
-      }
-    );
-  }
-
   const sessionStatusText = useMemo(() => {
     if (!sessionId) {
-      return "Сессия: создаётся...";
+      return "Чат: не выбран";
     }
-    return `Сессия: ${sessionId.slice(0, 8)}...`;
+    return `Чат: ${sessionId.slice(0, 8)}...`;
   }, [sessionId]);
+
+  const selectedSpace = useMemo(
+    () => spaces.find((space) => space.id === selectedSpaceId) ?? null,
+    [spaces, selectedSpaceId]
+  );
 
   return (
     <section className="page" aria-label="Чат Asya">
       <div className="page__row">
         <h2 className="page__title">Чат</h2>
-        <button type="button" className="chat-action-button" onClick={handleClearSession} disabled={isGenerating}>
-          Очистить сессию
+        <button type="button" className="chat-action-button" onClick={handleCreateChat} disabled={isGenerating || chatsLoading}>
+          Новый чат
         </button>
       </div>
-      <p className="status-text">{sessionStatusText}</p>
-      {error ? <p className="status-text status-text--error">{error}</p> : null}
 
-      <div className="chat-list">
-        {!hasMessages ? <p className="status-text">Сообщений пока нет. Напишите первый запрос.</p> : null}
-        {messages.map((message) => (
-          <article
-            key={message.id}
-            className={`chat-bubble ${message.role === "user" ? "chat-bubble--user" : "chat-bubble--assistant"}`}
-          >
-            <div className="chat-bubble__header">
-              <p className="chat-bubble__role">{message.role === "user" ? "Вы" : "Asya"}</p>
-              {message.role === "user" ? (
-                <button
-                  type="button"
-                  className="chat-edit-button"
-                  onClick={() => startEdit(message)}
-                  disabled={isGenerating}
-                >
-                  Редактировать
-                </button>
+      <div className="chat-layout">
+        <aside className="chat-sidebar" aria-label="Список чатов">
+          <div className="spaces-panel">
+            <div className="spaces-panel__header">
+              <p className="spaces-panel__title">Пространства</p>
+              <button
+                type="button"
+                className="chat-edit-button"
+                onClick={() => void handleCreateSpace()}
+                disabled={isGenerating || spacesLoading}
+              >
+                + Создать
+              </button>
+            </div>
+            {spacesLoading ? <p className="status-text">Загрузка пространств...</p> : null}
+            {spacesError ? <p className="status-text status-text--error">{spacesError}</p> : null}
+            <ul className="spaces-panel__list">
+              {spaces.map((space) => {
+                const active = space.id === selectedSpaceId;
+                return (
+                  <li key={space.id} className="spaces-panel__item">
+                    <button
+                      type="button"
+                      className={`chat-sidebar__select${active ? " chat-sidebar__select--active" : ""}`}
+                      onClick={() => setSelectedSpaceId(space.id)}
+                      disabled={isGenerating}
+                    >
+                      {space.name}
+                      {space.is_default ? " (по умолчанию)" : ""}
+                      {space.is_admin_only ? " (admin)" : ""}
+                    </button>
+                    {!space.is_default ? (
+                      <div className="chat-sidebar__actions">
+                        <button
+                          type="button"
+                          className="chat-edit-button"
+                          onClick={() => void handleRenameSpace(space)}
+                          disabled={isGenerating}
+                        >
+                          Переим.
+                        </button>
+                        <button
+                          type="button"
+                          className="chat-edit-button"
+                          onClick={() => void handleArchiveSpace(space)}
+                          disabled={isGenerating}
+                        >
+                          Архив
+                        </button>
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+            {selectedSpace ? <p className="status-text">Текущее пространство: {selectedSpace.name}</p> : null}
+            <div className="spaces-settings">
+              <p className="spaces-settings__title">Память пространства</p>
+              {spaceSettingsLoading ? <p className="status-text">Загрузка настроек...</p> : null}
+              {spaceSettingsError ? <p className="status-text status-text--error">{spaceSettingsError}</p> : null}
+              {spaceSettings ? (
+                <>
+                  <label className="spaces-settings__toggle">
+                    <input
+                      type="checkbox"
+                      checked={spaceSettings.memory_read_enabled}
+                      onChange={(event) => void handleUpdateSpaceSetting("memory_read_enabled", event.target.checked)}
+                      disabled={spaceSettingsSaving}
+                    />
+                    Читать память
+                  </label>
+                  <label className="spaces-settings__toggle">
+                    <input
+                      type="checkbox"
+                      checked={spaceSettings.memory_write_enabled}
+                      onChange={(event) => void handleUpdateSpaceSetting("memory_write_enabled", event.target.checked)}
+                      disabled={spaceSettingsSaving}
+                    />
+                    Записывать память
+                  </label>
+                  <label className="spaces-settings__toggle">
+                    <input
+                      type="checkbox"
+                      checked={spaceSettings.behavior_rules_enabled}
+                      onChange={(event) => void handleUpdateSpaceSetting("behavior_rules_enabled", event.target.checked)}
+                      disabled={spaceSettingsSaving}
+                    />
+                    Использовать правила
+                  </label>
+                  <label className="spaces-settings__toggle">
+                    <input
+                      type="checkbox"
+                      checked={spaceSettings.personality_overlay_enabled}
+                      onChange={(event) =>
+                        void handleUpdateSpaceSetting("personality_overlay_enabled", event.target.checked)
+                      }
+                      disabled={spaceSettingsSaving}
+                    />
+                    Использовать personality overlay
+                  </label>
+                </>
               ) : null}
             </div>
-            {message.role === "assistant" && message.thinking?.trim() ? (
-              <details className="chat-bubble__thinking" open={Boolean(message.streaming)}>
-                <summary className="chat-bubble__thinking-summary">Размышления модели</summary>
-                <p className="chat-bubble__thinking-text">{message.thinking}</p>
-              </details>
-            ) : null}
-            <p className="chat-bubble__text">{message.text}</p>
-            {message.streaming ? <p className="chat-bubble__streaming">Печатает...</p> : null}
-          </article>
-        ))}
-      </div>
-
-      {editingId ? (
-        <div className="chat-edit-panel">
-          <label className="settings-form__label" htmlFor="chat-edit-input">
-            Редактирование сообщения
-          </label>
-          <textarea
-            id="chat-edit-input"
-            className="chat-form__input"
-            value={editingText}
-            onChange={(event) => setEditingText(event.target.value)}
-            rows={3}
-          />
-          <div className="chat-edit-panel__actions">
-            <button type="button" className="chat-form__submit" onClick={saveEdit} disabled={isGenerating}>
-              Сохранить и получить новый ответ
-            </button>
-            <button type="button" className="chat-action-button" onClick={cancelEdit} disabled={isGenerating}>
-              Отмена
-            </button>
           </div>
-        </div>
-      ) : null}
 
-      <form className="chat-form" onSubmit={handleSubmit}>
-        <div className="chat-files">
-          <label className="settings-form__label" htmlFor="chat-files-input">
-            Файлы к сообщению (до {MAX_FILES_PER_MESSAGE})
-          </label>
-          <input
-            id="chat-files-input"
-            className="chat-files__input"
-            type="file"
-            multiple
-            onChange={handleSelectFiles}
-            disabled={isGenerating || !sessionId}
-          />
-          {selectedFiles.length ? (
-            <ul className="chat-files__list" aria-label="Выбранные файлы">
-              {selectedFiles.map((file, index) => (
-                <li key={makeFileKey(file)} className="chat-files__item">
-                  <span className="chat-files__name">
-                    {file.name} ({formatSize(file.size)})
-                  </span>
+          <p className="status-text">{sessionStatusText}</p>
+          {chatsLoading ? <p className="status-text">Загрузка чатов...</p> : null}
+          {chatsError ? <p className="status-text status-text--error">{chatsError}</p> : null}
+
+          <ul className="chat-sidebar__list">
+            {visibleChats.map((chat) => {
+              const isActive = chat.id === sessionId;
+              const isBase = chat.kind === "base";
+              return (
+                <li key={chat.id} className="chat-sidebar__item">
                   <button
                     type="button"
-                    className="chat-edit-button"
-                    onClick={() => removeSelectedFile(index)}
+                    className={`chat-sidebar__select${isActive ? " chat-sidebar__select--active" : ""}`}
+                    onClick={() => setSessionId(chat.id)}
                     disabled={isGenerating}
                   >
-                    Удалить
+                    {isBase ? "Base-chat (базовый)" : chat.title}
                   </button>
+                  {!isBase ? (
+                    <div className="chat-sidebar__actions">
+                      <button type="button" className="chat-edit-button" onClick={() => void handleRenameChat(chat)} disabled={isGenerating}>
+                        Переим.
+                      </button>
+                      <button type="button" className="chat-edit-button" onClick={() => void handleArchiveChat(chat)} disabled={isGenerating}>
+                        Архив
+                      </button>
+                      <button type="button" className="chat-edit-button" onClick={() => void handleDeleteChat(chat)} disabled={isGenerating}>
+                        Удалить
+                      </button>
+                    </div>
+                  ) : null}
                 </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="status-text">Файлы не выбраны.</p>
-          )}
-        </div>
+              );
+            })}
+          </ul>
+        </aside>
 
-        <label className="sr-only" htmlFor="chat-input">
-          Сообщение
-        </label>
-        <textarea
-          id="chat-input"
-          className="chat-form__input"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          rows={3}
-          placeholder="Введите сообщение"
-        />
-        <button type="submit" className="chat-form__submit" disabled={!canSend || !input.trim()}>
-          {isGenerating ? "Генерация..." : "Отправить"}
-        </button>
-      </form>
+        <div className="chat-main">
+          {error ? <p className="status-text status-text--error">{error}</p> : null}
+          {messagesError ? <p className="status-text status-text--error">{messagesError}</p> : null}
+          {messagesLoading ? <p className="status-text">Загрузка истории...</p> : null}
+
+          <div className="chat-list">
+            {!hasMessages && !messagesLoading ? <p className="status-text">Сообщений пока нет. Напишите первый запрос.</p> : null}
+            {messages.map((message) => (
+              <article
+                key={message.id}
+                className={`chat-bubble ${message.role === "user" ? "chat-bubble--user" : "chat-bubble--assistant"}`}
+              >
+                <div className="chat-bubble__header">
+                  <p className="chat-bubble__role">{message.role === "user" ? "Вы" : "Asya"}</p>
+                </div>
+                {message.role === "assistant" && message.thinking?.trim() ? (
+                  <details className="chat-bubble__thinking" open={Boolean(message.streaming)}>
+                    <summary className="chat-bubble__thinking-summary">Размышления модели</summary>
+                    <p className="chat-bubble__thinking-text">{message.thinking}</p>
+                  </details>
+                ) : null}
+                <p className="chat-bubble__text">{message.text}</p>
+                {message.streaming ? <p className="chat-bubble__streaming">Печатает...</p> : null}
+              </article>
+            ))}
+          </div>
+
+          <form className="chat-form" onSubmit={handleSubmit}>
+            <div className="chat-files">
+              <label className="settings-form__label" htmlFor="chat-files-input">
+                Файлы к сообщению (до {MAX_FILES_PER_MESSAGE})
+              </label>
+              <input
+                id="chat-files-input"
+                className="chat-files__input"
+                type="file"
+                multiple
+                onChange={handleSelectFiles}
+                disabled={isGenerating || !sessionId}
+              />
+              {selectedFiles.length ? (
+                <ul className="chat-files__list" aria-label="Выбранные файлы">
+                  {selectedFiles.map((file, index) => (
+                    <li key={makeFileKey(file)} className="chat-files__item">
+                      <span className="chat-files__name">
+                        {file.name} ({formatSize(file.size)})
+                      </span>
+                      <button
+                        type="button"
+                        className="chat-edit-button"
+                        onClick={() => removeSelectedFile(index)}
+                        disabled={isGenerating}
+                      >
+                        Удалить
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="status-text">Файлы не выбраны.</p>
+              )}
+            </div>
+
+            <label className="sr-only" htmlFor="chat-input">
+              Сообщение
+            </label>
+            <textarea
+              id="chat-input"
+              className="chat-form__input"
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              rows={3}
+              placeholder="Введите сообщение"
+            />
+            <button type="submit" className="chat-form__submit" disabled={!canSend || !input.trim()}>
+              {isGenerating ? "Генерация..." : "Отправить"}
+            </button>
+          </form>
+        </div>
+      </div>
     </section>
   );
+}
+
+function pickInitialChatId(chats: ChatListItem[], initialSessionId: string | null): string | null {
+  if (initialSessionId && chats.some((chat) => chat.id === initialSessionId && !chat.is_archived)) {
+    return initialSessionId;
+  }
+  const base = chats.find((chat) => chat.kind === "base" && !chat.is_archived);
+  if (base) {
+    return base.id;
+  }
+  const first = chats.find((chat) => !chat.is_archived);
+  return first?.id ?? null;
+}
+
+function pickInitialSpaceId(
+  chats: ChatListItem[],
+  spaces: SpaceListItem[],
+  selectedChatId: string | null,
+  initialSessionId: string | null
+): string | null {
+  const chatId = selectedChatId || initialSessionId;
+  if (chatId) {
+    const selectedChat = chats.find((chat) => chat.id === chatId && !chat.is_archived);
+    if (selectedChat?.space_id && spaces.some((space) => space.id === selectedChat.space_id)) {
+      return selectedChat.space_id;
+    }
+  }
+  const baseChat = chats.find((chat) => chat.kind === "base" && !chat.is_archived);
+  if (baseChat?.space_id && spaces.some((space) => space.id === baseChat.space_id)) {
+    return baseChat.space_id;
+  }
+  const defaultSpace = spaces.find((space) => space.is_default && !space.is_archived);
+  if (defaultSpace) {
+    return defaultSpace.id;
+  }
+  return spaces.find((space) => !space.is_archived)?.id ?? null;
+}
+
+function filterSpacesForUser(spaces: SpaceListItem[], role: string): SpaceListItem[] {
+  if (role === "admin") {
+    return spaces.filter((space) => !space.is_archived);
+  }
+  return spaces.filter((space) => !space.is_archived && !space.is_admin_only);
 }
 
 function makeId(prefix: string): string {

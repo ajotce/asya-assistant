@@ -7,12 +7,14 @@ import {
   probeReasoningModels,
   updateSettings,
 } from "../api/client";
+import AdminAccessRequestsSection from "../components/AdminAccessRequestsSection";
 import type { ThemePreference } from "../hooks/useTheme";
 import type { ModelInfo, ReasoningProbeItem, SettingsResponse } from "../types/api";
 
 interface SettingsPageProps {
   themePreference: ThemePreference;
   onThemePreferenceChange: (preference: ThemePreference) => void;
+  currentUserRole?: string;
 }
 
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = [
@@ -40,7 +42,7 @@ const emptyState: SettingsFormState = {
   system_prompt: "",
 };
 
-export default function SettingsPage({ themePreference, onThemePreferenceChange }: SettingsPageProps) {
+export default function SettingsPage({ themePreference, onThemePreferenceChange, currentUserRole }: SettingsPageProps) {
   const [form, setForm] = useState<SettingsFormState>(emptyState);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -336,6 +338,7 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange 
           </ul>
         ) : null}
       </section>
+      {currentUserRole === "admin" ? <AdminAccessRequestsSection /> : null}
     </section>
   );
 }

@@ -2,9 +2,11 @@ import io
 
 from fastapi.testclient import TestClient
 
+from app.api.deps_auth import get_db_session
 from app.core.config import get_settings
 from app.main import app
 from app.storage.runtime import file_store
+from tests.auth_helpers import override_db_session, setup_test_db
 
 
 def _create_session(client: TestClient) -> str:
@@ -13,8 +15,20 @@ def _create_session(client: TestClient) -> str:
     return response.json()["session_id"]
 
 
-def test_upload_rejects_more_than_max_files_per_message() -> None:
+def _authed_client(tmp_path, monkeypatch) -> TestClient:
+    _, engine = setup_test_db(tmp_path, monkeypatch)
+    app.dependency_overrides[get_db_session] = override_db_session(engine)
     client = TestClient(app)
+    client.post(
+        "/api/auth/register",
+        json={"email": "files@example.com", "display_name": "Files", "password": "strong-pass-123"},
+    )
+    client.post("/api/auth/login", json={"email": "files@example.com", "password": "strong-pass-123"})
+    return client
+
+
+def test_upload_rejects_more_than_max_files_per_message(tmp_path, monkeypatch) -> None:
+    client = _authed_client(tmp_path, monkeypatch)
     session_id = _create_session(client)
 
     files = [("files", (f"f{i}.pdf", b"%PDF-1.7", "application/pdf")) for i in range(11)]
@@ -22,10 +36,11 @@ def test_upload_rejects_more_than_max_files_per_message() -> None:
 
     assert response.status_code == 400
     assert "не более 10 файлов" in response.json()["detail"]
+    app.dependency_overrides.clear()
 
 
-def test_upload_rejects_unsupported_file_type() -> None:
-    client = TestClient(app)
+def test_upload_rejects_unsupported_file_type(tmp_path, monkeypatch) -> None:
+    client = _authed_client(tmp_path, monkeypatch)
     session_id = _create_session(client)
 
     response = client.post(
@@ -35,10 +50,11 @@ def test_upload_rejects_unsupported_file_type() -> None:
 
     assert response.status_code == 400
     assert "не поддерживается" in response.json()["detail"]
+    app.dependency_overrides.clear()
 
 
-def test_upload_rejects_file_over_size_limit() -> None:
-    client = TestClient(app)
+def test_upload_rejects_file_over_size_limit(tmp_path, monkeypatch) -> None:
+    client = _authed_client(tmp_path, monkeypatch)
     session_id = _create_session(client)
 
     settings = get_settings()
@@ -55,10 +71,11 @@ def test_upload_rejects_file_over_size_limit() -> None:
 
     assert response.status_code == 400
     assert "превышает лимит 1 МБ" in response.json()["detail"]
+    app.dependency_overrides.clear()
 
 
-def test_extract_text_from_pdf_docx_xlsx() -> None:
-    client = TestClient(app)
+def test_extract_text_from_pdf_docx_xlsx(tmp_path, monkeypatch) -> None:
+    client = _authed_client(tmp_path, monkeypatch)
     session_id = _create_session(client)
     settings = get_settings()
     old_key = settings.vsellm_api_key
@@ -112,10 +129,11 @@ def test_extract_text_from_pdf_docx_xlsx() -> None:
     assert "[Лист: Sheet1]" in xlsx_text
     assert "Строка 1:" in xlsx_text
     assert "1=Имя" in xlsx_text
+    app.dependency_overrides.clear()
 
 
-def test_upload_rejects_damaged_docx() -> None:
-    client = TestClient(app)
+def test_upload_rejects_damaged_docx(tmp_path, monkeypatch) -> None:
+    client = _authed_client(tmp_path, monkeypatch)
     session_id = _create_session(client)
 
     response = client.post(
@@ -124,10 +142,11 @@ def test_upload_rejects_damaged_docx() -> None:
     )
     assert response.status_code == 400
     assert "может быть поврежд" in response.json()["detail"]
+    app.dependency_overrides.clear()
 
 
-def test_upload_rejects_empty_xlsx() -> None:
-    client = TestClient(app)
+def test_upload_rejects_empty_xlsx(tmp_path, monkeypatch) -> None:
+    client = _authed_client(tmp_path, monkeypatch)
     session_id = _create_session(client)
 
     response = client.post(
@@ -136,10 +155,11 @@ def test_upload_rejects_empty_xlsx() -> None:
     )
     assert response.status_code == 400
     assert "не содержит данных" in response.json()["detail"]
+    app.dependency_overrides.clear()
 
 
-def test_upload_returns_clear_error_when_embeddings_api_unavailable() -> None:
-    client = TestClient(app)
+def test_upload_returns_clear_error_when_embeddings_api_unavailable(tmp_path, monkeypatch) -> None:
+    client = _authed_client(tmp_path, monkeypatch)
     session_id = _create_session(client)
     settings = get_settings()
     old_key = settings.vsellm_api_key
@@ -166,6 +186,33 @@ def test_upload_returns_clear_error_when_embeddings_api_unavailable() -> None:
 
     assert response.status_code == 502
     assert "embeddings" in response.json()["detail"].lower()
+    app.dependency_overrides.clear()
+
+
+def test_upload_file_isolation_between_users(tmp_path, monkeypatch) -> None:
+    _, engine = setup_test_db(tmp_path, monkeypatch)
+    app.dependency_overrides[get_db_session] = override_db_session(engine)
+    client_a = TestClient(app)
+    client_b = TestClient(app)
+
+    client_a.post(
+        "/api/auth/register",
+        json={"email": "fa@example.com", "display_name": "FA", "password": "strong-pass-123"},
+    )
+    client_a.post("/api/auth/login", json={"email": "fa@example.com", "password": "strong-pass-123"})
+    session_id = _create_session(client_a)
+
+    client_b.post(
+        "/api/auth/register",
+        json={"email": "fb@example.com", "display_name": "FB", "password": "strong-pass-123"},
+    )
+    client_b.post("/api/auth/login", json={"email": "fb@example.com", "password": "strong-pass-123"})
+    response = client_b.post(
+        f"/api/session/{session_id}/files",
+        files=[("files", ("notes.txt", b"hello", "text/plain"))],
+    )
+    assert response.status_code == 404
+    app.dependency_overrides.clear()
 
 
 def _make_pdf_bytes(text: str) -> bytes:

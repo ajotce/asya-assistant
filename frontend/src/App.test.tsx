@@ -3,18 +3,81 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import {
+  authLogin,
+  authMe,
+  authRegister,
+  authLogout,
+  listAdminAccessRequests,
+  approveAdminAccessRequest,
+  rejectAdminAccessRequest,
   createSession,
+  listChats,
+  listSpaces,
+  getSpaceSettings,
+  updateSpaceSettings,
+  getChatMessages,
+  listMemoryEpisodes,
+  listMemorySnapshots,
+  createMemorySnapshot,
+  getMemorySnapshotSummary,
+  rollbackMemorySnapshot,
+  listActivityLog,
+  listMemoryFacts,
+  listMemoryRules,
+  getPersonalityProfile,
+  createMemoryFact,
+  createMemoryRule,
+  disableMemoryRule,
+  updateMemoryRule,
+  updateMemoryFact,
+  updateMemoryFactStatus,
+  forbidMemoryFact,
+  updatePersonalityProfile,
   getHealth,
   getModels,
   getSettings,
   getUsage,
+  submitAccessRequest,
   streamChat,
   updateSettings,
   uploadSessionFiles,
 } from "./api/client";
 
 vi.mock("./api/client", () => ({
+  authLogin: vi.fn(),
+  authMe: vi.fn(),
+  authRegister: vi.fn(),
+  authLogout: vi.fn(),
+  submitAccessRequest: vi.fn(),
+  listAdminAccessRequests: vi.fn(),
+  approveAdminAccessRequest: vi.fn(),
+  rejectAdminAccessRequest: vi.fn(),
   createSession: vi.fn(),
+  listChats: vi.fn(),
+  listSpaces: vi.fn(),
+  getSpaceSettings: vi.fn(),
+  updateSpaceSettings: vi.fn(),
+  createSpace: vi.fn(),
+  renameSpace: vi.fn(),
+  archiveSpace: vi.fn(),
+  getChatMessages: vi.fn(),
+  listMemoryFacts: vi.fn(),
+  listActivityLog: vi.fn(),
+  listMemoryRules: vi.fn(),
+  listMemoryEpisodes: vi.fn(),
+  listMemorySnapshots: vi.fn(),
+  createMemorySnapshot: vi.fn(),
+  getMemorySnapshotSummary: vi.fn(),
+  rollbackMemorySnapshot: vi.fn(),
+  getPersonalityProfile: vi.fn(),
+  createMemoryFact: vi.fn(),
+  createMemoryRule: vi.fn(),
+  disableMemoryRule: vi.fn(),
+  updateMemoryRule: vi.fn(),
+  updateMemoryFact: vi.fn(),
+  updateMemoryFactStatus: vi.fn(),
+  forbidMemoryFact: vi.fn(),
+  updatePersonalityProfile: vi.fn(),
   deleteSession: vi.fn(),
   streamChat: vi.fn(),
   uploadSessionFiles: vi.fn(),
@@ -30,6 +93,36 @@ describe("App routing", () => {
     window.history.pushState(null, "", "/");
 
     vi.mocked(createSession).mockReset();
+    vi.mocked(listChats).mockReset();
+    vi.mocked(listSpaces).mockReset();
+    vi.mocked(getSpaceSettings).mockReset();
+    vi.mocked(updateSpaceSettings).mockReset();
+    vi.mocked(getChatMessages).mockReset();
+    vi.mocked(listMemoryFacts).mockReset();
+    vi.mocked(listActivityLog).mockReset();
+    vi.mocked(listMemoryRules).mockReset();
+    vi.mocked(listMemoryEpisodes).mockReset();
+    vi.mocked(listMemorySnapshots).mockReset();
+    vi.mocked(createMemorySnapshot).mockReset();
+    vi.mocked(getMemorySnapshotSummary).mockReset();
+    vi.mocked(rollbackMemorySnapshot).mockReset();
+    vi.mocked(getPersonalityProfile).mockReset();
+    vi.mocked(createMemoryFact).mockReset();
+    vi.mocked(createMemoryRule).mockReset();
+    vi.mocked(disableMemoryRule).mockReset();
+    vi.mocked(updateMemoryRule).mockReset();
+    vi.mocked(updateMemoryFact).mockReset();
+    vi.mocked(updateMemoryFactStatus).mockReset();
+    vi.mocked(forbidMemoryFact).mockReset();
+    vi.mocked(updatePersonalityProfile).mockReset();
+    vi.mocked(authMe).mockReset();
+    vi.mocked(authLogin).mockReset();
+    vi.mocked(authRegister).mockReset();
+    vi.mocked(authLogout).mockReset();
+    vi.mocked(submitAccessRequest).mockReset();
+    vi.mocked(listAdminAccessRequests).mockReset();
+    vi.mocked(approveAdminAccessRequest).mockReset();
+    vi.mocked(rejectAdminAccessRequest).mockReset();
     vi.mocked(streamChat).mockReset();
     vi.mocked(uploadSessionFiles).mockReset();
     vi.mocked(getSettings).mockReset();
@@ -38,9 +131,130 @@ describe("App routing", () => {
     vi.mocked(getHealth).mockReset();
     vi.mocked(getUsage).mockReset();
 
+    vi.mocked(authMe).mockResolvedValue({
+      id: "user-1",
+      email: "user@example.com",
+      display_name: "User",
+      role: "user",
+      status: "active",
+      preferred_chat_id: "base-chat-1",
+    });
+    vi.mocked(authLogin).mockResolvedValue({
+      id: "user-1",
+      email: "user@example.com",
+      display_name: "User",
+      role: "user",
+      status: "active",
+      preferred_chat_id: "base-chat-1",
+    });
+    vi.mocked(authRegister).mockResolvedValue({ status: "registered" });
+    vi.mocked(authLogout).mockResolvedValue({ status: "ok" });
+    vi.mocked(submitAccessRequest).mockResolvedValue({
+      status: "pending",
+      request: {
+        id: "request-1",
+        email: "user@example.com",
+        display_name: "User",
+        reason: "Хочу протестировать",
+        status: "pending",
+        created_at: "2026-05-02T00:00:00Z",
+        updated_at: "2026-05-02T00:00:00Z",
+      },
+    });
+    vi.mocked(listAdminAccessRequests).mockResolvedValue([]);
+    vi.mocked(approveAdminAccessRequest).mockResolvedValue({
+      status: "approved",
+      request: {
+        id: "request-1",
+        email: "user@example.com",
+        display_name: "User",
+        reason: "Хочу протестировать",
+        status: "approved",
+        approved_by: "admin-1",
+        reviewed_at: "2026-05-02T00:00:00Z",
+        created_at: "2026-05-02T00:00:00Z",
+        updated_at: "2026-05-02T00:00:00Z",
+      },
+      user: {
+        id: "user-2",
+        email: "user@example.com",
+        display_name: "User",
+        role: "user",
+        status: "active",
+        preferred_chat_id: "base-chat-2",
+      },
+    });
+    vi.mocked(rejectAdminAccessRequest).mockResolvedValue({
+      status: "rejected",
+      request: {
+        id: "request-1",
+        email: "user@example.com",
+        display_name: "User",
+        reason: "Хочу протестировать",
+        status: "rejected",
+        created_at: "2026-05-02T00:00:00Z",
+        updated_at: "2026-05-02T00:00:00Z",
+      },
+    });
+
     vi.mocked(createSession).mockResolvedValue({
       session_id: "session-12345678",
       created_at: "2026-04-25T00:00:00Z",
+    });
+    vi.mocked(listChats).mockResolvedValue([
+      {
+        id: "base-chat-1",
+        title: "Base-chat",
+        kind: "base",
+        space_id: "space-default-1",
+        is_archived: false,
+        created_at: "2026-05-02T00:00:00Z",
+        updated_at: "2026-05-02T00:00:00Z",
+        message_count: 0,
+      },
+    ]);
+    vi.mocked(listSpaces).mockResolvedValue([
+      {
+        id: "space-default-1",
+        name: "Default",
+        is_default: true,
+        is_admin_only: false,
+        is_archived: false,
+        created_at: "2026-05-02T00:00:00Z",
+        updated_at: "2026-05-02T00:00:00Z",
+      },
+    ]);
+    vi.mocked(getSpaceSettings).mockResolvedValue({
+      space_id: "space-default-1",
+      memory_read_enabled: true,
+      memory_write_enabled: true,
+      behavior_rules_enabled: true,
+      personality_overlay_enabled: true,
+      created_at: "2026-05-02T00:00:00Z",
+      updated_at: "2026-05-02T00:00:00Z",
+    });
+    vi.mocked(getChatMessages).mockResolvedValue([]);
+    vi.mocked(listMemoryFacts).mockResolvedValue([]);
+    vi.mocked(listActivityLog).mockResolvedValue([]);
+    vi.mocked(listMemoryRules).mockResolvedValue([]);
+    vi.mocked(listMemoryEpisodes).mockResolvedValue([]);
+    vi.mocked(listMemorySnapshots).mockResolvedValue([]);
+    vi.mocked(createMemorySnapshot).mockResolvedValue({} as never);
+    vi.mocked(getMemorySnapshotSummary).mockResolvedValue({} as never);
+    vi.mocked(rollbackMemorySnapshot).mockResolvedValue({} as never);
+    vi.mocked(getPersonalityProfile).mockResolvedValue({
+      id: "persona-1",
+      scope: "base",
+      name: "Asya",
+      tone: "balanced",
+      style_notes: "",
+      humor_level: 1,
+      initiative_level: 1,
+      can_gently_disagree: true,
+      address_user_by_name: true,
+      is_active: true,
+      created_at: "2026-05-02T00:00:00Z",
+      updated_at: "2026-05-02T00:00:00Z",
     });
     vi.mocked(uploadSessionFiles).mockResolvedValue({
       session_id: "session-12345678",
@@ -97,7 +311,7 @@ describe("App routing", () => {
     });
   });
 
-  it("сохраняет chat runtime-state при переключении вкладок и не пересоздает сессию", async () => {
+  it("сохраняет chat runtime-state при переключении вкладок и использует preferred chat после login", async () => {
     vi.mocked(streamChat).mockImplementation(async (_request, handlers) => {
       handlers.onToken("Привет!");
       handlers.onDone();
@@ -111,7 +325,7 @@ describe("App routing", () => {
 
     expect(await screen.findByText("Тестовый запрос")).toBeInTheDocument();
     expect(await screen.findByText("Привет!")).toBeInTheDocument();
-    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(createSession).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Настройки" }));
     await screen.findByRole("heading", { name: "Настройки" });
@@ -119,7 +333,7 @@ describe("App routing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Чат" }));
     await screen.findByRole("heading", { name: "Чат" });
 
-    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(createSession).not.toHaveBeenCalled();
     expect(screen.getByText("Тестовый запрос")).toBeInTheDocument();
     expect(screen.getByText("Привет!")).toBeInTheDocument();
   });
@@ -133,5 +347,47 @@ describe("App routing", () => {
       expect(screen.getByRole("heading", { name: "Состояние Asya" })).toBeInTheDocument();
     });
     expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("показывает auth-экран без сессии и логинит пользователя", async () => {
+    vi.mocked(authMe).mockRejectedValue(new Error("Ошибка запроса (401)"));
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Вход в Asya" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "user@example.com" } });
+    fireEvent.change(screen.getByLabelText("Пароль"), { target: { value: "strong-pass-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Войти" }));
+
+    expect(await screen.findByRole("heading", { name: "Чат" })).toBeInTheDocument();
+    expect(authLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it("показывает admin-раздел заявок только для admin", async () => {
+    vi.mocked(authMe).mockResolvedValue({
+      id: "admin-1",
+      email: "admin@example.com",
+      display_name: "Admin",
+      role: "admin",
+      status: "active",
+      preferred_chat_id: "base-chat-1",
+    });
+    vi.mocked(listAdminAccessRequests).mockResolvedValue([
+      {
+        id: "req-1",
+        email: "beta@example.com",
+        display_name: "Beta",
+          reason: "Нужно раннее тестирование",
+          status: "pending",
+        created_at: "2026-05-02T00:00:00Z",
+        updated_at: "2026-05-02T00:00:00Z",
+      },
+    ]);
+
+    render(<App />);
+    await screen.findByRole("heading", { name: "Чат" });
+    fireEvent.click(screen.getByRole("button", { name: "Настройки" }));
+    expect(await screen.findByText("Admin: Заявки на доступ")).toBeInTheDocument();
+    expect(await screen.findByText("beta@example.com")).toBeInTheDocument();
   });
 });

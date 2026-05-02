@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 
+import { authLogout, authMe } from "./api/client";
 import AppHeader from "./components/AppHeader";
 import NavTabs, { type AppTab } from "./components/NavTabs";
 import { useTheme } from "./hooks/useTheme";
+import AuthPage from "./pages/AuthPage";
+import ActivityPage from "./pages/ActivityPage";
 import ChatPage from "./pages/ChatPage";
+import MemoryPage from "./pages/MemoryPage";
 import SettingsPage from "./pages/SettingsPage";
 import StatusPage from "./pages/StatusPage";
+import type { AuthUser } from "./types/api";
 import "./styles/app.css";
 
 export default function App() {
@@ -14,6 +19,48 @@ export default function App() {
   const [mountedTabs, setMountedTabs] = useState<Record<AppTab, boolean>>(() =>
     buildInitialMountedTabs(getTabFromPath(window.location.pathname))
   );
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [preferredChatId, setPreferredChatId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCurrentUser() {
+      setAuthLoading(true);
+      setAuthError(null);
+      try {
+        const user = await authMe();
+        if (!active) {
+          return;
+        }
+        setCurrentUser(user);
+        setPreferredChatId(user.preferred_chat_id ?? null);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        const message = getErrorMessage(error);
+        const unauthorized =
+          message.includes("401") || message.toLowerCase().includes("требуется авторизация");
+        if (!unauthorized) {
+          setAuthError(message);
+        }
+        setCurrentUser(null);
+      } finally {
+        if (active) {
+          setAuthLoading(false);
+        }
+      }
+    }
+
+    void loadCurrentUser();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     function handlePopState() {
@@ -35,34 +82,109 @@ export default function App() {
     }
   }
 
+  async function handleLogout() {
+    setLogoutLoading(true);
+    setAuthError(null);
+    try {
+      await authLogout();
+      setCurrentUser(null);
+      setPreferredChatId(null);
+      setMountedTabs(buildInitialMountedTabs("chat"));
+      setActiveTab("chat");
+      if (window.location.pathname !== "/") {
+        window.history.pushState(null, "", "/");
+      }
+    } catch (error) {
+      setAuthError(getErrorMessage(error));
+    } finally {
+      setLogoutLoading(false);
+    }
+  }
+
+  function handleAuthenticated(user: AuthUser) {
+    setCurrentUser(user);
+    setPreferredChatId(user.preferred_chat_id ?? null);
+    setAuthError(null);
+    setMountedTabs((prev) => markTabMounted(prev, "chat"));
+    setActiveTab("chat");
+    if (window.location.pathname !== "/") {
+      window.history.pushState(null, "", "/");
+    }
+  }
+
   return (
     <div className="app-shell">
-      <AppHeader title="Asya" subtitle="Персональный ИИ-ассистент" />
-      <NavTabs activeTab={activeTab} onChange={handleTabChange} />
-      <div className="tab-panels">
-        {mountedTabs.chat ? (
-          <section className="tab-panel" hidden={activeTab !== "chat"}>
-            <ChatPage />
-          </section>
-        ) : null}
-        {mountedTabs.settings ? (
-          <section className="tab-panel" hidden={activeTab !== "settings"}>
-            <SettingsPage themePreference={themePreference} onThemePreferenceChange={setThemePreference} />
-          </section>
-        ) : null}
-        {mountedTabs.status ? (
-          <section className="tab-panel" hidden={activeTab !== "status"}>
-            <StatusPage />
-          </section>
-        ) : null}
-      </div>
+      <AppHeader
+        title="Asya"
+        subtitle="Персональный ИИ-ассистент"
+        rightSlot={
+          currentUser ? (
+            <div className="auth-user">
+              <span className="status-text">{currentUser.display_name}</span>
+              <button type="button" className="chat-action-button" onClick={handleLogout} disabled={logoutLoading}>
+                {logoutLoading ? "Выход..." : "Выйти"}
+              </button>
+            </div>
+          ) : null
+        }
+      />
+      {authLoading ? <p className="status-text">Проверка авторизации...</p> : null}
+      {authError ? <p className="status-text status-text--error">{authError}</p> : null}
+      {!authLoading && !currentUser ? (
+        <AuthPage onAuthenticated={handleAuthenticated} />
+      ) : null}
+      {!authLoading && currentUser ? (
+        <>
+          <NavTabs activeTab={activeTab} onChange={handleTabChange} />
+          <div className="tab-panels">
+            {mountedTabs.chat ? (
+              <section className="tab-panel" hidden={activeTab !== "chat"}>
+                <ChatPage initialSessionId={preferredChatId} currentUserRole={currentUser.role} />
+              </section>
+            ) : null}
+            {mountedTabs.memory ? (
+              <section className="tab-panel" hidden={activeTab !== "memory"}>
+                <MemoryPage />
+              </section>
+            ) : null}
+            {mountedTabs.activity ? (
+              <section className="tab-panel" hidden={activeTab !== "activity"}>
+                <ActivityPage />
+              </section>
+            ) : null}
+            {mountedTabs.settings ? (
+              <section className="tab-panel" hidden={activeTab !== "settings"}>
+                <SettingsPage
+                  themePreference={themePreference}
+                  onThemePreferenceChange={setThemePreference}
+                  currentUserRole={currentUser.role}
+                />
+              </section>
+            ) : null}
+            {mountedTabs.status ? (
+              <section className="tab-panel" hidden={activeTab !== "status"}>
+                <StatusPage />
+              </section>
+            ) : null}
+          </div>
+        </>
+      ) : null}
     </div>
   );
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return "Не удалось выполнить запрос.";
 }
 
 function buildInitialMountedTabs(initialTab: AppTab): Record<AppTab, boolean> {
   return {
     chat: initialTab === "chat",
+    memory: initialTab === "memory",
+    activity: initialTab === "activity",
     settings: initialTab === "settings",
     status: initialTab === "status",
   };
@@ -79,8 +201,14 @@ function getTabFromPath(pathname: string): AppTab {
   if (pathname.startsWith("/settings")) {
     return "settings";
   }
+  if (pathname.startsWith("/memory")) {
+    return "memory";
+  }
   if (pathname.startsWith("/status")) {
     return "status";
+  }
+  if (pathname.startsWith("/activity")) {
+    return "activity";
   }
   return "chat";
 }
@@ -88,6 +216,12 @@ function getTabFromPath(pathname: string): AppTab {
 function getPathForTab(tab: AppTab): string {
   if (tab === "settings") {
     return "/settings";
+  }
+  if (tab === "memory") {
+    return "/memory";
+  }
+  if (tab === "activity") {
+    return "/activity";
   }
   if (tab === "status") {
     return "/status";

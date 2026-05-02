@@ -1,83 +1,87 @@
-from pathlib import Path
-
 from fastapi.testclient import TestClient
 
+from app.api.deps_auth import get_db_session
 from app.main import app
-from app.services.settings_service import SettingsService
+from tests.auth_helpers import override_db_session, setup_test_db
 
 
-class FakeEnvSettings:
-    def __init__(self, db_path: Path, api_key: str = "") -> None:
-        self.sqlite_path = db_path.as_posix()
-        self.default_assistant_name = "Asya"
-        self.default_system_prompt = "Default system prompt"
-        self.default_chat_model = "openai/gpt-5"
-        self.vsellm_api_key = api_key
+def _build_authed_client(tmp_path, monkeypatch, email: str) -> TestClient:
+    _, engine = setup_test_db(tmp_path, monkeypatch)
+    app.dependency_overrides[get_db_session] = override_db_session(engine)
+    client = TestClient(app)
+    register = client.post(
+        "/api/auth/register",
+        json={"email": email, "display_name": "User", "password": "strong-pass-123"},
+    )
+    assert register.status_code == 200
+    login = client.post("/api/auth/login", json={"email": email, "password": "strong-pass-123"})
+    assert login.status_code == 200
+    return client
 
-    @property
-    def vsellm_api_key_configured(self) -> bool:
-        return bool(self.vsellm_api_key.strip())
+
+def test_get_settings_requires_auth(tmp_path, monkeypatch) -> None:
+    _, engine = setup_test_db(tmp_path, monkeypatch)
+    app.dependency_overrides[get_db_session] = override_db_session(engine)
+    client = TestClient(app)
+    response = client.get("/api/settings")
+    assert response.status_code == 401
+    app.dependency_overrides.clear()
 
 
-def test_get_settings_returns_defaults_and_hides_api_key(monkeypatch, tmp_path) -> None:
-    db_path = tmp_path / "settings-defaults.sqlite3"
-    service = SettingsService(FakeEnvSettings(db_path=db_path, api_key="secret-key"))
-    monkeypatch.setattr("app.api.routes_settings.get_settings_service", lambda: service)
-
-    response = TestClient(app).get("/api/settings")
+def test_get_settings_returns_defaults_for_user(tmp_path, monkeypatch) -> None:
+    client = _build_authed_client(tmp_path, monkeypatch, "user@example.com")
+    response = client.get("/api/settings")
     assert response.status_code == 200
     payload = response.json()
     assert payload["assistant_name"] == "Asya"
-    assert payload["system_prompt"] == "Default system prompt"
     assert payload["selected_model"] == "openai/gpt-5"
-    assert payload["api_key_configured"] is True
-    assert "vsellm_api_key" not in payload
+    assert payload["api_key_configured"] is False
+    app.dependency_overrides.clear()
 
 
-def test_put_settings_updates_values(monkeypatch, tmp_path) -> None:
-    db_path = tmp_path / "settings-update.sqlite3"
-    service = SettingsService(FakeEnvSettings(db_path=db_path))
-    monkeypatch.setattr("app.api.routes_settings.get_settings_service", lambda: service)
-    client = TestClient(app)
+def test_put_settings_updates_only_current_user(tmp_path, monkeypatch) -> None:
+    _, engine = setup_test_db(tmp_path, monkeypatch)
+    app.dependency_overrides[get_db_session] = override_db_session(engine)
+    user_a = TestClient(app)
+    user_b = TestClient(app)
+
+    user_a.post("/api/auth/register", json={"email": "a@example.com", "display_name": "A", "password": "strong-pass-123"})
+    user_b.post("/api/auth/register", json={"email": "b@example.com", "display_name": "B", "password": "strong-pass-123"})
+    user_a.post("/api/auth/login", json={"email": "a@example.com", "password": "strong-pass-123"})
+    user_b.post("/api/auth/login", json={"email": "b@example.com", "password": "strong-pass-123"})
 
     update = {
-        "assistant_name": "Ася",
-        "system_prompt": "Ты помогаешь кратко и по делу.",
+        "assistant_name": "Ася A",
+        "system_prompt": "Промт A",
         "selected_model": "openai/gpt-5-mini",
     }
-    put_resp = client.put("/api/settings", json=update)
+    put_resp = user_a.put("/api/settings", json=update)
     assert put_resp.status_code == 200
-    assert put_resp.json()["assistant_name"] == "Ася"
-    assert put_resp.json()["selected_model"] == "openai/gpt-5-mini"
 
-    get_resp = client.get("/api/settings")
-    assert get_resp.status_code == 200
-    saved = get_resp.json()
-    assert saved["assistant_name"] == "Ася"
-    assert saved["system_prompt"] == "Ты помогаешь кратко и по делу."
-    assert saved["selected_model"] == "openai/gpt-5-mini"
+    get_a = user_a.get("/api/settings")
+    assert get_a.status_code == 200
+    assert get_a.json()["assistant_name"] == "Ася A"
+
+    get_b = user_b.get("/api/settings")
+    assert get_b.status_code == 200
+    assert get_b.json()["assistant_name"] == "Asya"
+    assert get_b.json()["selected_model"] == "openai/gpt-5"
+    app.dependency_overrides.clear()
 
 
-def test_put_settings_validation_error(monkeypatch, tmp_path) -> None:
-    db_path = tmp_path / "settings-validation.sqlite3"
-    service = SettingsService(FakeEnvSettings(db_path=db_path))
-    monkeypatch.setattr("app.api.routes_settings.get_settings_service", lambda: service)
-    client = TestClient(app)
-
+def test_put_settings_validation_error(tmp_path, monkeypatch) -> None:
+    client = _build_authed_client(tmp_path, monkeypatch, "validation@example.com")
     response = client.put(
         "/api/settings",
         json={"assistant_name": "  ", "system_prompt": "ok", "selected_model": "openai/gpt-5"},
     )
     assert response.status_code == 400
     assert "не должно быть пустым" in response.json()["detail"]
+    app.dependency_overrides.clear()
 
 
-def test_put_settings_rejects_unknown_fields(monkeypatch, tmp_path) -> None:
-    db_path = tmp_path / "settings-unknown.sqlite3"
-    service = SettingsService(FakeEnvSettings(db_path=db_path))
-    monkeypatch.setattr("app.api.routes_settings.get_settings_service", lambda: service)
-    client = TestClient(app)
-
+def test_put_settings_rejects_unknown_fields(tmp_path, monkeypatch) -> None:
+    client = _build_authed_client(tmp_path, monkeypatch, "unknown@example.com")
     response = client.put(
         "/api/settings",
         json={
@@ -88,3 +92,4 @@ def test_put_settings_rejects_unknown_fields(monkeypatch, tmp_path) -> None:
         },
     )
     assert response.status_code == 422
+    app.dependency_overrides.clear()

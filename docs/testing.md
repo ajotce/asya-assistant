@@ -1,81 +1,70 @@
 # Testing
 
-Документ фиксирует фактические команды проверки текущей версии Asya Local.
+Документ фиксирует обязательные проверки для Asya 0.2/0.3.
 
-## Предусловия
-- Для frontend-команд используется Docker (`node:20-alpine`), если локального `npm` нет.
-- Для backend тестов нужен `python3`.
+## 1. Обязательные команды
+```bash
+make test
+make lint
+make build-frontend
+```
 
-## 1) Frontend test script
-Команда:
+Frontend unit tests:
 ```bash
 docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"
 ```
 
-Ожидаемый результат:
-- `vitest run` завершается без ошибок
-- `Test Files ... passed`
-- покрыты базовые сценарии:
-  - `App` (прямое открытие `/status`, сохранение runtime-состояния чата при `Чат -> Настройки -> Чат`, отсутствие повторного создания сессии при возврате на вкладку чата)
-  - `ChatPage` (рендер, отправка, streaming, отображение блока «Размышления модели» при наличии reasoning, отсутствие блока для обычных моделей, ошибки)
-  - `SettingsPage` (модель, системный промт, предупреждение и disabled option для моделей с явным `supports_chat=false`, бейджи `🧠`/`✅` и probe-секция reasoning)
-  - `StatusPage` (интерактивные статус-карточки, раскрытие деталей, понятная ошибка `/api/health`, graceful-деградация при ошибке `/api/usage`, наличие toggle автообновления)
-
-## 2) Lint
-Команда:
+Manual smoke (README flow):
 ```bash
-make lint
+docker compose up --build
+curl http://localhost:${ASYA_PORT:-8000}/api/health
 ```
 
-Ожидаемый результат:
-- запускается `eslint "src/**/*.{ts,tsx}"`
-- команда завершается с кодом `0`
+## 2. Security regression checklist
+- user-scoped endpoints недоступны для чужого пользователя (`404`/`403` по контракту).
+- auth/session revoke работает (`/api/auth/logout`).
+- admin-only endpoint-ы защищены (`401`/`403`).
+- нет утечки секретов в API payload/логах.
 
-## 3) Backend тесты
-Команда:
-```bash
-make test
-```
+## 3. Дополнительные проверки для Asya 0.3
 
-Ожидаемый результат:
-- `pytest` завершается без падений
-- текущий baseline: `55 passed` (возможны предупреждения, не блокирующие запуск)
-- для совместимости моделей покрыты сценарии:
-  - нормализация `supports_chat`/`supports_stream` из provider metadata (`supports_*`, `capabilities`, `endpoints`);
-  - понятная маппинга provider body ошибок в chat;
-  - fallback non-stream при явной provider-ошибке streaming;
-- для streaming размышлений покрыты сценарии:
-  - `event: thinking` эмитится при `delta.reasoning_content` от провайдера, reasoning не попадает в историю сессии;
-  - non-stream fallback с `message.reasoning_content` отдаёт `event: thinking` до `event: token`;
-  - для reasoning-моделей с известными ID (`deepseek-r1-*`, `o1`, `o3`) backend заранее уходит в non-stream и chunk'ает reasoning + ответ в SSE;
-- для probe reasoning-моделей покрыты сценарии:
-  - эвристика `is_likely_reasoning_model` по ID;
-  - `probe_reasoning_streaming` распознаёт `delta.reasoning_content`;
-  - `POST /api/models/probe-reasoning` фильтрует кандидатов эвристикой, использует кэш и поддерживает `force=true`;
-  - `POST /api/models/probe-reasoning` принимает явный `model_ids[]` и не зовёт `get_models()`.
+### Memory
+- записи памяти создаются только для текущего `user_id`;
+- `forbidden/deleted` не попадают в retrieval и chat context;
+- операции confirm/forbid/edit/rollback отражаются в memory feed.
+- frontend: вкладка `Память` показывает факты/правила/эпизоды и статусные действия (confirm/edit/outdated/forbid/hide для фактов);
+- frontend: для правил доступны create/edit/disable;
+- frontend: отображаются source + статус + created/updated для сущностей памяти;
+- frontend: есть `loading/empty/error` состояния и ручное обновление секции памяти;
+- frontend: технические ID не отображаются в UI.
+- snapshots: manual snapshot создаётся и попадает в список/summary;
+- rollback: восстанавливает состояние фактов/правил из snapshot;
+- rollback user-scoped: чужой snapshot недоступен;
+- rollback пишет activity event `memory_rollback` и memory change kind `rollback`.
 
-## 4) Frontend сборка
-Команда:
-```bash
-make build-frontend
-```
+### Spaces
+- пользователь не видит чужие пространства;
+- чат нельзя открыть/изменить в чужом пространстве;
+- `Asya-dev` недоступен non-admin пользователю.
+- frontend: при выборе пространства отображаются только чаты этого пространства;
+- frontend: переключение вкладок не сбрасывает runtime-state чата;
+- frontend: loading/error для spaces/settings отрисовываются и не ломают чат.
 
-Ожидаемый результат:
-- выполняется `tsc --noEmit && vite build`
-- в `frontend/dist` появляются актуальные артефакты сборки
-- команда завершается с кодом `0`
+### Personality/Rules
+- изменения профиля личности и правил user-scoped;
+- space overlay не «протекает» в другие пространства.
+- frontend: доступны редактирование personality параметров (tone/humor/initiative/disagree/name-address) и создание правил вручную.
 
-## 5) Smoke локального запуска
-```bash
-cp .env.example .env
-make build-frontend
-docker compose up -d --build
-PORT=$(grep '^ASYA_PORT=' .env | cut -d= -f2)
-curl "http://localhost:${PORT}/api/health"
-curl "http://localhost:${PORT}/" | head -n 2
-docker compose down
-```
+### Activity log
+- события логируются по ключевым действиям;
+- события user-scoped;
+- в событиях нет секретов.
+- доступны фильтры `event_type/entity_type/space/date_from/date_to` в `GET /api/activity-log`;
+- события admin-only пространства не видны обычному пользователю (из-за user-scope + space-access check).
+- frontend: вкладка `Активность` показывает события понятным языком и не показывает технические ID/prompt.
 
-Ожидаемый результат:
-- `/api/health` -> `200`, JSON с `status: "ok"`
-- `/` -> HTML (`<!doctype html>`)
+## 4. Документационные изменения
+Если менялась только документация:
+- тесты приложения можно не запускать;
+- обязательно сделать ручную проверку markdown-файлов (структура, ссылки, логическая непротиворечивость);
+- если markdown-линтер в проекте отсутствует, это явно указывается в отчёте.

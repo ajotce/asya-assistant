@@ -1,201 +1,185 @@
 # API (Asya Local)
 
-Документ отражает фактические backend endpoint'ы текущей версии Asya Local.
+Документ описывает:
+- текущие endpoint-ы (фактическое состояние 0.2);
+- целевые API-группы 0.3 (план, без гарантий полной реализации на текущем шаге).
 
-Базовый префикс API: `/api`
+Базовый префикс: `/api`
 
-## Группы endpoint'ов
+## 1. Фактические API группы (0.2)
 - `/health`
 - `/models`
 - `/settings`
 - `/chat`
+- `/chats`
 - `/session`
-- `/files` (реализовано как `/session/{session_id}/files`)
 - `/usage`
+- `/auth`
+- `/access-requests`
+- `/admin/access-requests`
 
-## Health
+Все user-data endpoint-ы должны работать только в рамках `current user`.
 
-### `GET /api/health`
-Расширенный статус для страницы `Состояние Asya`.
+## 2. Контракт безопасности (обязательно для 0.2/0.3)
+- `401` без валидной сессии там, где требуется auth.
+- `403` для admin-only операций без роли admin.
+- `404` вместо утечки факта существования чужих user-scoped сущностей.
+- Никогда не возвращать секреты, токены, ключи, plaintext защищённых данных.
 
-Возвращает:
-- `status`, `version`, `environment`, `last_error`
-- `uptime_seconds`
-- `vsellm` (`api_key_configured`, `base_url`, `reachable`)
-- `model.selected`
-- `files`
-- `embeddings` (`enabled`, `model`, `status`, `last_error`)
-- `storage` (`session_store`, `file_store`, `tmp_dir`, `writable`)
-- `session` (`enabled`, `active_sessions`)
+## 3. Целевые API группы Asya 0.3 (план)
 
-## Models
+### 3.1 Spaces
+- `GET /api/spaces`
+- `POST /api/spaces`
+- `PATCH /api/spaces/{space_id}`
+- `POST /api/spaces/{space_id}/archive`
+- `GET /api/spaces/{space_id}/settings`
+- `PUT /api/spaces/{space_id}/settings`
 
-### `GET /api/models`
-Список моделей из VseLLM OpenAI-compatible API.
+Требования:
+- user-scoped доступ;
+- `Asya-dev` только для admin.
 
-`ModelInfo` может включать (если провайдер отдает metadata):
-- `id`
-- `name`, `description`, `context_window`, `input_price`, `output_price`
-- `supports_chat` (`true|false|null`)
-- `supports_stream` (`true|false|null`)
-- `supports_vision` (`true|false|null`)
+### 3.2 Memory
+- `GET /api/memory/feed`
+- `POST /api/memory/facts`
+- `PATCH /api/memory/facts/{fact_id}`
+- `POST /api/memory/facts/{fact_id}/confirm`
+- `POST /api/memory/facts/{fact_id}/forbid`
+- `POST /api/memory/episodes`
+- `POST /api/memory/snapshots`
+- `POST /api/memory/rollback`
 
-Примечания по совместимости:
-- если `supports_chat=false`, frontend помечает модель как неподходящую для chat/completions;
-- если metadata неполная (`null`/отсутствует), модель не блокируется заранее.
+Требования:
+- статусная модель: `confirmed/inferred/needs_review/outdated/forbidden/deleted`;
+- запрет использования `forbidden/deleted` в chat context.
 
-Ошибки:
-- `503` если API-ключ не настроен
-- `502/504/429` при проблемах провайдера
+### 3.3 Personality / Rules
+- `GET /api/personality`
+- `PUT /api/personality`
+- `GET /api/behavior-rules`
+- `POST /api/behavior-rules`
+- `PATCH /api/behavior-rules/{rule_id}`
 
-### `POST /api/models/probe-reasoning`
-Проверяет, какие модели реально присылают `reasoning_content` через provider streaming. Запускает короткие тестовые запросы (до 32 токенов) с `stream=true` и инспектирует delta.
+### 3.4 Activity Log
+- `GET /api/activity-log`
 
-Тело запроса (необязательное):
-- `model_ids?: string[]` — явный список ID. Если опущен, backend берёт `/api/models` и фильтрует кандидатов эвристикой (`thinking`, `reasoning`, `-r1`, `o3`).
-- `force?: boolean` — игнорировать кэш (24 часа) и переспросить провайдера.
+Требования:
+- события только текущего пользователя;
+- без раскрытия секретов.
 
-Лимит: до 10 моделей за один вызов, чтобы не сжигать токены.
+## 4. Совместимость с chat endpoint
 
-Успех `200`:
-- `results[]`: `{ id, streams_reasoning, checked_at, error? }`.
+`POST /api/chat/stream` в 0.3 остаётся основным endpoint генерации, но контекст может дополняться релевантной памятью, правилами и personality overlay текущего пространства.
 
-### `GET /api/models/reasoning-cache`
-Возвращает текущий кэш probe без обращения к провайдеру.
+## 5. Статус реализации 0.3 (актуально)
 
-Успех `200`:
-- `results[]`: то же, что у `/probe-reasoning`, но только записи моложе 24 часов.
+Для `spaces/memory/personality/activity` реализованы рабочие backend endpoint-ы и user-scoped проверки доступа.
 
-## Settings
+## 6. Реализованные Spaces API
 
-### `GET /api/settings`
-Возвращает текущие настройки:
-- `assistant_name`
-- `system_prompt`
-- `selected_model`
-- `api_key_configured`
+Добавлены endpoint-ы:
+- `GET /api/spaces` — список пространств текущего пользователя;
+- `POST /api/spaces` — создать пространство;
+- `PATCH /api/spaces/{space_id}` — переименовать пространство;
+- `POST /api/spaces/{space_id}/archive` — архивировать пространство;
+- `GET /api/spaces/{space_id}/settings` — получить memory settings пространства;
+- `PUT /api/spaces/{space_id}/settings` — обновить memory settings пространства.
 
-### `PUT /api/settings`
-Обновляет настройки.
+Также обновлён `POST /api/chats`: поддерживает optional `space_id`; если не передан, чат создаётся в дефолтном пространстве пользователя.
 
-Тело запроса:
-- `assistant_name`
-- `system_prompt`
-- `selected_model`
+## 7. Реализованные Memory API
 
-Ошибки:
-- `400` при валидации
+Добавлены endpoint-ы:
+- `GET /api/memory/facts`
+- `POST /api/memory/facts`
+- `PATCH /api/memory/facts/{fact_id}`
+- `POST /api/memory/facts/{fact_id}/status`
+- `POST /api/memory/facts/{fact_id}/forbid`
+- `GET /api/memory/rules`
+- `POST /api/memory/rules`
+- `PATCH /api/memory/rules/{rule_id}`
+- `POST /api/memory/rules/{rule_id}/disable`
+- `GET /api/memory/episodes`
+- `GET /api/memory/changes`
+- `GET /api/memory/snapshots`
+- `POST /api/memory/snapshots`
+- `GET /api/memory/snapshots/{snapshot_id}`
+- `POST /api/memory/snapshots/{snapshot_id}/rollback`
+- `GET /api/activity-log`
+- `GET /api/personality`
+- `PUT /api/personality`
 
-## Chat
+Все endpoint-ы работают в рамках текущего пользователя.
 
-### `POST /api/chat/stream`
-Streaming chat через SSE (`text/event-stream`).
+## 8. Memory Extraction Runtime Behavior
 
-Тело запроса:
-- `session_id: string`
-- `message: string`
-- `file_ids?: string[]` (только для изображений)
+Extraction не имеет отдельного публичного endpoint и выполняется внутри `POST /api/chat/stream` после успешного сохранения ответа ассистента.
 
-SSE события:
-- `event: token` -> `{ "text": "..." }`
-- `event: thinking` -> `{ "text": "..." }` (только если provider реально присылает reasoning)
-- `event: error` -> `{ "message": "..." }`
-- `event: done` -> `{ "usage": ... }`
+Управление:
+- `MEMORY_EXTRACTION_ENABLED=false` полностью отключает extraction pipeline.
 
-Примечания:
-- backend использует только контекст текущей сессии;
-- для документов retrieval идет через embeddings/векторный индекс сессии;
-- запрос с изображениями блокируется заранее только если модель явно `supports_vision=false`;
-- если модель по metadata явно не поддерживает chat/completions, backend возвращает понятную ошибку с ID модели;
-- для ошибок провайдера `400/404/422` backend пытается извлечь точную причину из provider body и возвращает её пользователю без секретов;
-- если провайдер явно сообщает, что модель не поддерживает `stream=true`, backend делает безопасный fallback на non-stream completion и отдает ответ в SSE `event: token` + `event: done`;
-- `event: thinking` эмитится, если в delta провайдера есть `reasoning_content` / `reasoning` / `thinking` (для stream) или соответствующие поля в `message.*` (для non-stream fallback). Reasoning не дублируется в `event: token`, не сохраняется в истории сессии и не отправляется обратно провайдеру в последующих сообщениях;
-- для reasoning-моделей, у которых текущий VseLLM upstream не пробрасывает reasoning через стрим (например, `deepseek-r1-*`, `openai/o1-*`, `openai/o3-*`), backend заранее переходит на non-stream запрос и эмитит `event: thinking` (chunked) до `event: token` — поведение SSE-контракта при этом не меняется.
+Наблюдаемость:
+- результат extraction отражается через уже реализованные endpoint-ы:
+  - `GET /api/memory/facts`
+  - `GET /api/memory/rules`
+  - `GET /api/memory/episodes`
+  - `GET /api/memory/changes`
+  - `GET /api/activity-log`
 
-## Session
+Activity filters:
+- `GET /api/activity-log` поддерживает query-параметры:
+  - `limit`
+  - `event_type`
+  - `entity_type`
+  - `space_id`
+  - `date_from` (ISO datetime)
+  - `date_to` (ISO datetime)
 
-### `POST /api/session`
-Создает сессию.
+## 9. Memory-aware chat context (реализовано)
 
-Успех: `201`, тело:
-- `session_id`
-- `created_at`
+`POST /api/chat/stream` теперь добавляет compact memory context (отдельный system message) перед file retrieval context:
+- факты пользователя;
+- правила поведения;
+- релевантные эпизоды;
+- personality base и optional space overlay.
 
-### `GET /api/session/{session_id}`
-Состояние сессии.
+Ограничения и безопасность:
+- только текущий `user_id`;
+- фильтр по текущему `chat.space_id` + global (`space_id=null`) записи;
+- исключаются `forbidden` и `deleted`;
+- `outdated` не добавляется при конфликте с `confirmed` фактом по тому же ключу;
+- при конфликте памяти с текущим сообщением приоритет у текущего явного запроса пользователя.
 
-Успех: `200`, тело:
-- `session_id`
-- `created_at`
-- `message_count`
-- `file_ids`
+Space settings:
+- `memory_read_enabled=false` отключает memory retrieval;
+- `behavior_rules_enabled=false` отключает блок правил;
+- `personality_overlay_enabled=false` отключает overlay личности.
 
-Ошибки:
-- `404` с текстом `Сессия не найдена.`
+Наблюдаемость:
+- при использовании memory context в ответе пишется activity event `memory_used_in_response`;
+- event содержит только безопасный `meta` (счётчики и flags), без полного prompt и без секретов.
 
-### `DELETE /api/session/{session_id}`
-Удаляет сессию и временные данные (сообщения, файлы, векторы, usage по сессии).
+Personality API:
+- `GET /api/personality` — базовый personality profile пользователя;
+- `PUT /api/personality` — обновление базового profile;
+- `GET /api/personality/overlay/{space_id}` — чтение/создание overlay профиля пространства;
+- `PUT /api/personality/overlay/{space_id}` — обновление overlay профиля пространства.
 
-Успех: `204`
+Параметры profile:
+- `name`, `tone`, `style_notes`, `is_active`,
+- `humor_level` (0..2),
+- `initiative_level` (0..2),
+- `can_gently_disagree` (bool),
+- `address_user_by_name` (bool).
 
-Ошибки:
-- `404` с текстом `Сессия не найдена.`
+Spaces API во frontend (используется в `ChatPage`):
+- `GET /api/spaces`
+- `POST /api/spaces`
+- `PATCH /api/spaces/{space_id}`
+- `POST /api/spaces/{space_id}/archive`
+- `GET /api/spaces/{space_id}/settings`
+- `PUT /api/spaces/{space_id}/settings`
 
-## Files
-
-### `POST /api/session/{session_id}/files`
-Загрузка файлов в текущую сессию (`multipart/form-data`, поле `files`).
-
-Ограничения:
-- до 10 файлов за запрос
-- до 256 МБ на файл
-- типы: PDF, DOCX, XLSX, изображения
-
-Для документов backend:
-- извлекает текст
-- режет на чанки
-- строит embeddings
-- кладет в временный векторный индекс сессии
-
-Для изображений backend:
-- валидирует payload через Pillow
-- сохраняет файл в временное хранилище сессии
-
-Успех: `201`, тело:
-- `session_id`
-- `files[]` (`file_id`, `filename`, `content_type`, `size_bytes`)
-- `file_ids[]`
-
-Типовые ошибки:
-- `404` `Сессия не найдена.`
-- `400` по лимитам/формату/повреждённым файлам
-- `502/504/429` при ошибках embeddings API
-
-## Usage
-
-### `GET /api/usage`
-Сводный usage runtime:
-- `chat` (`status=available|unavailable`, токены)
-- `embeddings` (`status=available|unavailable`, токены)
-- `cost` (`status=unavailable`, без расчета стоимости)
-- `runtime` (`active_sessions`, `selected_model`, `embedding_model`)
-
-### `GET /api/usage/session/{session_id}`
-Usage по конкретной сессии:
-- `chat`
-- `embeddings`
-- `cost`
-- `runtime` (`session_id`, `created_at`, `message_count`, `user_messages`, `assistant_messages`, `file_count`, `chunks_indexed`)
-
-Ошибки:
-- `404` `Сессия не найдена.`
-
-## Локальная раздача frontend через backend
-Когда `SERVE_FRONTEND=true` и `frontend/dist` собран:
-- `GET /` -> `index.html`
-- `GET /assets/*`, `GET /icons/*`, `GET /manifest.webmanifest` -> статика
-- SPA-пути (`/chat`, `/settings`, `/status`) -> fallback на `index.html`
-
-## OpenAPI
-- `GET /openapi.json`
-- `GET /docs`
+Чаты:
+- `POST /api/chats` принимает optional `space_id` и создаёт чат в выбранном пространстве.

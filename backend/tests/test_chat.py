@@ -5,14 +5,29 @@ from pathlib import Path
 import httpx
 from fastapi.testclient import TestClient
 from PIL import Image
+from sqlalchemy.orm import Session
 
+from app.api.deps_auth import get_db_session
+from app.db.base import Base
+from app.db.models.behavior_rule import BehaviorRule
+from app.db.models.chat import Chat
+from app.db.models.common import MemoryStatus, RuleScope, RuleSource, RuleStatus, RuleStrictness, UserRole, UserStatus
+from app.db.models.space import Space
+from app.db.models.space_memory_settings import SpaceMemorySettings
+from app.db.models.user import User
+from app.db.models.user_profile_fact import UserProfileFact
+from app.db.session import get_engine
 from app.main import app
+from app.repositories.activity_log_repository import ActivityLogRepository
+from app.repositories.chat_repository import ChatRepository
 from app.services.chat_service import ChatService
+from app.services.memory_service import MemoryService
 from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.file_store import SessionFileStore, StoredSessionFile
 from app.storage.runtime import usage_store
 from app.storage.session_store import SessionStore
 from app.storage.vector_store import SessionVectorStore, StoredChunkVector
+from tests.auth_helpers import override_db_session, setup_test_db
 
 
 class FakeSettings:
@@ -22,6 +37,7 @@ class FakeSettings:
     default_embedding_model = "text-embedding-3-small"
     default_system_prompt = "System prompt"
     sqlite_path = "/tmp/asya-test.sqlite3"
+    memory_extraction_enabled = True
 
 
 def _build_file_store() -> SessionFileStore:
@@ -33,6 +49,58 @@ def _make_png_bytes() -> bytes:
     out = io.BytesIO()
     image.save(out, format="PNG")
     return out.getvalue()
+
+
+def _build_db_service(tmp_path, monkeypatch):
+    db_path = tmp_path / "chat-memory.sqlite3"
+    monkeypatch.setenv("ASYA_DB_PATH", db_path.as_posix())
+    get_engine.cache_clear()
+    engine = get_engine(f"sqlite+pysqlite:///{db_path.as_posix()}")
+    Base.metadata.create_all(engine)
+    session = Session(bind=engine)
+
+    user = User(
+        email="memory-chat@example.com",
+        display_name="Memory User",
+        password_hash="x",
+        role=UserRole.USER,
+        status=UserStatus.ACTIVE,
+    )
+    session.add(user)
+    session.flush()
+
+    space = Space(user_id=user.id, name="Work", is_default=True, is_archived=False, is_admin_only=False)
+    session.add(space)
+    session.flush()
+    session.add(
+        SpaceMemorySettings(
+            space_id=space.id,
+            user_id=user.id,
+            memory_read_enabled=True,
+            memory_write_enabled=True,
+            behavior_rules_enabled=True,
+            personality_overlay_enabled=True,
+        )
+    )
+
+    chat = Chat(user_id=user.id, space_id=space.id, title="Chat", is_archived=False, is_deleted=False)
+    session.add(chat)
+    session.commit()
+    session.refresh(user)
+    session.refresh(space)
+    session.refresh(chat)
+
+    service = ChatService(
+        settings=FakeSettings(),
+        current_user_id=user.id,
+        db_session=session,
+        chat_repository=ChatRepository(session),
+        file_store=_build_file_store(),
+        vector_store=SessionVectorStore(),
+        vsellm_client=VseLLMClient(FakeSettings()),
+        settings_service=FakeSettingsService(),
+    )
+    return session, user, space, chat, service
 
 
 class FakeRuntimeSettings:
@@ -106,19 +174,27 @@ def test_stream_chat_returns_error_when_session_missing() -> None:
     assert "Сессия не найдена" in payload
 
 
-def test_stream_chat_endpoint_streams_events(monkeypatch) -> None:
+def test_stream_chat_endpoint_streams_events(monkeypatch, tmp_path) -> None:
     class FakeService:
         def stream_chat(self, session_id: str, user_message: str, file_ids=None):
             yield b'event: token\ndata: {"text":"Hi"}\n\n'
             yield b'event: done\ndata: {"usage":null}\n\n'
 
-    monkeypatch.setattr("app.api.routes_chat.get_chat_service", lambda: FakeService())
+    _, engine = setup_test_db(tmp_path, monkeypatch)
+    app.dependency_overrides[get_db_session] = override_db_session(engine)
+    monkeypatch.setattr("app.api.routes_chat.get_chat_service", lambda *args, **kwargs: FakeService())
     client = TestClient(app)
+    client.post(
+        "/api/auth/register",
+        json={"email": "chat@example.com", "display_name": "Chat", "password": "strong-pass-123"},
+    )
+    client.post("/api/auth/login", json={"email": "chat@example.com", "password": "strong-pass-123"})
     response = client.post("/api/chat/stream", json={"session_id": "s-1", "message": "hello"})
     text = response.text
     assert response.status_code == 200
     assert "event: token" in text
     assert "event: done" in text
+    app.dependency_overrides.clear()
 
 
 def test_status_mapper_for_rate_limit_error() -> None:
@@ -172,6 +248,243 @@ def test_build_messages_payload_includes_retrieved_file_context() -> None:
     assert messages[1]["role"] == "system"
     assert "Контекст из загруженных файлов" in messages[1]["content"]
     assert "doc.pdf" in messages[1]["content"]
+
+
+def test_memory_context_is_user_scoped(tmp_path, monkeypatch) -> None:
+    session, user, _, chat, service = _build_db_service(tmp_path, monkeypatch)
+    other_user = User(
+        email="other@example.com",
+        display_name="Other",
+        password_hash="x",
+        role=UserRole.USER,
+        status=UserStatus.ACTIVE,
+    )
+    session.add(other_user)
+    session.flush()
+    session.add(
+        UserProfileFact(
+            user_id=other_user.id,
+            space_id=None,
+            key="secret_other",
+            value="must not leak",
+            status=MemoryStatus.CONFIRMED,
+            source="user",
+        )
+    )
+    session.add(
+        UserProfileFact(
+            user_id=user.id,
+            space_id=None,
+            key="favorite_color",
+            value="blue",
+            status=MemoryStatus.CONFIRMED,
+            source="user",
+        )
+    )
+    session.commit()
+
+    messages = service.build_messages_payload(session_id=chat.id, user_message="Какие мои предпочтения?")
+    memory_blocks = [msg for msg in messages if msg["role"] == "system" and "Контекст долговременной памяти" in msg["content"]]
+    assert memory_blocks
+    memory = memory_blocks[0]["content"]
+    assert "favorite_color: blue" in memory
+    assert "must not leak" not in memory
+    session.close()
+
+
+def test_memory_context_excludes_forbidden_and_deleted_facts(tmp_path, monkeypatch) -> None:
+    session, user, _, chat, service = _build_db_service(tmp_path, monkeypatch)
+    session.add(
+        UserProfileFact(
+            user_id=user.id,
+            key="lang",
+            value="ru",
+            status=MemoryStatus.CONFIRMED,
+            source="user",
+            space_id=None,
+        )
+    )
+    session.add(
+        UserProfileFact(
+            user_id=user.id,
+            key="old_secret",
+            value="xxx",
+            status=MemoryStatus.FORBIDDEN,
+            source="user",
+            space_id=None,
+        )
+    )
+    session.add(
+        UserProfileFact(
+            user_id=user.id,
+            key="deleted_fact",
+            value="yyy",
+            status=MemoryStatus.DELETED,
+            source="user",
+            space_id=None,
+        )
+    )
+    session.commit()
+
+    messages = service.build_messages_payload(session_id=chat.id, user_message="Напомни профиль")
+    memory = next(msg["content"] for msg in messages if msg["role"] == "system" and "Контекст долговременной памяти" in msg["content"])
+    assert "lang: ru" in memory
+    assert "old_secret" not in memory
+    assert "deleted_fact" not in memory
+    session.close()
+
+
+def test_space_memory_read_off_disables_memory_retrieval(tmp_path, monkeypatch) -> None:
+    session, user, space, chat, service = _build_db_service(tmp_path, monkeypatch)
+    session.add(
+        UserProfileFact(
+            user_id=user.id,
+            key="timezone",
+            value="Europe/Moscow",
+            status=MemoryStatus.CONFIRMED,
+            source="user",
+            space_id=space.id,
+        )
+    )
+    settings = session.get(SpaceMemorySettings, space.id)
+    assert settings is not None
+    settings.memory_read_enabled = False
+    session.add(settings)
+    session.commit()
+
+    messages = service.build_messages_payload(session_id=chat.id, user_message="Привет")
+    assert all("Контекст долговременной памяти" not in msg["content"] for msg in messages if msg["role"] == "system")
+    session.close()
+
+
+def test_active_rule_is_added_to_memory_context(tmp_path, monkeypatch) -> None:
+    session, user, _, chat, service = _build_db_service(tmp_path, monkeypatch)
+    session.add(
+        BehaviorRule(
+            user_id=user.id,
+            space_id=None,
+            scope=RuleScope.USER,
+            strictness=RuleStrictness.NORMAL,
+            status=RuleStatus.ACTIVE,
+            source=RuleSource.USER,
+            title="Краткость",
+            instruction="Отвечай кратко и по пунктам.",
+        )
+    )
+    session.commit()
+
+    messages = service.build_messages_payload(session_id=chat.id, user_message="Как лучше?")
+    memory = next(msg["content"] for msg in messages if msg["role"] == "system" and "Контекст долговременной памяти" in msg["content"])
+    assert "Правила поведения:" in memory
+    assert "Краткость: Отвечай кратко и по пунктам." in memory
+    session.close()
+
+
+def test_file_retrieval_is_preserved_with_memory_context(tmp_path, monkeypatch) -> None:
+    session, user, _, chat, service = _build_db_service(tmp_path, monkeypatch)
+    session.add(
+        UserProfileFact(
+            user_id=user.id,
+            key="project",
+            value="asya",
+            status=MemoryStatus.CONFIRMED,
+            source="user",
+            space_id=None,
+        )
+    )
+    session.commit()
+
+    class FakeEmbeddingsClient:
+        def get_embeddings(self, texts, model=None):
+            return [[1.0, 0.0]]
+
+    service._vsellm_client = FakeEmbeddingsClient()
+    session_dir = service._file_store.session_dir(chat.id)
+    session_dir.mkdir(parents=True, exist_ok=True)
+    file_path = session_dir / "manual.txt"
+    file_path.write_text("retrieval source", encoding="utf-8")
+    service._file_store.register_files(
+        chat.id,
+        [
+            StoredSessionFile(
+                file_id="file-1",
+                session_id=chat.id,
+                filename="manual.txt",
+                content_type="text/plain",
+                size_bytes=file_path.stat().st_size,
+                path=str(file_path),
+            )
+        ],
+    )
+    service._vector_store.upsert_file_chunks(
+        session_id=chat.id,
+        file_id="file-1",
+        chunks=[
+            StoredChunkVector(
+                chunk_id="c1",
+                file_id="file-1",
+                filename="manual.txt",
+                text="Файловый фрагмент для retrieval.",
+                embedding=[1.0, 0.0],
+            )
+        ],
+    )
+
+    messages = service.build_messages_payload(session_id=chat.id, user_message="Что в файле?")
+    system_blocks = [msg["content"] for msg in messages if msg["role"] == "system"]
+    assert any("Контекст долговременной памяти" in block for block in system_blocks)
+    assert any("Контекст из загруженных файлов" in block for block in system_blocks)
+    session.close()
+
+
+def test_memory_usage_activity_event_is_logged(tmp_path, monkeypatch) -> None:
+    session, user, _, chat, service = _build_db_service(tmp_path, monkeypatch)
+    session.add(
+        UserProfileFact(
+            user_id=user.id,
+            key="name",
+            value="Антон",
+            status=MemoryStatus.CONFIRMED,
+            source="user",
+            space_id=None,
+        )
+    )
+    session.commit()
+
+    service.build_messages_payload(session_id=chat.id, user_message="Привет")
+    service._record_memory_usage_event(chat_id=chat.id)
+    session.commit()
+
+    logs = ActivityLogRepository(session).list_for_user(user.id, limit=20)
+    assert any(item.event_type.value == "memory_used_in_response" for item in logs)
+    session.close()
+
+
+def test_personality_fields_and_feedback_hint_are_added_to_context(tmp_path, monkeypatch) -> None:
+    session, user, _, chat, service = _build_db_service(tmp_path, monkeypatch)
+    MemoryService(session).update_personality(
+        user=user,
+        name="Asya",
+        tone="balanced",
+        style_notes="Дружелюбно и по делу",
+        humor_level=1,
+        initiative_level=2,
+        can_gently_disagree=True,
+        address_user_by_name=True,
+        is_active=True,
+    )
+
+    messages = service.build_messages_payload(
+        session_id=chat.id,
+        user_message="Ты ошиблась в прошлом ответе, ответила не так",
+    )
+    memory = next(msg["content"] for msg in messages if msg["role"] == "system" and "Контекст долговременной памяти" in msg["content"])
+    assert "Юмор: средний" in memory
+    assert "Инициативность в чате: высокий" in memory
+    assert "Мягкое возражение при рисках: да" in memory
+    assert "предложи сохранить правило на будущее" in memory
+    assert "не играй роль терапевта" in memory
+    session.close()
 
 
 def test_stream_chat_returns_embeddings_error_for_retrieval() -> None:

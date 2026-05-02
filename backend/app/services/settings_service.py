@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Optional
 
 from app.core.config import Settings
+from app.db.models.user_settings import UserSettings
 from app.models.schemas import SettingsResponse, SettingsUpdateRequest
-from app.storage.sqlite import SQLiteStorage
+from sqlalchemy.orm import Session
 
 
 @dataclass
@@ -13,42 +15,28 @@ class SettingsValidationError(Exception):
 
 
 class SettingsService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, db_session: Optional[Session] = None) -> None:
         self._settings = settings
-        self._storage = SQLiteStorage(settings.sqlite_path)
-        self._init_schema()
+        self._db_session = db_session
 
-    def get_settings(self) -> SettingsResponse:
-        with self._storage.connect() as conn:
-            row = conn.execute(
-                """
-                SELECT assistant_name, system_prompt, selected_model
-                FROM settings
-                WHERE id = 1
-                """
-            ).fetchone()
-
+    def get_settings(self, *, user_id: Optional[str] = None) -> SettingsResponse:
+        payload = self._default_settings_payload()
+        if user_id and self._db_session is not None:
+            row = self._db_session.get(UserSettings, user_id)
             if row is None:
-                defaults = self._default_settings_payload()
-                conn.execute(
-                    """
-                    INSERT INTO settings (id, assistant_name, system_prompt, selected_model)
-                    VALUES (1, ?, ?, ?)
-                    """,
-                    (
-                        defaults["assistant_name"],
-                        defaults["system_prompt"],
-                        defaults["selected_model"],
-                    ),
+                row = UserSettings(
+                    user_id=user_id,
+                    assistant_name=payload["assistant_name"],
+                    system_prompt=payload["system_prompt"],
+                    selected_model=payload["selected_model"],
                 )
-                conn.commit()
-                payload = defaults
-            else:
-                payload = {
-                    "assistant_name": row["assistant_name"],
-                    "system_prompt": row["system_prompt"],
-                    "selected_model": row["selected_model"],
-                }
+                self._db_session.add(row)
+                self._db_session.flush()
+            payload = {
+                "assistant_name": row.assistant_name,
+                "system_prompt": row.system_prompt,
+                "selected_model": row.selected_model,
+            }
 
         return SettingsResponse(
             assistant_name=payload["assistant_name"],
@@ -57,7 +45,10 @@ class SettingsService:
             api_key_configured=self._settings.vsellm_api_key_configured,
         )
 
-    def update_settings(self, request: SettingsUpdateRequest) -> SettingsResponse:
+    def update_settings(self, request: SettingsUpdateRequest, *, user_id: Optional[str] = None) -> SettingsResponse:
+        if user_id is None or self._db_session is None:
+            raise SettingsValidationError("Настройки пользователя недоступны без user_id.")
+
         assistant_name = request.assistant_name.strip()
         system_prompt = request.system_prompt.strip()
         selected_model = request.selected_model.strip()
@@ -69,35 +60,22 @@ class SettingsService:
         if not selected_model:
             raise SettingsValidationError("Выбранная модель не должна быть пустой.")
 
-        with self._storage.connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO settings (id, assistant_name, system_prompt, selected_model)
-                VALUES (1, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                  assistant_name = excluded.assistant_name,
-                  system_prompt = excluded.system_prompt,
-                  selected_model = excluded.selected_model
-                """,
-                (assistant_name, system_prompt, selected_model),
+        row = self._db_session.get(UserSettings, user_id)
+        if row is None:
+            row = UserSettings(
+                user_id=user_id,
+                assistant_name=assistant_name,
+                system_prompt=system_prompt,
+                selected_model=selected_model,
             )
-            conn.commit()
+        else:
+            row.assistant_name = assistant_name
+            row.system_prompt = system_prompt
+            row.selected_model = selected_model
+        self._db_session.add(row)
+        self._db_session.flush()
 
-        return self.get_settings()
-
-    def _init_schema(self) -> None:
-        with self._storage.connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS settings (
-                  id INTEGER PRIMARY KEY CHECK (id = 1),
-                  assistant_name TEXT NOT NULL,
-                  system_prompt TEXT NOT NULL,
-                  selected_model TEXT NOT NULL
-                )
-                """
-            )
-            conn.commit()
+        return self.get_settings(user_id=user_id)
 
     def _default_settings_payload(self) -> dict:
         return {

@@ -1,4 +1,843 @@
 # Development Log
+## 2026-05-02 (Asya 0.3: frontend UI памяти и личности)
+- Что сделано:
+  - Добавлена новая вкладка `Память` в frontend navigation.
+  - Реализована страница `MemoryPage`:
+    - факты профиля (просмотр + действия: подтвердить, редактировать, устарело, запретить, скрыть);
+    - правила поведения (просмотр, ручное создание, отключение);
+    - эпизоды памяти (просмотр);
+    - personality profile (редактирование tone/humor/initiative/disagree/name-address/style notes).
+  - Добавлены frontend API-клиент и типы для memory/personality endpoint-ов.
+  - Технические ID не показываются в UI.
+  - Добавлены frontend unit tests для `MemoryPage` и обновлены тесты `App` под новую вкладку.
+- Какие файлы изменены:
+  - `frontend/src/components/NavTabs.tsx`
+  - `frontend/src/App.tsx`
+  - `frontend/src/pages/MemoryPage.tsx`
+  - `frontend/src/pages/MemoryPage.test.tsx`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/styles/app.css`
+  - `frontend/src/App.test.tsx`
+  - `docs/memory.md`
+  - `docs/personality.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make lint`, `make build-frontend`, `make test`, frontend unit tests (`npm test` в docker).
+
+## 2026-05-02 (Asya 0.3: frontend UI пространств)
+- Что сделано:
+  - В `ChatPage` добавлен UI пространств: список, создание, переименование, архивирование, выбор текущего пространства.
+  - Список чатов теперь фильтруется по выбранному пространству.
+  - `Base-chat` помечен в UI как базовый (`Base-chat (базовый)`).
+  - Добавлен блок per-space memory settings:
+    - `memory_read_enabled`,
+    - `memory_write_enabled`,
+    - `behavior_rules_enabled`,
+    - `personality_overlay_enabled`.
+  - Для admin показывается `Asya-dev` (если доступен); для non-admin скрывается во frontend и backend.
+  - Добавлены loading/error состояния для spaces/settings.
+  - Состояние чата при переключении вкладок сохранено (компонент остаётся mounted).
+- Какие файлы изменены:
+  - `frontend/src/types/api.ts`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/App.tsx`
+  - `frontend/src/pages/ChatPage.tsx`
+  - `frontend/src/pages/ChatPage.test.tsx`
+  - `frontend/src/App.test.tsx`
+  - `frontend/src/styles/app.css`
+  - `docs/spaces.md`
+  - `docs/api.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make lint`, `make build-frontend`, `make test`, frontend unit tests (см. текущий запуск).
+
+## 2026-05-02 (Asya 0.3: базовая управляемая личность)
+- Что сделано:
+  - Расширен `AssistantPersonalityProfile`: добавлены `humor_level`, `initiative_level`, `can_gently_disagree`, `address_user_by_name`.
+  - Расширены API `GET/PUT /api/personality` и добавлены `GET/PUT /api/personality/overlay/{space_id}`.
+  - Реализован space personality overlay без перезаписи base profile.
+  - Личность интегрирована в chat context (параметры tone/humor/initiative/disagree/name-address + ограничения на стиль).
+  - При явной жалобе пользователя на ошибочный ответ в контекст добавляется инструкция предложить сохранить правило.
+  - Автосоздание `BehaviorRule` после ошибки выполняется только по явной команде пользователя (`сохрани/добавь/запомни правило`).
+- Какие файлы изменены:
+  - `backend/app/db/models/assistant_personality_profile.py`
+  - `backend/alembic/versions/20260502_04_memory_spaces_foundation.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/services/memory_service.py`
+  - `backend/app/repositories/personality_profile_repository.py`
+  - `backend/app/api/routes_memory.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/services/memory_extraction_service.py`
+  - `backend/tests/test_memory_api.py`
+  - `backend/tests/test_memory_extraction.py`
+  - `backend/tests/test_chat.py`
+  - `docs/personality.md`
+  - `docs/memory.md`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` (см. текущий запуск).
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались: frontend не менялся.
+
+## 2026-05-02 (Asya 0.3: memory retrieval подключён к ответам ассистента)
+- Что сделано:
+  - `ChatService` расширен memory-aware context assembly для `POST /api/chat/stream`.
+  - Реализован retrieval релевантной памяти текущего пользователя: profile facts, behavior rules, episodes, personality base + space overlay.
+  - Учтены `space_memory_settings`: `memory_read_enabled`, `behavior_rules_enabled`, `personality_overlay_enabled`.
+  - Добавлена фильтрация статусов: `forbidden/deleted` исключаются; `outdated` отбрасывается при конфликте с `confirmed`.
+  - Добавлен activity event `memory_used_in_response` (без полного prompt/секретов).
+  - Сохранён существующий file retrieval/vision pipeline.
+  - Добавлены тесты на user isolation, forbidden/deleted фильтр, space memory off, rule in context и совместимость с file retrieval.
+- Какие файлы изменены:
+  - `backend/app/services/chat_service.py`
+  - `backend/app/repositories/user_profile_fact_repository.py`
+  - `backend/app/repositories/memory_episode_repository.py`
+  - `backend/app/repositories/behavior_rule_repository.py`
+  - `backend/app/repositories/personality_profile_repository.py`
+  - `backend/app/db/models/common.py`
+  - `backend/tests/test_chat.py`
+  - `docs/memory.md`
+  - `docs/personality.md`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `106 passed`.
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались: frontend не изменялся.
+- Риски/следующие шаги:
+  - Эпизодическая релевантность пока эвристическая (по текстовому overlap); следующим шагом можно перевести на embedding retrieval по `memory_chunks`.
+
+## 2026-05-02 (Asya 0.3: safe memory extraction from chat dialogs)
+- Что сделано:
+  - Добавлен `MemoryExtractionService` с безопасным pipeline извлечения памяти из user/assistant turn.
+  - Pipeline подключён в `ChatService.stream_chat` как post-processing после сохранения assistant response.
+  - Добавлен feature-flag `MEMORY_EXTRACTION_ENABLED` для временного отключения extraction.
+  - Реализованы сценарии extraction:
+    - `запомни` -> факт со статусом `confirmed`;
+    - обычные user-facts -> `needs_review`;
+    - `забудь` -> релевантные факты переводятся в `forbidden`.
+  - Добавлены safety guardrails: секреты (password/token/api-key/payment-like data) не сохраняются.
+  - Ошибки extraction изолированы (`best-effort`) и не ломают SSE response flow.
+- Какие файлы изменены:
+  - `backend/app/services/memory_extraction_service.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/core/config.py`
+  - `backend/app/repositories/memory_episode_repository.py`
+  - `backend/app/services/memory_service.py`
+  - `backend/tests/test_memory_extraction.py`
+  - `backend/tests/test_chat.py`
+  - `docs/memory.md`
+  - `docs/architecture.md`
+  - `docs/api.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> см. итог.
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались: frontend не менялся.
+- Риски/следующие шаги:
+  - Текущий extractor эвристический; для повышения качества можно добавить model-based structured extraction с теми же safety-фильтрами и audit.
+## 2026-05-02 (Asya 0.3: backend memory service + API)
+- Что сделано:
+  - Реализован `MemoryService` + repository слой для facts, rules, episodes(list), personality profile, memory changes(versioning), activity log.
+  - Добавлены user-scoped API endpoint-ы `/api/memory/*`, `/api/personality`, `/api/activity-log`.
+  - Добавлена status-модель памяти: `confirmed/inferred/needs_review/outdated/forbidden/deleted`.
+  - Реализован active-list фильтр: `forbidden/deleted` не попадают в default list.
+  - Реализован version record: при изменениях facts/rules/personality пишется `memory_changes.old_value/new_value`.
+  - Реализован activity log для memory/rules/personality операций.
+- Какие файлы изменены:
+  - `backend/app/services/memory_service.py`
+  - `backend/app/api/routes_memory.py`
+  - `backend/app/repositories/behavior_rule_repository.py`
+  - `backend/app/repositories/memory_episode_repository.py`
+  - `backend/app/repositories/memory_change_repository.py`
+  - `backend/app/repositories/personality_profile_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/main.py`
+  - `backend/tests/test_memory_api.py`
+  - `docs/memory.md`
+  - `docs/api.md`
+  - `docs/activity-log.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> см. итог.
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались: frontend не менялся.
+- Риски/следующие шаги:
+  - Пока нет автоматического извлечения памяти из чата (вне scope этого шага).
+  - Пока нет интеграции memory/rules в prompt/chat context (вне scope этого шага).
+## 2026-05-02 (Asya 0.3: backend spaces service + API)
+- Что сделано:
+  - Реализован backend слой пользовательских пространств: repository + `SpaceService` + API routes.
+  - Добавлено автоматическое создание дефолтного пространства `Default` при создании пользователя.
+  - `Base-chat` сохранён как обязательный и теперь создаётся в дефолтном пространстве пользователя.
+  - Добавлена поддержка `space_id` в `POST /api/chats` и в ответах chat list/create/rename/archive.
+  - Реализовано служебное admin-only пространство `Asya-dev`:
+    - создаётся автоматически только для admin;
+    - не видно обычным пользователям;
+    - обычный пользователь не может его создать;
+    - `Asya-dev` нельзя переименовать/архивировать обычной операцией.
+  - Добавлены user-scoped endpoint-ы spaces/settings и проверки изоляции между пользователями.
+- Какие файлы изменены:
+  - `backend/app/services/space_service.py`
+  - `backend/app/repositories/space_repository.py`
+  - `backend/app/services/user_service.py`
+  - `backend/app/services/chat_service_v2.py`
+  - `backend/app/repositories/chat_repository.py`
+  - `backend/app/api/routes_spaces.py`
+  - `backend/app/api/routes_chats.py`
+  - `backend/app/main.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_spaces_api.py`
+  - `docs/spaces.md`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `cd backend && python3 -m pytest -q tests/test_spaces_api.py tests/test_chats_api.py tests/test_auth.py` -> PASS.
+  - `make test` -> см. итоговый шаг.
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались, так как frontend в этом шаге не менялся.
+- Риски/следующие шаги:
+  - Следующий шаг: добавить activity log события для операций со spaces/settings.
+## 2026-05-02 (Asya 0.3: backend DB-основа memory/personality/spaces/activity)
+- Что сделано:
+  - Добавлены SQLAlchemy-модели и enum-ы для DB-основы Asya 0.3: `spaces`, `space_memory_settings`, `user_profile_facts`, `memory_episodes`, `memory_chunks`, `behavior_rules`, `assistant_personality_profiles`, `memory_changes`, `memory_snapshots`, `activity_logs`.
+  - Добавлено поле `chats.space_id` (nullable) для связи чата с пространством.
+  - Создана Alembic-миграция `20260502_04_memory_spaces_foundation.py` (все изменения схемы только через Alembic).
+  - Добавлены базовые user-scoped репозитории: `SpaceRepository`, `UserProfileFactRepository`, `ActivityLogRepository`.
+  - Добавлены тесты для моделей/миграции/репозиториев с проверкой user-scoped изоляции.
+  - Обновлены документы `docs/architecture.md`, `docs/api.md`, `docs/memory.md`, `docs/spaces.md`, `docs/activity-log.md`.
+- Какие файлы изменены:
+  - `backend/app/db/models/common.py`
+  - `backend/app/db/models/chat.py`
+  - `backend/app/db/models/space.py`
+  - `backend/app/db/models/space_memory_settings.py`
+  - `backend/app/db/models/user_profile_fact.py`
+  - `backend/app/db/models/memory_episode.py`
+  - `backend/app/db/models/memory_chunk.py`
+  - `backend/app/db/models/behavior_rule.py`
+  - `backend/app/db/models/assistant_personality_profile.py`
+  - `backend/app/db/models/memory_change.py`
+  - `backend/app/db/models/memory_snapshot.py`
+  - `backend/app/db/models/activity_log.py`
+  - `backend/app/db/models/__init__.py`
+  - `backend/alembic/versions/20260502_04_memory_spaces_foundation.py`
+  - `backend/app/repositories/space_repository.py`
+  - `backend/app/repositories/user_profile_fact_repository.py`
+  - `backend/app/repositories/activity_log_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/tests/test_db_models.py`
+  - `backend/tests/test_alembic_migration.py`
+  - `backend/tests/test_memory_repositories.py`
+  - `docs/architecture.md`
+  - `docs/api.md`
+  - `docs/memory.md`
+  - `docs/spaces.md`
+  - `docs/activity-log.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> см. текущий шаг выполнения.
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались: frontend в этом шаге не менялся.
+- Риски/следующие шаги:
+  - Следующим шагом добавить service/API слой с обязательными user/space ownership checks на всех CRUD операциях.
+
+## 2026-05-02 (Финальная приёмка v0.2 завершена: Docker smoke + full checks)
+- Что сделано:
+  - Завершена финальная приёмка `0.2-multi-user` по всем обязательным пунктам с учётом ранее внесённых фиксов:
+    - `user_settings` (per-user settings),
+    - `access_requests.reason`,
+    - миграция `20260502_03`.
+  - Выполнен полный локальный Docker smoke по README:
+    - `docker compose up --build -d`,
+    - `curl /api/health`,
+    - `curl /`,
+    - `curl /manifest.webmanifest`,
+    - `docker compose down`.
+  - Принято решение: magic-link/email flow официально переносится в `v0.3` (в `v0.2` остаётся password auth + access request + admin approve/reject + dev/mock уведомления).
+- Какие файлы изменены:
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `86 passed`.
+  - `make lint` -> PASS.
+  - `make build-frontend` -> PASS.
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"` -> PASS (`5 files, 20 tests`).
+  - `docker compose up --build -d` -> PASS.
+  - `curl http://localhost:${ASYA_PORT}/api/health` -> `200 OK`.
+  - `curl http://localhost:${ASYA_PORT}/` -> `200 OK`, HTML.
+  - `curl http://localhost:${ASYA_PORT}/manifest.webmanifest` -> `200 OK`, manifest JSON.
+- Что не проверено и почему:
+  - Реальная отправка magic-link/email не проверялась, так как этот scope перенесён в `v0.3` по решению пользователя.
+- Риски/следующие шаги:
+  - Для старта `v0.3` первым шагом добавить production-ready magic-link/email transport и one-time token flow (TTL/reuse protection/audit).
+
+## 2026-05-02 (Закрытие блокеров финальной приёмки v0.2: per-user settings + access request reason)
+- Что сделано:
+  - Добавлена миграция `20260502_03`:
+    - новая таблица `user_settings` (user-scoped `assistant_name/system_prompt/selected_model`);
+    - новое обязательное поле `reason` в `access_requests`.
+  - `/api/settings` переведён на авторизованный user-scoped режим:
+    - endpoint-ы требуют auth;
+    - значения читаются/обновляются только для текущего `user_id`.
+  - `ChatService` и `/api/usage` переведены на чтение пользовательских настроек.
+  - Access request flow обновлён:
+    - `POST /api/access-requests` теперь принимает `reason`;
+    - `reason` возвращается в API-ответах и frontend-типах.
+  - Обновлён frontend `AuthPage`: в режиме заявки есть поле причины.
+  - Обновлены тесты (`settings`, `access_requests`, `alembic`, frontend mocks) и документация (`api/development/testing`).
+- Какие файлы изменены:
+  - `backend/alembic/versions/20260502_03_user_settings_and_access_request_reason.py`
+  - `backend/app/db/models/user_settings.py`
+  - `backend/app/services/settings_service.py`
+  - `backend/app/api/routes_settings.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/api/routes_usage.py`
+  - `backend/app/db/models/access_request.py`
+  - `backend/app/repositories/access_request_repository.py`
+  - `backend/app/services/access_request_service.py`
+  - `backend/app/services/auth_service.py`
+  - `backend/app/api/routes_access_requests.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_settings.py`
+  - `backend/tests/test_access_requests.py`
+  - `backend/tests/test_alembic_migration.py`
+  - `frontend/src/pages/AuthPage.tsx`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/App.test.tsx`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `86 passed`.
+  - `make build-frontend` -> не выполнен: недоступен Docker daemon.
+  - `make lint` -> не выполнен: недоступен Docker daemon.
+  - `docker run --rm -v \"$PWD/frontend:/work\" -w /work node:20-alpine sh -lc \"npm ci && npm test\"` -> не выполнен: недоступен Docker daemon.
+- Что не проверено и почему:
+  - frontend lint/build/unit tests и docker smoke не выполнены из-за недоступного Docker daemon в текущей среде.
+- Риски/следующие шаги:
+  - Нужна повторная финальная smoke-приёмка запуска по README в окружении с рабочим Docker daemon.
+  - Magic-link/email flow по-прежнему не реализован и должен быть либо добавлен, либо явно зафиксирован как deferred.
+
+## 2026-05-02 (Финальная приёмка Asya v0.2 — Multi-user foundation)
+- Что сделано:
+  - Выполнена полная приёмка ветки `0.2-multi-user` относительно `main` по блокам v0.2 (db/migrations, auth, access-requests, chats/base-chat, isolation, settings, secrets, API/docs, local run).
+  - Подтверждено по коду и тестам:
+    - есть SQLAlchemy + Alembic слой и миграции `20260502_01`, `20260502_02`;
+    - auth реализован через `register/login/logout/me` с `HttpOnly` cookie и hash session token в БД;
+    - user-data endpoint-ы защищены и user-scoped;
+    - multiple chats + `Base-chat` + запрет удаления `Base-chat` работают;
+    - `FileMeta` и `UsageRecord` перенесены в БД.
+  - Подтверждены gap'ы, влияющие на финальный статус приёмки:
+    - `settings` остаются глобальными (`/api/settings`, `settings` table c `id=1`), не per-user;
+    - публичная заявка доступа не содержит поля причины (`why`/`reason`);
+    - magic-link/email flow не реализован (только dev/mock notifier для access request);
+    - retrieval vector store остаётся runtime-only (`SessionVectorStore` in-memory).
+  - Проверены README smoke-команды: запуск через Docker в текущей среде не выполнен из-за недоступного Docker daemon.
+- Какие файлы изменены:
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `85 passed`.
+  - `make build-frontend` -> не выполнен (`Cannot connect to the Docker daemon ... docker.sock`).
+  - `make lint` -> не выполнен (`Cannot connect to the Docker daemon ... docker.sock`).
+  - `docker run ... npm test` -> не выполнен (`Cannot connect to the Docker daemon ... docker.sock`).
+  - `docker compose up --build` smoke -> не выполнен (`Cannot connect to the Docker daemon ... docker.sock`).
+  - `cd backend && python3 -m alembic -c alembic.ini current` -> OK.
+  - `cd backend && ASYA_DB_PATH=./data/asya-0.2.sqlite3 python3 -m alembic -c alembic.ini upgrade head` -> OK (`20260502_02` head).
+- Что не проверено и почему:
+  - Полный Docker/local-run smoke (`/api/health`, `/`, `manifest`) не выполнен из-за недоступного Docker daemon.
+  - Frontend build/lint/unit-tests в контейнере не выполнены по той же причине.
+- Риски/следующие шаги:
+  - Для формального закрытия v0.2 нужно закрыть ключевые пробелы: per-user settings, reason в access-request, определиться с magic-link/email flow статусом (реализация или явный deferred), и повторить полную smoke-приёмку в окружении с доступным Docker daemon.
+
+## 2026-05-02 (Hardening Asya 0.2: auth/data isolation checks)
+- Что сделано:
+  - Проведён аудит user-data endpoint-ов: `session*`, `chats*`, `chat/stream`, `usage*`, `auth*`, `admin/access-requests*`.
+  - Усилены backend-тесты изоляции A/B:
+    - пользователь B не может читать/изменять/удалять чужой чат и его сообщения;
+    - пользователь B не может получить usage чужого чата;
+    - non-admin не может выполнять `approve/reject` access request.
+  - Добавлены тесты по auth hardening:
+    - `logout` действительно ревокает текущую web-сессию (проверка `auth_sessions.revoked_at`);
+    - истёкший токен (`AUTH_SESSION_TTL_HOURS=0`) не проходит `/api/auth/me`.
+  - Добавлен тест, что `Base-chat` не дублируется при повторных login/logout.
+  - Добавлен тест persistence: история чата сохраняется после “restart backend” (новый клиент на той же SQLite БД).
+  - Обновлён `docs/testing.md`: добавлен hardening smoke checklist для 0.2.
+- Какие файлы изменены:
+  - `backend/tests/test_auth.py`
+  - `backend/tests/test_chats_api.py`
+  - `backend/tests/test_session.py`
+  - `backend/tests/test_access_requests.py`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `85 passed`.
+  - `make lint` -> не выполнен: недоступен Docker daemon.
+  - `make build-frontend` -> не выполнен: недоступен Docker daemon.
+  - ручной Docker smoke по README -> не выполнен: недоступен Docker daemon (`permission denied` к `docker.sock`).
+- Что не проверено и почему:
+  - frontend lint/build и docker smoke не проверены из-за недоступного Docker daemon в текущей среде.
+- Риски/следующие шаги:
+  - когда Docker daemon будет доступен, нужно повторить `make lint`, `make build-frontend` и полный smoke из README.
+
+## 2026-05-02 (Минимальный admin flow для заявок на доступ)
+- Что сделано:
+  - Проверена backend-защита admin endpoint-ов (`role=admin`) через `get_current_admin_user`.
+  - Во frontend добавлен минимальный admin-раздел в `Настройки` (только для `role=admin`):
+    - список pending заявок;
+    - действия approve/reject;
+    - явное сообщение про dev-mode (без email/magic-link отправки в этом шаге).
+  - Добавлены frontend API-методы для admin access requests.
+  - Добавлены тесты прав доступа:
+    - `401` без авторизации;
+    - `403` для non-admin.
+  - Документирован безопасный локальный dev-командный способ назначить первого admin.
+- Какие файлы изменены:
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/components/AdminAccessRequestsSection.tsx`
+  - `frontend/src/pages/SettingsPage.tsx`
+  - `frontend/src/App.tsx`
+  - `frontend/src/App.test.tsx`
+  - `backend/tests/test_access_requests.py`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make lint` -> не выполнен: недоступен Docker daemon.
+  - `make build-frontend` -> не выполнен: недоступен Docker daemon.
+  - `make test` -> `80 passed`.
+- Что не проверено и почему:
+  - frontend lint/build не проверены из-за недоступного Docker daemon.
+- Риски/следующие шаги:
+  - текущий admin UI intentionally минимальный; без bulk-операций, фильтров и пагинации.
+
+## 2026-05-02 (UI для множественных чатов)
+- Что сделано:
+  - Добавлены backend endpoint-ы `/api/chats*`:
+    - list/create/rename/archive/delete;
+    - чтение истории чата `/api/chats/{chat_id}/messages`.
+  - В frontend `ChatPage` добавлен список чатов и действия:
+    - выбор чата;
+    - создание;
+    - переименование/архивирование/удаление обычного чата.
+  - `Base-chat` отображается и выбирается по умолчанию, если нет `preferred_chat_id`.
+  - При переключении чата история загружается из БД.
+  - Streaming через `/api/chat/stream` сохранён без изменения контракта.
+- Какие файлы изменены:
+  - `backend/app/api/routes_chats.py`
+  - `backend/app/main.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_chats_api.py`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/pages/ChatPage.tsx`
+  - `frontend/src/pages/ChatPage.test.tsx`
+  - `frontend/src/App.test.tsx`
+  - `frontend/src/styles/app.css`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make lint` -> не выполнен: недоступен Docker daemon.
+  - `make build-frontend` -> не выполнен: недоступен Docker daemon.
+  - `make test` -> `79 passed`.
+- Что не проверено и почему:
+  - frontend lint/build не проверены из-за недоступного Docker daemon.
+- Риски/следующие шаги:
+  - текущий UX действий чата использует `prompt/confirm`; можно заменить на inline UI позже без изменения backend.
+
+## 2026-05-02 (Минимальный frontend auth UI + защита приватных вкладок)
+- Что сделано:
+  - Добавлен frontend auth API client:
+    - `/api/auth/me`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/register`;
+    - `/api/access-requests`.
+  - Добавлен `AuthPage` (вход / регистрация / заявка на доступ) с loading/error/success состояниями.
+  - `App` переведён на auth-gate:
+    - до авторизации не рендерятся приватные вкладки `Чат` и `Настройки`;
+    - показывается экран авторизации;
+    - в шапке показывается current user + кнопка logout.
+  - Для перехода после login добавлен `preferred_chat_id` в backend auth-response (`/api/auth/login`, `/api/auth/me`).
+  - `ChatPage` умеет принимать `initialSessionId` и использовать preferred chat вместо создания новой сессии.
+  - Session token не хранится во frontend storage; API-запросы идут с `credentials=include`.
+- Какие файлы изменены:
+  - `frontend/src/types/api.ts`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/pages/AuthPage.tsx`
+  - `frontend/src/App.tsx`
+  - `frontend/src/pages/ChatPage.tsx`
+  - `frontend/src/styles/app.css`
+  - `frontend/src/App.test.tsx`
+  - `backend/app/models/schemas.py`
+  - `backend/app/services/chat_service_v2.py`
+  - `backend/app/services/auth_service.py`
+  - `backend/app/api/routes_auth.py`
+  - `backend/tests/test_auth.py`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make lint` -> не выполнен: недоступен Docker daemon.
+  - `make build-frontend` -> не выполнен: недоступен Docker daemon.
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"` -> не выполнен: недоступен Docker daemon.
+  - `make test` -> `77 passed`.
+- Что не проверено и почему:
+  - frontend lint/build/unit tests не проверены из-за недоступного Docker daemon и отсутствия локального `npm`.
+- Риски/следующие шаги:
+  - текущий auth UI минимальный и не включает recovery/reset password flow.
+
+## 2026-05-02 (Инфраструктура шифрования пользовательских секретов)
+- Что сделано:
+  - В `.env.example` добавлена переменная `MASTER_ENCRYPTION_KEY` без значения.
+  - Добавлен `SecretCryptoService` (Fernet) для шифрования/дешифрования секретов.
+  - Добавлены безопасные ошибки:
+    - отсутствие ключа;
+    - невалидный формат ключа;
+    - ошибка дешифрования при неверном ключе/повреждённом ciphertext.
+  - Добавлены `EncryptedSecretRepository` и `EncryptedSecretService`.
+  - Сохранение секрета реализовано только в зашифрованном виде (`encrypted_secrets.encrypted_value`).
+  - Добавлены тесты на crypto-сервис и persistence-слой `encrypted_secrets`.
+- Какие файлы изменены:
+  - `.env.example`
+  - `backend/pyproject.toml`
+  - `backend/app/core/config.py`
+  - `backend/app/services/secret_crypto_service.py`
+  - `backend/app/services/encrypted_secret_service.py`
+  - `backend/app/repositories/encrypted_secret_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/tests/test_secret_crypto_service.py`
+  - `backend/tests/test_encrypted_secret_service.py`
+  - `docs/architecture.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` (запланировано для шага, запускается после изменений).
+- Что не проверено и почему:
+  - `make lint` и `make build-frontend` не запускались, так как задача backend-инфраструктурная и требование пользователя — `make test`.
+- Риски/следующие шаги:
+  - API для управления секретами пока не подключён (это отдельный шаг 0.2).
+  - `MASTER_ENCRYPTION_KEY` должен задаваться только локально/в backend окружении и не попадать в Git.
+
+## 2026-05-02 (Перенос FileMeta и UsageRecord в БД, user-scoped)
+- Что сделано:
+  - Добавлены репозитории:
+    - `FileMetaRepository`
+    - `UsageRecordRepository`
+  - Добавлен `UsageRecorder` для записи chat/embeddings usage в `usage_records` с привязкой к `user_id` и `chat_id`.
+  - `FileService` теперь:
+    - сохраняет file metadata в `file_meta` при upload;
+    - пишет embeddings usage в БД (через `UsageRecorder`);
+    - сохраняет прежние лимиты/валидации файлов.
+  - `ChatService` теперь пишет chat usage в БД (через `UsageRecorder`) без изменения SSE-контракта.
+  - `routes_usage` переведён на DB-агрегации (`usage_records`) и user-scoped доступ.
+  - `DELETE /api/session/{session_id}` теперь дополнительно удаляет связанные `FileMeta` и `UsageRecord` текущего пользователя.
+  - Обновлены auth test dependencies с commit/rollback-поведением для корректной работы DB write-путей.
+- Какие файлы изменены:
+  - `backend/app/repositories/file_meta_repository.py`
+  - `backend/app/repositories/usage_record_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/services/usage_recorder.py`
+  - `backend/app/services/file_service.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/api/routes_session.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/api/routes_usage.py`
+  - `backend/app/api/deps_auth.py`
+  - `backend/tests/auth_helpers.py`
+  - `backend/tests/test_auth.py`
+  - `backend/tests/test_access_requests.py`
+  - `backend/tests/test_files.py`
+  - `backend/tests/test_usage.py`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `71 passed`.
+- Что не проверено и почему:
+  - отдельный docker smoke не запускался в этой среде.
+- Риски/следующие шаги:
+  - vector chunks (`SessionVectorStore`) пока runtime-only и теряются при рестарте процесса.
+  - следующий этап: persistent vector metadata/storage и полная миграция retrieval-контура в БД.
+
+## 2026-05-02 (Начало миграции session/chat сообщений из in-memory в БД)
+- Что сделано:
+  - Переключён API `/api/session*` на user-scoped `Chat` в БД (transition layer: `session_id` как алиас `chat_id`).
+  - Переключён `/api/chat/stream` на message history из БД (`messages`):
+    - `user` и `assistant` сообщения сохраняются в БД;
+    - `thinking/reasoning` по-прежнему не сохраняется в историю.
+  - Добавлен `MessageRepository` и интеграция в `ChatService`.
+  - Все операции session/chat ограничены текущим `user_id` через auth dependency.
+  - `Base-chat` теперь дополнительно гарантируется при login.
+  - `FileService` переведён на проверку существования сессии через DB chat ownership.
+  - Добавлены/обновлены тесты:
+    - auth-aware тесты `session/files/usage`;
+    - изоляция пользователей по `session_id`;
+    - обновлены alembic/test expectations.
+- Какие файлы изменены:
+  - `backend/app/repositories/message_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/services/file_service.py`
+  - `backend/app/services/auth_service.py`
+  - `backend/app/api/routes_session.py`
+  - `backend/app/api/routes_chat.py`
+  - `backend/app/api/routes_usage.py`
+  - `backend/tests/auth_helpers.py`
+  - `backend/tests/test_session.py`
+  - `backend/tests/test_files.py`
+  - `backend/tests/test_usage.py`
+  - `backend/tests/test_chat.py`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test`
+- Что не проверено и почему:
+  - ручной smoke chat stream через docker-compose не запускался в этой среде.
+- Риски/следующие шаги:
+  - `SessionFileStore`, `SessionVectorStore`, `UsageStore` пока in-memory и очищаются при рестарте backend.
+  - Следующий шаг: перенос file metadata / usage records в БД и привязка retrieval/usage к persistent user-scoped данным.
+
+## 2026-05-02 (Beta invite / access request flow v1)
+- Что сделано:
+  - Добавлен базовый access request flow:
+    - submit заявки (`email`, `display_name`) со статусом `pending`;
+    - admin list заявок;
+    - admin approve/reject.
+  - Добавлен admin-guard:
+    - доступ к admin endpoint-ам только для `role=admin`;
+    - обычный пользователь получает `403`.
+  - Реализованы правила безопасности/бизнес-логики:
+    - admin не может approve/reject заявку на собственный email;
+    - повторные submit на email с pending-заявкой возвращают ту же заявку (предсказуемо);
+    - после approve создаётся новый пользователь или активируется существующий;
+    - после approve гарантируется `Base-chat`.
+  - Добавлен dev/mock-слой уведомлений:
+    - `DevLogAccessRequestNotifier` пишет структурированные события в лог;
+    - реальная отправка email/Telegram пока не реализована.
+  - Добавлена миграция `20260502_02` (`display_name` в `access_requests`).
+- Какие файлы изменены:
+  - `backend/app/db/models/access_request.py`
+  - `backend/alembic/versions/20260502_02_access_request_display_name.py`
+  - `backend/app/repositories/access_request_repository.py`
+  - `backend/app/repositories/user_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/services/access_request_notifier.py`
+  - `backend/app/services/access_request_service.py`
+  - `backend/app/services/auth_service.py`
+  - `backend/app/api/deps_auth.py`
+  - `backend/app/api/routes_access_requests.py`
+  - `backend/app/main.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_access_requests.py`
+  - `backend/tests/test_alembic_migration.py`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test`
+- Что не проверено и почему:
+  - `make build-frontend` не запускался: UI не менялся.
+- Риски/следующие шаги:
+  - Реальные email/Telegram отправки не подключены (только dev-log mock).
+  - Следующий шаг: подключить отдельный transport-слой уведомлений (email/Telegram) в `AccessRequestNotifier` и вынести секреты в backend env.
+
+## 2026-05-02 (Auth v1: register/login/logout/me + current user dependency)
+- Что сделано:
+  - Проведена оценка подхода и выбран минимальный собственный auth-слой вместо FastAPI-Users (см. `docs/decisions.md`, ADR-006).
+  - Добавлены backend-компоненты auth:
+    - `AuthService` с логикой регистрации/логина/логаута/current user;
+    - `AuthSessionRepository` для работы с `auth_sessions`;
+    - API dependency `get_current_user` и DB-session dependency;
+    - маршруты `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`.
+  - Реализованы требования безопасности:
+    - пароль хранится только как hash (`pbkdf2_sha256` на `hashlib.pbkdf2_hmac`);
+    - сессионный токен хранится у клиента в `HttpOnly` cookie;
+    - в БД хранится только hash токена (`HMAC-SHA256`);
+    - учтены `expires_at` и `revoked_at`;
+    - `pending/disabled` пользователь не может логиниться;
+    - при регистрации пользователя создаётся `Base-chat` через существующий `UserService`.
+  - Добавлены env-настройки auth в `.env.example` и `Settings`.
+  - Добавлены тесты auth endpoint-ов и сценариев отказа.
+- Какие файлы изменены:
+  - `backend/pyproject.toml`
+  - `.env.example`
+  - `backend/app/core/config.py`
+  - `backend/app/db/session.py`
+  - `backend/app/repositories/auth_session_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/services/auth_service.py`
+  - `backend/app/api/deps_auth.py`
+  - `backend/app/api/routes_auth.py`
+  - `backend/app/main.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_auth.py`
+  - `docs/decisions.md`
+  - `docs/api.md`
+  - `docs/architecture.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test`
+- Что не проверено и почему:
+  - `make build-frontend` не запускался: изменения только в backend auth-слое.
+- Риски/следующие шаги:
+  - Текущие chat/session endpoint-ы ещё не привязаны к `current user`; нужна отдельная миграция API-контракта на user-scoped доступ.
+  - Для production нужно задать сильный `AUTH_SESSION_HASH_SECRET` и включить `AUTH_COOKIE_SECURE=true`.
+
+## 2026-05-02 (Repository/Service слой users/chats без подключения API)
+- Что сделано:
+  - Добавлены репозитории:
+    - `UserRepository` (поиск `id/email`, создание пользователя);
+    - `ChatRepository` (list/get/create/save, чтение строго по `user_id`).
+  - Добавлены сервисы:
+    - `UserService` (создание пользователя, проверка уникальности email, автоинициализация `Base-chat`);
+    - `ChatServiceV2` (гарантия одного активного `Base-chat`, CRUD для пользовательских чатов, защита `Base-chat` от archive/delete).
+  - Реализовано правило multi-user изоляции на сервисном слое:
+    - пользователь не может получить чат другого пользователя через `get_chat`.
+  - Endpoint-ы не подключались к новым сервисам, текущий UI и session API не затронуты.
+- Какие файлы изменены:
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/repositories/user_repository.py`
+  - `backend/app/repositories/chat_repository.py`
+  - `backend/app/services/user_service.py`
+  - `backend/app/services/chat_service_v2.py`
+  - `backend/tests/test_user_chat_services.py`
+  - `docs/architecture.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test`
+- Что не проверено и почему:
+  - `make build-frontend` не запускался: изменения только в backend service/repository слое.
+- Риски/следующие шаги:
+  - Пока нет API/HTTP-слоя для новых сервисов (это отдельный шаг миграции).
+  - Правило «один активный Base-chat» пока обеспечивается сервисом, а не DB-ограничением; можно усилить частичным уникальным индексом отдельной миграцией.
+
+## 2026-05-02 (DB models + initial Alembic migration for Asya 0.2)
+- Что сделано:
+  - Добавлены SQLAlchemy-модели для минимального контура Asya 0.2:
+    - `User`
+    - `AuthSession`
+    - `Chat`
+    - `Message`
+    - `FileMeta`
+    - `UsageRecord`
+    - `AccessRequest`
+    - `EncryptedSecret`
+  - Добавлены enum-типы и общие mixin-ы (`id`, timestamp), а также индексы/уникальные ограничения для ключевых полей.
+  - Добавлена первая Alembic-миграция `20260502_01_initial_multi_user_foundation.py` с созданием всех таблиц и индексов.
+  - Добавлены тесты:
+    - `test_db_models.py` (создание ORM-схемы и проверка ключевых ограничений),
+    - `test_alembic_migration.py` (upgrade `head` на чистой SQLite БД и проверка `alembic_version`).
+  - Endpoint-ы не подключались к новым моделям: текущий API-контур сохранён без функциональных изменений.
+- Какие файлы изменены:
+  - `backend/app/db/models/common.py`
+  - `backend/app/db/models/user.py`
+  - `backend/app/db/models/auth_session.py`
+  - `backend/app/db/models/chat.py`
+  - `backend/app/db/models/message.py`
+  - `backend/app/db/models/file_meta.py`
+  - `backend/app/db/models/usage_record.py`
+  - `backend/app/db/models/access_request.py`
+  - `backend/app/db/models/encrypted_secret.py`
+  - `backend/app/db/models/__init__.py`
+  - `backend/alembic/versions/20260502_01_initial_multi_user_foundation.py`
+  - `backend/tests/test_db_models.py`
+  - `backend/tests/test_alembic_migration.py`
+  - `docs/architecture.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `cd backend && ASYA_DB_PATH=./data/asya-0.2.sqlite3 python3 -m alembic -c alembic.ini upgrade head`
+  - `make test`
+- Что не проверено и почему:
+  - `make build-frontend` не запускался: текущий шаг затрагивает только backend DB-слой и миграции.
+- Риски/следующие шаги:
+  - Частичный уникальный инвариант «один `Base-chat` на пользователя» пока не зафиксирован на уровне БД (в SQLite/PostgreSQL это лучше делать через partial unique index отдельной миграцией).
+  - Следующий шаг: repository/service-слой поверх новых таблиц и поэтапное подключение endpoint-ов с user-scoped проверками.
+
+## 2026-05-02 (DB foundation: SQLAlchemy + Alembic bootstrap без перевода endpoint-ов)
+- Что сделано:
+  - Проверен текущий backend dependency management (`backend/pyproject.toml`), добавлены только минимальные зависимости для шага 0.2: `SQLAlchemy` и `alembic`.
+  - Добавлен изолированный DB-контур:
+    - `backend/app/db/base.py` (`DeclarativeBase`);
+    - `backend/app/db/session.py` (`engine` + `SessionLocal`);
+    - `backend/app/db/models/__init__.py` как точка для будущих моделей.
+  - Добавлена настройка новой БД через окружение:
+    - `ASYA_DB_PATH` в `Settings`;
+    - helper `asya_db_url` для SQLAlchemy URL;
+    - кодовый default `./data/asya-0.2.sqlite3`;
+    - docker-safe значение вынесено в `.env.example`: `/app/data/asya-0.2.sqlite3`.
+  - Добавлен Alembic bootstrap, совместимый с текущей структурой backend:
+    - `backend/alembic.ini`;
+    - `backend/alembic/env.py`;
+    - `backend/alembic/script.py.mako`;
+    - `backend/alembic/versions/.gitkeep`.
+  - Обновлены документы `docs/development.md`, `docs/testing.md`, `docs/architecture.md` под новый инфраструктурный слой.
+- Какие файлы изменены:
+  - `.env.example`
+  - `backend/pyproject.toml`
+  - `backend/app/core/config.py`
+  - `backend/app/db/__init__.py`
+  - `backend/app/db/base.py`
+  - `backend/app/db/session.py`
+  - `backend/app/db/models/__init__.py`
+  - `backend/alembic.ini`
+  - `backend/alembic/env.py`
+  - `backend/alembic/script.py.mako`
+  - `backend/alembic/versions/.gitkeep`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` -> `55 passed, 5 warnings`.
+  - `cd backend && python3 -m alembic -c alembic.ini current` -> Alembic env/config стартует успешно.
+- Что не проверено и почему:
+  - `make build-frontend` не выполнен: локально недоступен Docker daemon (`Cannot connect to the Docker daemon ...`), а в текущей среде fallback-команда Make требует Docker.
+- Риски/следующие шаги:
+  - Следующий безопасный шаг: добавить первую ревизию Alembic и минимальные SQLAlchemy-модели 0.2 (`User`, `Chat`) без переключения endpoint-ов.
+
+## 2026-05-02 (старт документационного этапа Asya 0.2)
+- Что сделано:
+  - Обновлены проектные правила под фокус Asya 0.2 (multi-user foundation) без изменения бизнес-логики приложения.
+  - Уточнены границы scope 0.2 в `AGENTS.md` и `CLAUDE.md`: приоритет db/auth/chats/security, запрет на расширение в память/голос/интеграции/web search без отдельного разрешения.
+  - Обновлён `docs/decisions.md`: зафиксирован переход к 0.2 и ограничения версии.
+  - Обновлён `docs/architecture.md`: добавлен отдельный раздел «Целевая архитектура Asya 0.2 (план, ещё не факт)» с явным отделением от текущего фактического состояния.
+- Какие файлы изменены:
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `docs/decisions.md`
+  - `docs/architecture.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - Специальные проверки для документации (`lint-docs`, `markdownlint` и т.п.) в репозитории не обнаружены.
+- Что не проверено и почему:
+  - `make test`, `make lint`, `make build-frontend` не запускались, так как шаг документный и не затрагивает код приложения.
+- Риски/следующие шаги:
+  - Следующий шаг: переход к поэтапной реализации 0.2 в коде (DB модели + Alembic, затем auth/users/chats с сохранением текущего API-поведения).
 
 ## 2026-04-27 (тёмная тема)
 - Что сделано:
@@ -1337,3 +2176,205 @@
   - Не реализован frontend-каркас этапа 2 с экранами Chat/Settings/Status.
 - Следующий рекомендуемый шаг:
   - Этап 1: backend-каркас FastAPI с конфигурацией и health-check в Docker.
+
+## 2026-05-02 (Документация и проектные правила обновлены под Asya 0.3)
+- Что сделано:
+  - Обновлены проектные правила `AGENTS.md` и `CLAUDE.md` под актуальный фокус Asya 0.3:
+    - память, личность, пространства, лента памяти, лента активности;
+    - сохранены ограничения scope (без интеграций/голоса/дневника/тихого наблюдателя/web search/биллинга);
+    - сохранены требования безопасности 0.2 (auth, user isolation, no secrets, no `.env`, no cross-user leakage).
+  - Добавлены новые профильные документы:
+    - `docs/memory.md`
+    - `docs/personality.md`
+    - `docs/spaces.md`
+    - `docs/activity-log.md`
+  - Синхронизированы ключевые документы:
+    - `docs/architecture.md`
+    - `docs/api.md`
+    - `docs/development.md`
+    - `docs/testing.md`
+    - `docs/decisions.md`
+- Какие файлы изменены:
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `docs/memory.md`
+  - `docs/personality.md`
+  - `docs/spaces.md`
+  - `docs/activity-log.md`
+  - `docs/architecture.md`
+  - `docs/api.md`
+  - `docs/development.md`
+  - `docs/testing.md`
+  - `docs/decisions.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - Выполнена ручная проверка структуры и логической согласованности обновлённых markdown-документов.
+- Что не проверено и почему:
+  - `make test`, `make lint`, `make build-frontend` не запускались, потому что изменения только документационные и не затрагивают бизнес-логику/код.
+  - Markdown-линтер не запускался: отдельный markdown-lint workflow/команда в проекте не зафиксированы.
+- Риски/следующие шаги:
+  - Следующий этап — реализация schema/API слоёв 0.3 (spaces/memory/activity) строго по обновлённым документам и с обязательными тестами на user isolation.
+
+## 2026-05-02 (Frontend: UI памяти и личности Asya 0.3)
+- Что сделано:
+  - Доработана вкладка `Память` в frontend (`MemoryPage`):
+    - показ фактов профиля, правил поведения, эпизодов и personality-профиля;
+    - для фактов/правил/эпизодов добавлены читаемые статусы, источник и даты `created/updated`;
+    - добавлены действия по памяти: `Подтвердить`, `Редактировать`, `Устарело`, `Запретить`, `Скрыть` для фактов;
+    - добавлены ручное создание факта/правила и редактирование правила;
+    - добавлен блок личности Asya (tone, humor, мягкое возражение, обращение по имени, краткость/подробность, style notes);
+    - добавлены явные состояния `loading`, `empty`, `error` и кнопка ручного обновления данных.
+  - Расширен frontend API client:
+    - добавлен `updateMemoryRule` (`PATCH /api/memory/rules/{rule_id}`);
+    - добавлен тип `BehaviorRuleUpdateRequest`.
+  - Обновлены frontend unit tests для Memory UI и App API mocks.
+  - Обновлены документы: `docs/memory.md`, `docs/personality.md`, `docs/testing.md`.
+- Какие файлы изменены:
+  - `frontend/src/pages/MemoryPage.tsx`
+  - `frontend/src/pages/MemoryPage.test.tsx`
+  - `frontend/src/App.test.tsx`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `docs/memory.md`
+  - `docs/personality.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make lint` — успешно
+  - `make build-frontend` — успешно
+  - `make test` — успешно (`109 passed`)
+  - `docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"` — успешно (`23 passed`)
+- Что не проверено и почему:
+  - Отдельная ручная UX-проверка в браузере не выполнялась в этом шаге (ограничились unit/build/lint/test).
+- Риски/следующие шаги:
+  - Редактирование фактов/правил пока через `window.prompt` (минимальный UX); следующая итерация — inline/modal формы редактирования.
+
+## 2026-05-02 (Asya 0.3: Activity feed backend + frontend)
+- Что сделано:
+  - Backend activity log расширен фильтрами в `GET /api/activity-log`:
+    - `limit`, `event_type`, `entity_type`, `space_id`, `date_from`, `date_to`.
+  - Добавлено user-scoped логирование действий пространства в `SpaceService`:
+    - `space_created`, `space_updated`, `space_archived`,
+    - обновление `space_settings` с безопасным `meta` (bool-флаги).
+  - Добавлены snapshots API и события активности:
+    - `POST /api/memory/snapshots` (создание snapshot),
+    - `GET /api/memory/snapshots` (список snapshot),
+    - activity event `memory_snapshot_created`.
+  - Сохранена безопасность активности:
+    - user-scoped выборка,
+    - в ленту не пишутся полный prompt/секреты,
+    - проверка доступа к `space_id` при фильтрации активности.
+  - Frontend:
+    - добавлена вкладка `Активность` (`ActivityPage`),
+    - добавлены фильтры по типу события, типу сущности, пространству и дате,
+    - показ понятных человекочитаемых событий без тех-ID.
+  - Обновлены backend/frontend тесты для activity/snapshot/space events и UI активности.
+- Какие файлы изменены:
+  - `backend/app/api/routes_memory.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/repositories/activity_log_repository.py`
+  - `backend/app/repositories/memory_snapshot_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/services/memory_service.py`
+  - `backend/app/services/space_service.py`
+  - `backend/tests/test_memory_api.py`
+  - `backend/tests/test_spaces_api.py`
+  - `frontend/src/App.tsx`
+  - `frontend/src/App.test.tsx`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/components/NavTabs.tsx`
+  - `frontend/src/pages/ActivityPage.tsx`
+  - `frontend/src/pages/ActivityPage.test.tsx`
+  - `frontend/src/styles/app.css`
+  - `frontend/src/types/api.ts`
+  - `docs/activity-log.md`
+  - `docs/api.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` — успешно (`111 passed`)
+  - `make lint` — успешно
+  - `make build-frontend` — успешно
+- Что не проверено и почему:
+  - Отдельные e2e/ручные UI-сценарии во встроенном браузере не запускались в этом шаге.
+- Риски/следующие шаги:
+  - Фильтр по дате сейчас принимает ISO-строки вручную; следующий шаг — date/datetime-пикеры и пресеты периода в UI.
+
+# 2026-05-02 (Asya 0.3: финальная интеграция и приёмка)
+- Что сделано:
+  - Проведена финальная приёмка v0.3 по backend/frontend + документации.
+  - Исправлен frontend unit test `ActivityPage`: устранена неоднозначная проверка текста (`getByText` -> `getAllByText`).
+  - Исправлен production/runtime блокер Docker:
+    - backend image теперь содержит `alembic/` и `alembic.ini`;
+    - добавлен bootstrap миграций `app/bootstrap_db.py`;
+    - при старте контейнера выполняется bootstrap + `alembic upgrade head`.
+  - Для legacy БД 0.2 без `alembic_version` добавлен безопасный сценарий:
+    - `alembic stamp 20260502_03` (только при обнаружении `users` и отсутствии `spaces`),
+    - затем upgrade до `20260502_04` (memory/spaces foundation).
+  - Выполнен manual smoke:
+    - `docker compose up --build`;
+    - проверка `/api/health`, `/`, `manifest.webmanifest`;
+    - auth/register/login;
+    - проверка `Default` space и `Base-chat`;
+    - создание space + обновление per-space settings;
+    - ручная память + forbid + snapshots + rollback + activity-log;
+    - cross-user memory access -> `404`;
+    - проверка admin visibility `Asya-dev` и скрытия для non-admin.
+- Какие файлы изменены:
+  - `backend/Dockerfile`
+  - `backend/app/bootstrap_db.py`
+  - `frontend/src/pages/ActivityPage.test.tsx`
+  - `README.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` — успешно (`113 passed`)
+  - `make lint` — успешно
+  - `make build-frontend` — успешно
+  - `docker run --rm -v \"$PWD/frontend:/work\" -w /work node:20-alpine sh -lc \"npm ci && npm test\"` — успешно (`26 passed`)
+- Что не проверено и почему:
+  - Полноценный визуальный e2e UI-прогон в браузере не автоматизирован в рамках этого шага; smoke выполнен API-first и проверкой статической выдачи frontend.
+- Риски/следующие шаги:
+  - Legacy bootstrap предполагает, что существующая БД без `alembic_version` соответствует ревизии `20260502_03`; для нестандартных/ручных схем нужен отдельный migration playbook.
+
+## 2026-05-02 (Asya 0.3: Snapshots + Rollback памяти)
+- Что сделано:
+  - Расширена snapshot-модель и сервис памяти:
+    - snapshot теперь включает факты, правила, personality (base + overlays), per-space memory settings, episode metadata;
+    - реализованы `list`, `summary`, `rollback` для snapshot.
+  - Реализован rollback `POST /api/memory/snapshots/{snapshot_id}/rollback`:
+    - восстановление состояния памяти пользователя из snapshot;
+    - user-scoped доступ (чужой snapshot -> 404);
+    - без физического удаления: для отсутствующих в snapshot записей используется логическое архивирование/скрытие;
+    - создаются события `memory_changes` (`rollback`) и `activity_logs` (`memory_rollback`).
+  - Добавлена lazy auto-snapshot стратегия без scheduler:
+    - weekly snapshot при первом memory-изменении новой недели;
+    - snapshot при аномально большом числе изменений после последнего snapshot (порог в коде).
+  - Frontend `MemoryPage`:
+    - блок snapshots: создание, список, summary, rollback с явным подтверждением.
+  - Обновлены тесты backend/frontend для snapshot/rollback сценариев.
+- Какие файлы изменены:
+  - `backend/app/repositories/memory_snapshot_repository.py`
+  - `backend/app/repositories/memory_change_repository.py`
+  - `backend/app/services/memory_service.py`
+  - `backend/app/api/routes_memory.py`
+  - `backend/app/models/schemas.py`
+  - `backend/tests/test_memory_api.py`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/pages/MemoryPage.tsx`
+  - `frontend/src/pages/MemoryPage.test.tsx`
+  - `frontend/src/App.test.tsx`
+  - `docs/memory.md`
+  - `docs/activity-log.md`
+  - `docs/api.md`
+  - `docs/testing.md`
+  - `docs/development-log.md`
+- Какие проверки запущены:
+  - `make test` — успешно (`113 passed`)
+  - `make lint` — успешно
+  - `make build-frontend` — успешно
+- Что не проверено и почему:
+  - Ручной e2e-прогон rollback UI в браузере не выполнялся в этом шаге.
+- Риски/следующие шаги:
+  - В rollback используется strategy logical-hide/archive для отсутствующих в snapshot записей; при будущем переходе на soft-delete policy стоит унифицировать семантику для всех memory сущностей.
