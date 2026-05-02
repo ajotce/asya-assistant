@@ -191,6 +191,11 @@ export interface AuthRegisterResponse {
   detail?: string | null;
 }
 
+export interface AuthSetupPasswordRequest {
+  token: string;
+  password: string;
+}
+
 export interface AccessRequestSubmitRequest {
   email: string;
   display_name: string;
@@ -218,6 +223,7 @@ export interface AccessRequestApproveResponse {
   status: string;
   request: AccessRequestResponse;
   user: AuthUser;
+  setup_link: string;
 }
 
 export interface SpaceListItem {

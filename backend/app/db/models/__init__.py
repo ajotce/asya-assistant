@@ -19,6 +19,7 @@ from app.db.models.observation import Observation
 from app.db.models.observation_rule import ObservationRule
 from app.db.models.space import Space
 from app.db.models.space_memory_settings import SpaceMemorySettings
+from app.db.models.signup_token import SignupToken
 from app.db.models.telegram_account_link import TelegramAccountLink
 from app.db.models.telegram_link_token import TelegramLinkToken
 from app.db.models.user_profile_fact import UserProfileFact
@@ -49,6 +50,7 @@ __all__ = [
     "ObservationRule",
     "Space",
     "SpaceMemorySettings",
+    "SignupToken",
     "TelegramAccountLink",
     "TelegramLinkToken",
     "UserProfileFact",

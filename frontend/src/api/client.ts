@@ -8,6 +8,7 @@ import type {
   AuthLoginRequest,
   AuthRegisterRequest,
   AuthRegisterResponse,
+  AuthSetupPasswordRequest,
   AuthUser,
   ChatCreateRequest,
   ChatListItem,
@@ -390,6 +391,13 @@ export function authLogout(): Promise<{ status: string }> {
 
 export function authRegister(body: AuthRegisterRequest): Promise<AuthRegisterResponse> {
   return apiFetch<AuthRegisterResponse>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function authSetupPassword(body: AuthSetupPasswordRequest): Promise<AuthUser> {
+  return apiFetch<AuthUser>("/api/auth/setup-password", {
     method: "POST",
     body: JSON.stringify(body),
   });

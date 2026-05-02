@@ -126,11 +126,12 @@ def test_admin_only_endpoints_and_approve_flow(tmp_path, monkeypatch) -> None:
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
     assert approved.json()["user"]["email"] == "beta@example.com"
+    assert "/setup-password?token=" in approved.json()["setup_link"]
 
     with Session(bind=engine) as session:
         user = session.execute(select(User).where(User.email == "beta@example.com")).scalar_one_or_none()
         assert user is not None
-        assert user.status == UserStatus.ACTIVE
+        assert user.status == UserStatus.PENDING
 
         base_chats = list(
             session.execute(

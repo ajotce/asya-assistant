@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
-from app.api.deps_auth import get_auth_service, get_current_user
+from app.api.deps_auth import get_auth_service, get_current_user, get_db_session
 from app.core.config import get_settings
 from app.db.models.user import User
 from app.models.schemas import (
     AuthLoginRequest,
     AuthRegisterRequest,
     AuthRegisterResponse,
+    AuthSetupPasswordRequest,
     AuthUserResponse,
 )
+from app.services.access_request_service import AccessRequestService, SignupTokenError
 from app.services.auth_service import AuthError, AuthService, RegistrationClosedError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -59,6 +61,34 @@ def login(
     except AuthError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
+    settings = get_settings()
+    max_age = settings.auth_session_ttl_hours * 3600
+    response.set_cookie(
+        key=settings.auth_cookie_name,
+        value=raw_token,
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite="lax",
+        max_age=max_age,
+    )
+    return _to_user_response(user, preferred_chat_id=preferred_chat_id)
+
+
+@router.post("/setup-password", response_model=AuthUserResponse)
+def setup_password(
+    payload: AuthSetupPasswordRequest,
+    response: Response,
+    session=Depends(get_db_session),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> AuthUserResponse:
+    access_service = AccessRequestService(session)
+    password_hash = auth_service.hash_password(payload.password)
+    try:
+        user = access_service.complete_signup_with_token(raw_token=payload.token, password_hash=password_hash)
+    except SignupTokenError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    user, raw_token, preferred_chat_id = auth_service.login(email=user.email, password=payload.password)
     settings = get_settings()
     max_age = settings.auth_session_ttl_hours * 3600
     response.set_cookie(

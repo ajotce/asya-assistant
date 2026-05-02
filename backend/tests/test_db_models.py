@@ -20,6 +20,7 @@ def test_sqlalchemy_models_create_expected_tables(tmp_path) -> None:
         "file_meta",
         "usage_records",
         "access_requests",
+        "signup_tokens",
         "encrypted_secrets",
         "spaces",
         "space_memory_settings",

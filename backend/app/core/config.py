@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
     auth_session_ttl_hours: int = Field(default=168, alias="AUTH_SESSION_TTL_HOURS")
     auth_session_hash_secret: str = Field(default="dev-change-me", alias="AUTH_SESSION_HASH_SECRET")
+    signup_token_ttl_hours: int = Field(default=48, alias="SIGNUP_TOKEN_TTL_HOURS")
+    public_base_url: str = Field(default="http://localhost:8000", alias="PUBLIC_BASE_URL")
     master_encryption_key: str = Field(default="", alias="MASTER_ENCRYPTION_KEY")
     memory_extraction_enabled: bool = Field(default=True, alias="MEMORY_EXTRACTION_ENABLED")
     oauth_state_ttl_seconds: int = Field(default=900, alias="OAUTH_STATE_TTL_SECONDS")
@@ -121,6 +123,13 @@ class Settings(BaseSettings):
         default="https://api.todoist.com/sync/v9/access_tokens/revoke",
         alias="TODOIST_OAUTH_REVOKE_URL",
     )
+    email_transport: str = Field(default="mock", alias="EMAIL_TRANSPORT")
+    email_from: str = Field(default="noreply@asya.local", alias="EMAIL_FROM")
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_username: str = Field(default="", alias="SMTP_USERNAME")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
 
     @property
     def vsellm_api_key_configured(self) -> bool:

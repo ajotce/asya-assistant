@@ -356,6 +356,14 @@ class AccessRequestApproveResponse(BaseModel):
     status: str
     request: AccessRequestResponse
     user: AuthUserResponse
+    setup_link: str
+
+
+class AuthSetupPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=24, max_length=255)
+    password: str = Field(min_length=8, max_length=200)
 
 
 class SpaceListItemResponse(BaseModel):

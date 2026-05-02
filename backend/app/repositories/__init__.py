@@ -13,6 +13,7 @@ from app.repositories.message_repository import MessageRepository
 from app.repositories.oauth_state_repository import OAuthStateRepository
 from app.repositories.personality_profile_repository import PersonalityProfileRepository
 from app.repositories.space_repository import SpaceRepository
+from app.repositories.signup_token_repository import SignupTokenRepository
 from app.repositories.user_profile_fact_repository import UserProfileFactRepository
 from app.repositories.user_repository import UserRepository
 from app.repositories.usage_record_repository import UsageRecordRepository
@@ -33,6 +34,7 @@ __all__ = [
     "OAuthStateRepository",
     "PersonalityProfileRepository",
     "SpaceRepository",
+    "SignupTokenRepository",
     "UsageRecordRepository",
     "UserProfileFactRepository",
     "UserRepository",

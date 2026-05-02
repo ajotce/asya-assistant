@@ -49,7 +49,7 @@ class AuthService:
             )
             raise RegistrationClosedError("Регистрация закрыта, заявка сохранена.")
 
-        password_hash = self._hash_password(password)
+        password_hash = self.hash_password(password)
         try:
             return self._user_service.create_user(
                 email=email,
@@ -103,7 +103,7 @@ class AuthService:
         return self._chat_service.get_preferred_chat(user_id).id
 
     @staticmethod
-    def _hash_password(password: str) -> str:
+    def hash_password(password: str) -> str:
         salt = secrets.token_bytes(16)
         digest = hashlib.pbkdf2_hmac(
             "sha256",

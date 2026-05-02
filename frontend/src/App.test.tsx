@@ -164,6 +164,7 @@ describe("App routing", () => {
     vi.mocked(listAdminAccessRequests).mockResolvedValue([]);
     vi.mocked(approveAdminAccessRequest).mockResolvedValue({
       status: "approved",
+      setup_link: "http://localhost:8000/setup-password?token=test-token",
       request: {
         id: "request-1",
         email: "user@example.com",
