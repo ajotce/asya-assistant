@@ -45,6 +45,38 @@ class Settings(BaseSettings):
     memory_extraction_enabled: bool = Field(default=True, alias="MEMORY_EXTRACTION_ENABLED")
     oauth_state_ttl_seconds: int = Field(default=900, alias="OAUTH_STATE_TTL_SECONDS")
 
+    telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
+    telegram_bot_username: str = Field(default="", alias="TELEGRAM_BOT_USERNAME")
+    telegram_link_token_ttl_seconds: int = Field(default=900, alias="TELEGRAM_LINK_TOKEN_TTL_SECONDS")
+    telegram_link_webhook_secret: str = Field(default="", alias="TELEGRAM_LINK_WEBHOOK_SECRET")
+
+    yandex_speechkit_api_key: str = Field(default="", alias="YANDEX_SPEECHKIT_API_KEY")
+    yandex_speechkit_folder_id: str = Field(default="", alias="YANDEX_SPEECHKIT_FOLDER_ID")
+    yandex_speechkit_stt_url: str = Field(
+        default="https://stt.api.cloud.yandex.net/speech/v1/stt:recognize",
+        alias="YANDEX_SPEECHKIT_STT_URL",
+    )
+    yandex_speechkit_tts_url: str = Field(
+        default="https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize",
+        alias="YANDEX_SPEECHKIT_TTS_URL",
+    )
+
+    gigachat_api_key: str = Field(default="", alias="GIGACHAT_API_KEY")
+    gigachat_stt_url: str = Field(
+        default="https://gigachat.devices.sberbank.ru/api/v1/audio/transcriptions",
+        alias="GIGACHAT_STT_URL",
+    )
+    gigachat_tts_url: str = Field(
+        default="https://gigachat.devices.sberbank.ru/api/v1/audio/speech",
+        alias="GIGACHAT_TTS_URL",
+    )
+
+    voice_max_audio_bytes: int = Field(default=15728640, alias="VOICE_MAX_AUDIO_BYTES")
+    voice_tts_enabled_default: bool = Field(default=False, alias="VOICE_TTS_ENABLED_DEFAULT")
+    diary_audio_dir: str = Field(default="./data/diary_audio", alias="DIARY_AUDIO_DIR")
+    scheduler_enabled: bool = Field(default=True, alias="SCHEDULER_ENABLED")
+    observer_interval_minutes: int = Field(default=15, alias="OBSERVER_INTERVAL_MINUTES")
+
     linear_oauth_client_id: str = Field(default="", alias="LINEAR_OAUTH_CLIENT_ID")
     linear_oauth_client_secret: str = Field(default="", alias="LINEAR_OAUTH_CLIENT_SECRET")
     linear_oauth_authorize_url: str = Field(

@@ -43,3 +43,37 @@
 - state привязан к `user_id` и `provider`;
 - access/refresh token хранятся только в `encrypted_secrets`;
 - provider-specific API логика не добавляется до отдельного шага после foundation.
+
+## ADR-010: aiogram для Telegram-бота
+
+Решение: для Telegram-бота выбран `aiogram` (вместо `python-telegram-bot`).
+
+Контекст: оба фреймворка зрелые и активно поддерживаются. aiogram выбран потому что:
+
+- Нативная асинхронность (asyncio-first дизайн);
+- Более компактный DSL для фильтров (F.voice, Command, etc.);
+- Широко используется в русскоязычном комьюнити;
+- Проще интеграция в FastAPI lifespan (polling в фоновом asyncio task).
+
+## ADR-011: Абстрактный голосовой слой (Voice providers)
+
+Решение: вводится интерфейсный слой `SpeechToTextProvider` / `TextToSpeechProvider` с конкретными реализациями (mock, yandex_speechkit, gigachat).
+
+Ключевые принципы:
+
+- Единый `VoiceService` фасад с методами `transcribe` / `synthesize`;
+- Провайдер выбирается per-user через `UserVoiceSettings`;
+- Mock-провайдер — дефолтный, не требует API-ключей;
+- Лимиты на размер аудио применяются до передачи внешнему провайдеру;
+- Аудио и транскрипты не пишутся в логи.
+
+## ADR-012: Notification Center как точка отправки уведомлений
+
+Решение: вводится `NotificationCenter` с регистрируемыми `NotificationChannel`.
+
+Ключевые принципы:
+
+- Каналы: in-app (activity log), telegram (`TelegramNotificationChannel`);
+- Все отправки логируются в activity log с пометкой `notification_sent`;
+- Никаких реальных отправок во внешние API в тестах;
+- При ошибке отправки — исключение глушится локально, не прерывая бизнес-логику.

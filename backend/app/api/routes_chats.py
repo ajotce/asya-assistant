@@ -44,14 +44,22 @@ def list_chats(
     ]
 
 
+def _parse_chat_kind(raw: str) -> ChatKind:
+    try:
+        return ChatKind(raw)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Неподдерживаемый тип чата: {raw}")
+
+
 @router.post("/chats", response_model=ChatListItemResponse, status_code=status.HTTP_201_CREATED)
 def create_chat(
     payload: ChatCreateRequest,
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> ChatListItemResponse:
+    kind = _parse_chat_kind(payload.kind)
     try:
-        chat = ChatServiceV2(db_session).create_chat(current_user, payload.title, space_id=payload.space_id)
+        chat = ChatServiceV2(db_session).create_chat(current_user, payload.title, space_id=payload.space_id, kind=kind)
     except SpaceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ChatListItemResponse(
@@ -150,6 +158,27 @@ def get_chat_messages(
     if chat is None:
         raise HTTPException(status_code=404, detail="Чат не найден.")
     messages = MessageRepository(db_session).list_for_chat(chat_id)
+    if chat.kind == ChatKind.PRIVATE_ENCRYPTED and current_user.password_hash and chat.private_salt:
+        from app.services.private_chat_crypto import decrypt_private_message
+        result: list[ChatMessageItemResponse] = []
+        for msg in messages:
+            text = msg.content
+            if not text and msg.content_encrypted:
+                try:
+                    text = decrypt_private_message(
+                        password_hash=current_user.password_hash,
+                        salt=chat.private_salt,
+                        content_encrypted=msg.content_encrypted,
+                    )
+                except Exception:
+                    text = ""
+            result.append(ChatMessageItemResponse(
+                id=msg.id,
+                role=msg.role.value,
+                content=text,
+                created_at=msg.created_at.isoformat(),
+            ))
+        return result
     return [
         ChatMessageItemResponse(
             id=message.id,

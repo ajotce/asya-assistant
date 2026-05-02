@@ -16,6 +16,8 @@
 - `/access-requests`
 - `/admin/access-requests`
 - `/integrations`
+- `/integrations/telegram`
+- `/voice`
 
 Все user-data endpoint-ы должны работать только в рамках `current user`.
 
@@ -230,3 +232,21 @@ Spaces API во frontend (используется в `ChatPage`):
 
 Чаты:
 - `POST /api/chats` принимает optional `space_id` и создаёт чат в выбранном пространстве.
+
+## 10. Voice API (v0.4)
+
+- `GET  /api/voice/settings` — получить настройки голоса пользователя
+- `PUT  /api/voice/settings` — обновить настройки голоса
+- `POST /api/voice/stt` — распознавание речи (body: сырое аудио, Content-Type: audio/webm)
+- `POST /api/voice/tts` — синтез речи (body: `{"text": "..."}`)
+
+Лимиты: максимальный размер аудио для STT — 15 MB (`VOICE_MAX_AUDIO_BYTES`).
+
+## 11. Telegram Integration API (v0.4)
+
+- `GET  /api/integrations/telegram/status` — статус привязки аккаунта
+- `POST /api/integrations/telegram/link-token` — создать one-time токен для привязки
+- `POST /api/integrations/telegram/unlink` — отвязать аккаунт
+- `POST /api/integrations/telegram/notify-test` — отправить тестовое уведомление
+
+Привязка: пользователь получает `one_time_token`, переходит по ссылке `https://t.me/<bot>?start=<token>` в Telegram — бот обрабатывает `/start <token>` и связывает аккаунты.

@@ -38,3 +38,4 @@ class Chat(Base, IdMixin, TimestampMixin):
     )
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    private_salt: Mapped[str | None] = mapped_column(String(64), nullable=True)

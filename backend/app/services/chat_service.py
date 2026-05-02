@@ -12,7 +12,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.db.models.common import ActivityEntityType, ActivityEventType, MemoryStatus, MessageRole
+from app.db.models.common import ActivityEntityType, ActivityEventType, ChatKind, MemoryStatus, MessageRole
 from app.models.schemas import ModelInfo
 from app.repositories.activity_log_repository import ActivityLogRepository
 from app.repositories.behavior_rule_repository import BehaviorRuleRepository
@@ -24,6 +24,7 @@ from app.repositories.user_profile_fact_repository import UserProfileFactReposit
 from app.repositories.user_repository import UserRepository
 from app.services.memory_extraction_service import MemoryExtractionService
 from app.services.memory_service import MemoryService
+from app.services.private_chat_crypto import decrypt_private_message, encrypt_private_message
 from app.services.settings_service import SettingsService
 from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient, VseLLMError
@@ -261,6 +262,9 @@ class ChatService:
     def _build_memory_context(self, session_id: str, user_message: str) -> MemoryContextBuildResult:
         if not self._current_user_id or self._chat_repository is None or self._db_session is None:
             return MemoryContextBuildResult(context="", used=False, meta={})
+
+        if self._is_private_encrypted_chat(session_id):
+            return MemoryContextBuildResult(context="", used=False, meta={"disabled_private_chat": True})
 
         chat = self._chat_repository.get_for_user(session_id, self._current_user_id)
         if chat is None:
@@ -619,6 +623,8 @@ class ChatService:
             return
         if not self._current_user_id or self._chat_repository is None or self._db_session is None:
             return
+        if self._is_private_encrypted_chat(chat_id):
+            return
         try:
             chat = self._chat_repository.get_for_user(chat_id, self._current_user_id)
             if chat is None:
@@ -680,7 +686,20 @@ class ChatService:
         if self._message_repository is None:
             return []
         messages = self._message_repository.list_for_chat(chat_id)
-        return [{"role": message.role.value, "content": message.content} for message in messages]
+        result: List[Dict[str, Any]] = []
+        password_hash = self._get_user_password_hash()
+        salt = self._get_chat_private_salt(chat_id)
+        for msg in messages:
+            text = msg.content
+            if not text and msg.content_encrypted and password_hash and salt:
+                try:
+                    text = decrypt_private_message(
+                        password_hash=password_hash, salt=salt, content_encrypted=msg.content_encrypted
+                    )
+                except Exception:
+                    text = ""
+            result.append({"role": msg.role.value, "content": text})
+        return result
 
     def _append_message(self, chat_id: str, role: str, content: str, user_id: Optional[str]) -> None:
         if self._session_store is not None:
@@ -688,6 +707,20 @@ class ChatService:
             return
         if self._message_repository is None:
             return
+        if self._is_private_encrypted_chat(chat_id):
+            password_hash = self._get_user_password_hash()
+            salt = self._get_chat_private_salt(chat_id)
+            if password_hash and salt:
+                encrypted = encrypt_private_message(password_hash=password_hash, salt=salt, content=content)
+                self._message_repository.create(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    role=role,
+                    content="",
+                    content_encrypted=encrypted,
+                    encryption_salt=salt,
+                )
+                return
         self._message_repository.create(chat_id=chat_id, user_id=user_id, role=role, content=content)
 
     def _session_exists_for_user(self, session_id: str) -> bool:
@@ -696,6 +729,29 @@ class ChatService:
         if self._chat_repository is None:
             return False
         return self._chat_repository.get_for_user(session_id, self._current_user_id) is not None
+
+    def _get_chat(self, chat_id: str):
+        if self._chat_repository is not None:
+            return self._chat_repository.get_for_user(chat_id, self._current_user_id)
+        return None
+
+    def _is_private_encrypted_chat(self, chat_id: str) -> bool:
+        if not self._current_user_id or self._chat_repository is None:
+            return False
+        chat = self._get_chat(chat_id)
+        if chat is None:
+            return False
+        return chat.kind == ChatKind.PRIVATE_ENCRYPTED
+
+    def _get_user_password_hash(self) -> str | None:
+        if not self._current_user_id or self._db_session is None:
+            return None
+        user = UserRepository(self._db_session).get_by_id(self._current_user_id)
+        return user.password_hash if user else None
+
+    def _get_chat_private_salt(self, chat_id: str) -> str | None:
+        chat = self._get_chat(chat_id)
+        return chat.private_salt if chat else None
 
     def _request_non_stream_completion(
         self,
