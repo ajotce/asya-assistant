@@ -47,6 +47,19 @@ make lint
 make build-frontend
 ```
 
+## 7. Backend checks в окружении без Python 3.12
+
+Backend проекта требует Python `>=3.12`. Если локально системный Python ниже, используйте контейнерные команды:
+
+```bash
+make backend-py312-pytest
+make backend-py312-ruff
+make backend-py312-mypy
+make backend-py312-all
+```
+
+Это официальный fallback для машин, где локальный Python несовместим с backend.
+
 Frontend unit tests:
 ```bash
 docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"

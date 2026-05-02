@@ -9,116 +9,47 @@
 - Домен (A-запись на IP сервера)
 - Открытые порты: 80, 443, 22
 
-## 2. Reverse proxy (Caddy)
+## 2. Reverse proxy
 
-Рекомендуется Caddy для автоматических Let's Encrypt сертификатов.
+Выбран `Caddy`.
 
-Пример `Caddyfile`:
+- локальный запуск остаётся через `docker-compose.yml` (без proxy);
+- production запуск через `docker-compose.prod.yml` + `Caddyfile`.
 
-```
-asya.example.com {
-    reverse_proxy localhost:8000
-}
-```
+Запуск production:
 
-### 2.1. Docker-вариант
-
-В `docker-compose.yml` добавить сервис Caddy:
-
-```yaml
-  caddy:
-    image: caddy:2-alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-    restart: unless-stopped
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
 ```
 
 ## 3. Переменные окружения
 
-Обязательные для продакшена:
+Ключевые production-переменные:
 
-```env
-# Основные
-APP_ENV=production
-ASYA_HOST=0.0.0.0
-ASYA_PORT=8000
+- `APP_ENV=production`
+- `ASYA_HOST=0.0.0.0`
+- `PUBLIC_BASE_URL=https://<ваш-домен>`
+- `PUBLIC_DOMAIN=<ваш-домен>`
+- `AUTH_COOKIE_SECURE=true`
+- `MASTER_ENCRYPTION_KEY=<fernet-key>`
+- `AUTH_SESSION_HASH_SECRET=<случайная строка>`
+- OAuth redirect URI-переменные (`*_OAUTH_REDIRECT_URI`)
+- SMTP-переменные (`EMAIL_TRANSPORT=smtp`, `SMTP_*`)
+- Telegram webhook URL (`TELEGRAM_WEBHOOK_URL`)
 
-# Безопасность
-MASTER_ENCRYPTION_KEY=<сгенерировать: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
-AUTH_SESSION_HASH_SECRET=<случайная строка 64+ символов>
-AUTH_COOKIE_NAME=asya_session
-AUTH_COOKIE_SECURE=true
-AUTH_SESSION_TTL_HOURS=168
-AUTH_REGISTRATION_MODE=open
+## 4. Security checklist
 
-# VseLLM
-VSELLM_API_KEY=<ключ>
-VSELLM_BASE_URL=https://api.vsellm.ru/v1
+- [ ] SSH только по ключам (`PasswordAuthentication no`, `PermitRootLogin no`).
+- [ ] Firewall включён: разрешены только `22/tcp`, `80/tcp`, `443/tcp`.
+- [ ] Fail2ban включён для SSH.
+- [ ] `.env` заполнен на сервере и не попадает в git.
+- [ ] `AUTH_COOKIE_SECURE=true` и публичный URL использует HTTPS.
+- [ ] `MASTER_ENCRYPTION_KEY` и `AUTH_SESSION_HASH_SECRET` заданы и длинные.
+- [ ] SMTP работает (письма approve/reject/setup-link доходят).
+- [ ] Логи проверены: нет токенов/секретов/тел писем/аудио/контента файлов.
+- [ ] Настроен backup `data/*.sqlite3` и периодическая проверка восстановления.
 
-# База данных
-ASYA_DB_PATH=./data/asya-0.2.sqlite3
+## 5. Наблюдаемость
 
-# Telegram (опционально)
-TELEGRAM_BOT_TOKEN=<токен от @BotFather>
-TELEGRAM_BOT_USERNAME=<имя бота без @>
-TELEGRAM_LINK_WEBHOOK_SECRET=<случайная строка>
-
-# Голос (опционально)
-YANDEX_SPEECHKIT_API_KEY=<ключ>
-YANDEX_SPEECHKIT_FOLDER_ID=<folder_id>
-GIGACHAT_API_KEY=<ключ>
-
-# Интеграции (опционально)
-LINEAR_OAUTH_CLIENT_ID=<...>
-LINEAR_OAUTH_CLIENT_SECRET=<...>
-GOOGLE_OAUTH_CLIENT_ID=<...>
-GOOGLE_OAUTH_CLIENT_SECRET=<...>
-TODOIST_OAUTH_CLIENT_ID=<...>
-TODOIST_OAUTH_CLIENT_SECRET=<...>
-```
-
-## 4. Первый запуск
-
-```bash
-# Клонировать репозиторий
-git clone <repo-url> && cd asya-assistant
-
-# Настроить .env из .env.example
-cp .env.example .env
-# Заполнить обязательные переменные
-
-# Собрать frontend
-make build-frontend
-
-# Запустить
-docker compose up --build -d
-
-# Создать первого пользователя (если registration_mode=closed)
-docker compose exec backend python -m backend.cli user create --login admin@example.com --password <пароль> --role admin
-```
-
-## 5. Обновление
-
-```bash
-git pull
-make build-frontend
-docker compose up --build -d
-```
-
-## 6. Безопасность
-
-- SSH только по ключу (запретить PasswordAuthentication)
-- Firewall: ufw allow 22/tcp; ufw allow 80/tcp; ufw allow 443/tcp
-- Fail2ban для SSH
-- Регулярное резервное копирование файла БД (`data/asya-*.sqlite3`)
-- Не хранить `.env` в репозитории (уже в `.gitignore`)
-
-## 7. Мониторинг
-
-- `GET /api/health` — проверка здоровья
-- Логи: `docker compose logs -f backend`
-- Рекомендуется подключить UptimeRobot или аналогичный сервис для внешнего мониторинга `/api/health`
+- `GET /api/health` для liveness/readiness.
+- `docker compose logs -f backend caddy` для runtime-диагностики.
