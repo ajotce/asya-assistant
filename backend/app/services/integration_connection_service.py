@@ -13,6 +13,8 @@ from app.db.models.user import User
 from app.repositories.integration_connection_repository import IntegrationConnectionRepository
 from app.services.encrypted_secret_service import EncryptedSecretService
 from app.services.secret_crypto_service import SecretCryptoService
+from app.repositories.activity_log_repository import ActivityLogRepository
+from app.db.models.common import ActivityEntityType, ActivityEventType
 
 
 class IntegrationConnectionNotFoundError(ValueError):
@@ -40,6 +42,7 @@ class IntegrationConnectionService:
     def __init__(self, session: Session) -> None:
         self._session = session
         self._repo = IntegrationConnectionRepository(session)
+        self._activity = ActivityLogRepository(session)
         self._secret_service = EncryptedSecretService(
             session,
             SecretCryptoService(get_settings().master_encryption_key),
@@ -105,6 +108,21 @@ class IntegrationConnectionService:
                 name=self._secret_name(payload.provider, "refresh_token"),
                 plaintext_value=payload.refresh_token,
             )
+        self._activity.create(
+            user_id=user_id,
+            event_type=ActivityEventType.INTEGRATION_ACTION_EXECUTED,
+            entity_type=ActivityEntityType.INTEGRATION_ACTION,
+            entity_id=item.id,
+            summary=f"Integration updated: {payload.provider.value}",
+            meta={
+                "provider": payload.provider.value,
+                "status": payload.status.value,
+                "scope_count": len(scopes),
+                "has_access_token": bool(payload.access_token),
+                "has_refresh_token": bool(payload.refresh_token),
+            },
+        )
+        self._session.commit()
         return item
 
     def mark_status(
@@ -123,6 +141,15 @@ class IntegrationConnectionService:
         if status == IntegrationConnectionStatus.CONNECTED and item.connected_at is None:
             item.connected_at = self._now()
         self._session.add(item)
+        self._session.commit()
+        self._activity.create(
+            user_id=user.id,
+            event_type=ActivityEventType.INTEGRATION_ACTION_EXECUTED,
+            entity_type=ActivityEntityType.INTEGRATION_ACTION,
+            entity_id=item.id,
+            summary=f"Integration disconnected: {provider.value}",
+            meta={"provider": provider.value, "status": item.status.value},
+        )
         self._session.commit()
         return item
 

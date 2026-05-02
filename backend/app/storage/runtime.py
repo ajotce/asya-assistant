@@ -11,3 +11,4 @@ file_store = SessionFileStore(base_tmp_dir=get_settings().tmp_dir)
 vector_store = SessionVectorStore()
 usage_store = UsageStore()
 reasoning_probe_cache = ReasoningProbeCache()
+pending_actions_store: dict = {}

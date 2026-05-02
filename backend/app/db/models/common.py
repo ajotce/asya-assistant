@@ -124,6 +124,8 @@ class ActivityEventType(str, Enum):
     OBSERVATION_CREATED = "observation_created"
     OBSERVATION_UPDATED = "observation_updated"
     NOTIFICATION_CENTER = "notification_center"
+    INTEGRATION_ACTION_EXECUTED = "integration_action_executed"
+    OBSERVER_SYNC = "observer_sync"
 
 
 class ActivityEntityType(str, Enum):
@@ -137,6 +139,10 @@ class ActivityEntityType(str, Enum):
     MEMORY_CHANGE = "memory_change"
     MEMORY_SNAPSHOT = "memory_snapshot"
     NOTIFICATION = "notification"
+    DIARY_ENTRY = "diary_entry"
+    OBSERVATION = "observation"
+    INTEGRATION_ACTION = "integration_action"
+    OBSERVER = "observer"
 
 
 class VoiceProvider(str, Enum):

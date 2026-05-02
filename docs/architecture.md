@@ -16,6 +16,7 @@
 - `chats`, `messages` (`Base-chat` обязателен)
 - `file_meta`, `usage_records`
 - `access_requests`, `encrypted_secrets`, `user_settings`
+- `signup_tokens` (one-time setup link для alpha/beta onboarding)
 - `spaces`, `space_memory_settings`
 - `user_profile_facts`, `memory_episodes`, `memory_chunks`
 - `behavior_rules`, `assistant_personality_profiles`
@@ -59,6 +60,21 @@
 - `.env` и реальные ключи не коммитятся.
 - Запрет cross-user data leakage обязателен для chat/memory/spaces/activity/integrations.
 - `Asya-dev` — только admin-only пространство.
+- Activity log хранит только safe metadata (без тел писем, аудио, содержимого файлов и секретов).
+
+## 10. Action routing (v0.4 finalization)
+
+Добавлен `ActionRouter`, встроенный в `ChatService`:
+- распознаёт tool-команды;
+- создаёт `pending action`;
+- требует явное подтверждение `/confirm <id>`;
+- после confirm логирует событие в `activity_logs`.
+
+Поддерживаемые инструменты:
+- `calendar list/create`
+- `todoist list/create`
+- `linear update`
+- `gmail search/draft`
 
 ## 5. Совместимость
 

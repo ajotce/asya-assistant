@@ -25,6 +25,7 @@ from app.repositories.user_repository import UserRepository
 from app.services.memory_extraction_service import MemoryExtractionService
 from app.services.memory_service import MemoryService
 from app.services.private_chat_crypto import decrypt_private_message, encrypt_private_message
+from app.services.action_router import ActionRouter
 from app.services.settings_service import SettingsService
 from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient, VseLLMError
@@ -57,6 +58,7 @@ class ChatService:
         memory_extraction_service: Optional[MemoryExtractionService] = None,
         usage_recorder: Optional[UsageRecorder] = None,
         usage_store: Optional[UsageStore] = None,
+        action_router: Optional[ActionRouter] = None,
     ) -> None:
         self._settings = settings
         self._current_user_id = current_user_id
@@ -71,6 +73,7 @@ class ChatService:
         self._memory_extraction_service = memory_extraction_service
         self._usage_recorder = usage_recorder
         self._usage_store = usage_store
+        self._action_router = action_router
         self._last_memory_usage_meta: dict[str, Any] | None = None
 
     def build_messages_payload(self, session_id: str, user_message: str, file_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
@@ -95,6 +98,28 @@ class ChatService:
     def stream_chat(self, session_id: str, user_message: str, file_ids: Optional[List[str]] = None) -> Generator[bytes, None, None]:
         try:
             self._validate_request(session_id=session_id, user_message=user_message, file_ids=file_ids or [])
+            if self._action_router is not None:
+                action_result = self._action_router.handle(
+                    user_id=self._current_user_id,
+                    session_id=session_id,
+                    message=user_message,
+                )
+                if action_result.handled:
+                    self._append_message(
+                        chat_id=session_id,
+                        role=MessageRole.USER.value,
+                        content=user_message,
+                        user_id=self._current_user_id,
+                    )
+                    self._append_message(
+                        chat_id=session_id,
+                        role=MessageRole.ASSISTANT.value,
+                        content=action_result.message,
+                        user_id=None,
+                    )
+                    yield self._sse_event("token", {"text": action_result.message})
+                    yield self._sse_event("done", {"usage": None})
+                    return
             runtime_settings = self._get_runtime_settings()
             messages = self.build_messages_payload(session_id=session_id, user_message=user_message, file_ids=file_ids or [])
             self._ensure_chat_supported(selected_model=runtime_settings.selected_model)

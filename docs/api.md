@@ -121,6 +121,16 @@ PKCE и state:
 
 `POST /api/chat/stream` в 0.3 остаётся основным endpoint генерации, но контекст может дополняться релевантной памятью, правилами и personality overlay текущего пространства.
 
+Дополнение v0.4 finalization:
+- `POST /api/auth/setup-password` — установка пароля по одноразовому signup token;
+- `POST /api/admin/access-requests/{id}/approve` теперь возвращает `setup_link`;
+- в `POST /api/chat/stream` добавлен command-routing для tools:
+  - `/tool calendar list|create ...`
+  - `/tool todoist list|create ...`
+  - `/tool linear update ...`
+  - `/tool gmail search|draft ...`
+  - `/confirm <pending_action_id>` для исполнения pending action.
+
 ## 5. Статус реализации 0.3 (актуально)
 
 Для `spaces/memory/personality/activity` реализованы рабочие backend endpoint-ы и user-scoped проверки доступа.
