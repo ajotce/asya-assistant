@@ -38,3 +38,9 @@ class EncryptedSecretService:
         if stored is None:
             raise SecretNotFoundError("Секрет не найден.")
         return self._crypto.decrypt(stored.encrypted_value)
+
+    def delete_secret(self, *, user_id: str, name: str) -> bool:
+        deleted = self._repo.delete_by_user_and_name(user_id=user_id, name=name)
+        if deleted:
+            self._session.commit()
+        return deleted

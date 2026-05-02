@@ -33,3 +33,13 @@
 
 ## ADR-008: Прозрачность изменений через memory feed и activity log
 Решение: изменения памяти должны быть наблюдаемыми, подтверждаемыми, откатываемыми и журналируемыми без утечки секретов.
+
+## ADR-009: Единый OAuth/PKCE слой для интеграций v0.4
+Решение: для `linear`, `google_calendar`, `todoist` используется общий слой `OAuthIntegration` + `OAuthStateService`.
+
+Ключевые принципы:
+- PKCE (`S256`) обязателен;
+- state хранится в БД (`oauth_states`) с TTL и one-time use;
+- state привязан к `user_id` и `provider`;
+- access/refresh token хранятся только в `encrypted_secrets`;
+- provider-specific API логика не добавляется до отдельного шага после foundation.

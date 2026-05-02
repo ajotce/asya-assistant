@@ -1,4 +1,81 @@
 # Development Log
+## 2026-05-02 (Asya v0.4: OAuth/PKCE foundation для Linear/Google/Todoist)
+- Что сделано:
+  - Добавлен общий OAuth/PKCE слой:
+    - `backend/app/integrations/oauth_base.py`
+    - `backend/app/integrations/oauth_state.py`
+    - `backend/app/integrations/oauth_service.py`
+    - provider adapters для `linear`, `google_calendar`, `todoist`.
+  - Добавлена таблица `oauth_states` и миграция `20260502_06_oauth_states_pkce.py`.
+  - Реализованы PKCE-инварианты:
+    - генерация `code_verifier` и `code_challenge (S256)`,
+    - state TTL,
+    - one-time use,
+    - строгая привязка state к `user_id` и `provider`.
+  - Добавлена безопасная обработка ошибок:
+    - invalid/expired/reused/ownership state errors,
+    - provider exchange/refresh ошибки,
+    - статусные переходы подключений в `error/expired` с `safe_error_metadata`.
+  - Добавлен `MockOAuthIntegration` и тесты полного цикла:
+    - authorization URL -> callback state consume -> token exchange -> encrypted storage.
+  - Реальные продуктовые API интеграций (Linear/Google/Todoist business endpoints) не реализованы в этом шаге.
+- Какие файлы изменены:
+  - `backend/app/core/config.py`
+  - `backend/app/db/models/oauth_state.py`
+  - `backend/app/db/models/__init__.py`
+  - `backend/alembic/versions/20260502_06_oauth_states_pkce.py`
+  - `backend/app/repositories/oauth_state_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/integrations/__init__.py`
+  - `backend/app/integrations/oauth_base.py`
+  - `backend/app/integrations/oauth_state.py`
+  - `backend/app/integrations/oauth_service.py`
+  - `backend/app/integrations/providers/__init__.py`
+  - `backend/app/integrations/providers/linear_oauth.py`
+  - `backend/app/integrations/providers/google_oauth.py`
+  - `backend/app/integrations/providers/todoist_oauth.py`
+  - `backend/app/integrations/providers/mock_oauth.py`
+  - `backend/app/services/integration_connection_service.py`
+  - `backend/tests/test_oauth_foundation.py`
+  - `backend/tests/test_alembic_migration.py`
+  - `docs/integrations.md`
+  - `docs/security.md`
+  - `docs/api.md`
+  - `docs/decisions.md`
+  - `docs/development-log.md`
+
+## 2026-05-02 (Asya v0.4: integrations foundation, без внешних API)
+- Что сделано:
+  - Добавлена единая user-scoped модель `integration_connections` для статусов подключения провайдеров.
+  - Добавлена Alembic-миграция `20260502_05_integration_connections_foundation.py`.
+  - Реализованы `IntegrationConnectionRepository` и `IntegrationConnectionService`.
+  - Реализованы API endpoint-ы:
+    - `GET /api/integrations`
+    - `GET /api/integrations/{provider}`
+    - `DELETE /api/integrations/{provider}`
+  - Токены интеграций хранятся только через `EncryptedSecretService` в `encrypted_secrets`.
+  - При disconnect токены текущего пользователя удаляются; чужие токены не затрагиваются.
+  - Добавлены тесты на user isolation и отсутствие токенов в API.
+- Какие файлы изменены:
+  - `backend/alembic/versions/20260502_05_integration_connections_foundation.py`
+  - `backend/app/db/models/common.py`
+  - `backend/app/db/models/integration_connection.py`
+  - `backend/app/db/models/__init__.py`
+  - `backend/app/repositories/integration_connection_repository.py`
+  - `backend/app/repositories/encrypted_secret_repository.py`
+  - `backend/app/repositories/__init__.py`
+  - `backend/app/services/integration_connection_service.py`
+  - `backend/app/services/encrypted_secret_service.py`
+  - `backend/app/api/routes_integrations.py`
+  - `backend/app/models/schemas.py`
+  - `backend/app/main.py`
+  - `backend/tests/test_integration_connections_service.py`
+  - `backend/tests/test_integrations_api.py`
+  - `docs/architecture.md`
+  - `docs/api.md`
+  - `docs/security.md`
+  - `docs/development-log.md`
+
 ## 2026-05-02 (Asya 0.3: frontend UI памяти и личности)
 - Что сделано:
   - Добавлена новая вкладка `Память` в frontend navigation.

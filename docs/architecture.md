@@ -1,10 +1,8 @@
 # Architecture (Asya Local)
 
-Документ разделяет:
-- фактическую архитектуру текущего кода (Asya 0.2 foundation);
-- целевое расширение Asya 0.3 (memory/personality/spaces/activity) без изменения базовых принципов безопасности.
+Документ фиксирует фактическую архитектуру после завершения v0.3 и foundation-слой v0.4 для интеграций.
 
-## 1. Текущее состояние (факт: 0.2)
+## 1. Текущее состояние (факт: v0.3 + v0.4 foundation)
 
 ### Технологии
 - Frontend: `React + Vite + TypeScript` (`frontend/`)
@@ -13,11 +11,16 @@
 - LLM/Embeddings: VseLLM OpenAI-compatible API
 - Локальный запуск: `Docker Compose`
 
-### Базовые домены 0.2
+### Базовые домены
 - `users`, `auth_sessions`
 - `chats`, `messages` (`Base-chat` обязателен)
 - `file_meta`, `usage_records`
 - `access_requests`, `encrypted_secrets`, `user_settings`
+- `spaces`, `space_memory_settings`
+- `user_profile_facts`, `memory_episodes`, `memory_chunks`
+- `behavior_rules`, `assistant_personality_profiles`
+- `memory_changes`, `memory_snapshots`, `activity_logs`
+- `integration_connections` (v0.4 foundation, без вызовов внешних API)
 
 ### Важные свойства 0.2
 - auth на `HttpOnly` cookie;
@@ -26,23 +29,16 @@
 - reasoning не сохраняется как обычное сообщение;
 - retrieval chunks пока runtime-only (in-memory vector store).
 
-## 2. Целевая архитектура 0.3
+## 2. Foundation интеграций v0.4
 
-Asya 0.3 добавляет новый слой поверх 0.2 без отказа от текущей архитектурной базы.
+В v0.4 добавлен единый user-scoped слой подключения интеграций, чтобы не дублировать хранение токенов по провайдерам.
 
-### Новые домены
-- Memory:
-  - `user_profile_facts`
-  - `memory_episodes`
-  - `memory_chunks`
-  - `behavior_rules`
-  - `assistant_personality_profiles`
-  - `memory_changes`, `memory_versions`, `memory_snapshots`
-- Spaces:
-  - `spaces`
-  - `space_memory_settings`
-- Activity:
-  - `activity_logs`
+### IntegrationConnection
+- Таблица: `integration_connections`.
+- Ключ: уникальная пара `(user_id, provider)`.
+- Поля состояния: `status`, `scopes`, `connected_at`, `last_refresh_at`, `last_sync_at`.
+- Ошибки: только `safe_error_metadata` (без токенов и секретов).
+- Access/refresh tokens хранятся только в `encrypted_secrets` через существующий crypto-слой.
 
 ### Принципы
 - Все сущности памяти и активности всегда связаны с `user_id`.
@@ -50,21 +46,18 @@ Asya 0.3 добавляет новый слой поверх 0.2 без отка
 - Memory retrieval в chat работает только в рамках текущего пользователя и, при необходимости, текущего пространства.
 - Статусы `forbidden`/`deleted` исключаются из контекста генерации.
 
-## 3. Границы v0.3
+## 3. Границы v0.4 foundation шага
 
-В 0.3 не входят:
-- внешние интеграции;
-- голос, STT/TTS, wake word;
-- дневник и тихий наблюдатель;
-- web search;
-- биллинг;
-- сложная автономная эволюция личности.
+В этом шаге не входят:
+- реализация внешних OAuth/API flows провайдеров;
+- background sync jobs и observer runtime;
+- Telegram bot runtime, voice runtime и уведомления.
 
 ## 4. Безопасность
 
 - Никаких секретов в UI/логах/документации.
 - `.env` и реальные ключи не коммитятся.
-- Запрет cross-user data leakage обязателен для chat/memory/spaces/activity.
+- Запрет cross-user data leakage обязателен для chat/memory/spaces/activity/integrations.
 - `Asya-dev` — только admin-only пространство.
 
 ## 5. Совместимость

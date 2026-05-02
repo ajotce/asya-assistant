@@ -41,3 +41,11 @@ class EncryptedSecretRepository:
             EncryptedSecret.name == name,
         )
         return self._session.execute(stmt).scalar_one_or_none()
+
+    def delete_by_user_and_name(self, *, user_id: str, name: str) -> bool:
+        item = self.get_by_user_and_name(user_id=user_id, name=name)
+        if item is None:
+            return False
+        self._session.delete(item)
+        self._session.flush()
+        return True

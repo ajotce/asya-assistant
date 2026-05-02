@@ -43,6 +43,52 @@ class Settings(BaseSettings):
     auth_session_hash_secret: str = Field(default="dev-change-me", alias="AUTH_SESSION_HASH_SECRET")
     master_encryption_key: str = Field(default="", alias="MASTER_ENCRYPTION_KEY")
     memory_extraction_enabled: bool = Field(default=True, alias="MEMORY_EXTRACTION_ENABLED")
+    oauth_state_ttl_seconds: int = Field(default=900, alias="OAUTH_STATE_TTL_SECONDS")
+
+    linear_oauth_client_id: str = Field(default="", alias="LINEAR_OAUTH_CLIENT_ID")
+    linear_oauth_client_secret: str = Field(default="", alias="LINEAR_OAUTH_CLIENT_SECRET")
+    linear_oauth_authorize_url: str = Field(
+        default="https://linear.app/oauth/authorize",
+        alias="LINEAR_OAUTH_AUTHORIZE_URL",
+    )
+    linear_oauth_token_url: str = Field(
+        default="https://api.linear.app/oauth/token",
+        alias="LINEAR_OAUTH_TOKEN_URL",
+    )
+    linear_oauth_revoke_url: str = Field(
+        default="https://api.linear.app/oauth/revoke",
+        alias="LINEAR_OAUTH_REVOKE_URL",
+    )
+
+    google_oauth_client_id: str = Field(default="", alias="GOOGLE_OAUTH_CLIENT_ID")
+    google_oauth_client_secret: str = Field(default="", alias="GOOGLE_OAUTH_CLIENT_SECRET")
+    google_oauth_authorize_url: str = Field(
+        default="https://accounts.google.com/o/oauth2/v2/auth",
+        alias="GOOGLE_OAUTH_AUTHORIZE_URL",
+    )
+    google_oauth_token_url: str = Field(
+        default="https://oauth2.googleapis.com/token",
+        alias="GOOGLE_OAUTH_TOKEN_URL",
+    )
+    google_oauth_revoke_url: str = Field(
+        default="https://oauth2.googleapis.com/revoke",
+        alias="GOOGLE_OAUTH_REVOKE_URL",
+    )
+
+    todoist_oauth_client_id: str = Field(default="", alias="TODOIST_OAUTH_CLIENT_ID")
+    todoist_oauth_client_secret: str = Field(default="", alias="TODOIST_OAUTH_CLIENT_SECRET")
+    todoist_oauth_authorize_url: str = Field(
+        default="https://app.todoist.com/oauth/authorize",
+        alias="TODOIST_OAUTH_AUTHORIZE_URL",
+    )
+    todoist_oauth_token_url: str = Field(
+        default="https://api.todoist.com/oauth/access_token",
+        alias="TODOIST_OAUTH_TOKEN_URL",
+    )
+    todoist_oauth_revoke_url: str = Field(
+        default="https://api.todoist.com/sync/v9/access_tokens/revoke",
+        alias="TODOIST_OAUTH_REVOKE_URL",
+    )
 
     @property
     def vsellm_api_key_configured(self) -> bool:

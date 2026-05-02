@@ -312,6 +312,18 @@ class SpaceMemorySettingsUpdateRequest(BaseModel):
     personality_overlay_enabled: bool
 
 
+class IntegrationConnectionResponse(BaseModel):
+    provider: str
+    status: str
+    scopes: list[str]
+    connected_at: Optional[str] = None
+    last_refresh_at: Optional[str] = None
+    last_sync_at: Optional[str] = None
+    safe_error_metadata: Optional[dict] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
 class MemoryFactItemResponse(BaseModel):
     id: str
     key: str

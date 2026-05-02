@@ -1,12 +1,10 @@
 # API (Asya Local)
 
-Документ описывает:
-- текущие endpoint-ы (фактическое состояние 0.2);
-- целевые API-группы 0.3 (план, без гарантий полной реализации на текущем шаге).
+Документ описывает фактическое API после завершения v0.3 и foundation-слоя интеграций v0.4.
 
 Базовый префикс: `/api`
 
-## 1. Фактические API группы (0.2)
+## 1. Фактические API группы
 - `/health`
 - `/models`
 - `/settings`
@@ -17,6 +15,7 @@
 - `/auth`
 - `/access-requests`
 - `/admin/access-requests`
+- `/integrations`
 
 Все user-data endpoint-ы должны работать только в рамках `current user`.
 
@@ -26,7 +25,55 @@
 - `404` вместо утечки факта существования чужих user-scoped сущностей.
 - Никогда не возвращать секреты, токены, ключи, plaintext защищённых данных.
 
-## 3. Целевые API группы Asya 0.3 (план)
+## 3. Integrations API (v0.4 foundation)
+
+- `GET /api/integrations` — список статусов подключений по поддерживаемым provider.
+- `GET /api/integrations/{provider}` — состояние конкретного provider.
+- `DELETE /api/integrations/{provider}` — безопасное отключение интеграции текущего пользователя.
+
+Поддерживаемые provider:
+- `linear`
+- `google_calendar`
+- `todoist`
+- `gmail`
+- `google_drive`
+- `telegram`
+
+Статусы:
+- `not_connected`
+- `connected`
+- `expired`
+- `revoked`
+- `error`
+
+Ограничения:
+- endpoint-ы user-scoped;
+- токены/refresh-токены никогда не возвращаются в API;
+- metadata ошибок хранится и возвращается только в safe-виде (`safe_error_metadata`).
+
+## 4. OAuth/PKCE foundation (service layer)
+
+Реализован backend service-слой для OAuth-подключений (без публичных callback endpoint-ов в этом шаге):
+- базовые сущности:
+  - `OAuthProviderConfig`
+  - `OAuthTokens`
+  - `OAuthState`
+  - `OAuthIntegration`
+- методы:
+  - `authorization_url(user_id, redirect_uri, scopes)`
+  - `exchange_code(code, state)`
+  - `refresh_access_token(refresh_token)`
+  - `revoke(token)`
+  - `get_authenticated_client(user_id)`
+
+PKCE и state:
+- `code_challenge_method=S256`
+- state хранится в БД (`oauth_states`)
+- state одноразовый
+- state имеет TTL
+- state привязан к `user_id` и `provider`
+
+## 5. Целевые API группы Asya 0.3 (план)
 
 ### 3.1 Spaces
 - `GET /api/spaces`

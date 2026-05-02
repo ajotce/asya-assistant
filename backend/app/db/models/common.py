@@ -130,3 +130,20 @@ class ActivityEntityType(str, Enum):
     PERSONALITY_PROFILE = "personality_profile"
     MEMORY_CHANGE = "memory_change"
     MEMORY_SNAPSHOT = "memory_snapshot"
+
+
+class IntegrationProvider(str, Enum):
+    LINEAR = "linear"
+    GOOGLE_CALENDAR = "google_calendar"
+    TODOIST = "todoist"
+    GMAIL = "gmail"
+    GOOGLE_DRIVE = "google_drive"
+    TELEGRAM = "telegram"
+
+
+class IntegrationConnectionStatus(str, Enum):
+    NOT_CONNECTED = "not_connected"
+    CONNECTED = "connected"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+    ERROR = "error"

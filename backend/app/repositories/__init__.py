@@ -5,10 +5,12 @@ from app.repositories.behavior_rule_repository import BehaviorRuleRepository
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.encrypted_secret_repository import EncryptedSecretRepository
 from app.repositories.file_meta_repository import FileMetaRepository
+from app.repositories.integration_connection_repository import IntegrationConnectionRepository
 from app.repositories.memory_change_repository import MemoryChangeRepository
 from app.repositories.memory_episode_repository import MemoryEpisodeRepository
 from app.repositories.memory_snapshot_repository import MemorySnapshotRepository
 from app.repositories.message_repository import MessageRepository
+from app.repositories.oauth_state_repository import OAuthStateRepository
 from app.repositories.personality_profile_repository import PersonalityProfileRepository
 from app.repositories.space_repository import SpaceRepository
 from app.repositories.user_profile_fact_repository import UserProfileFactRepository
@@ -23,10 +25,12 @@ __all__ = [
     "ChatRepository",
     "EncryptedSecretRepository",
     "FileMetaRepository",
+    "IntegrationConnectionRepository",
     "MemoryChangeRepository",
     "MemoryEpisodeRepository",
     "MemorySnapshotRepository",
     "MessageRepository",
+    "OAuthStateRepository",
     "PersonalityProfileRepository",
     "SpaceRepository",
     "UsageRecordRepository",

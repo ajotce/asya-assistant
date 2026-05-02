@@ -6,11 +6,13 @@ from app.db.models.behavior_rule import BehaviorRule
 from app.db.models.chat import Chat
 from app.db.models.encrypted_secret import EncryptedSecret
 from app.db.models.file_meta import FileMeta
+from app.db.models.integration_connection import IntegrationConnection
 from app.db.models.memory_change import MemoryChange
 from app.db.models.memory_chunk import MemoryChunk
 from app.db.models.memory_episode import MemoryEpisode
 from app.db.models.memory_snapshot import MemorySnapshot
 from app.db.models.message import Message
+from app.db.models.oauth_state import OAuthState
 from app.db.models.space import Space
 from app.db.models.space_memory_settings import SpaceMemorySettings
 from app.db.models.user_profile_fact import UserProfileFact
@@ -27,11 +29,13 @@ __all__ = [
     "Chat",
     "EncryptedSecret",
     "FileMeta",
+    "IntegrationConnection",
     "MemoryChange",
     "MemoryChunk",
     "MemoryEpisode",
     "MemorySnapshot",
     "Message",
+    "OAuthState",
     "Space",
     "SpaceMemorySettings",
     "UserProfileFact",
