@@ -6,6 +6,7 @@ import NavTabs, { type AppTab } from "./components/NavTabs";
 import { useTheme } from "./hooks/useTheme";
 import AuthPage from "./pages/AuthPage";
 import ActivityPage from "./pages/ActivityPage";
+import BriefingsPage from "./pages/BriefingsPage";
 import ChatPage from "./pages/ChatPage";
 import DiaryPage from "./pages/DiaryPage";
 import MemoryPage from "./pages/MemoryPage";
@@ -155,6 +156,11 @@ export default function App() {
                 <DiaryPage />
               </section>
             ) : null}
+            {mountedTabs.briefings ? (
+              <section className="tab-panel" hidden={activeTab !== "briefings"}>
+                <BriefingsPage />
+              </section>
+            ) : null}
             {mountedTabs.observer ? (
               <section className="tab-panel" hidden={activeTab !== "observer"}>
                 <ObserverPage
@@ -207,6 +213,7 @@ function buildInitialMountedTabs(initialTab: AppTab): Record<AppTab, boolean> {
   return {
     chat: initialTab === "chat",
     diary: initialTab === "diary",
+    briefings: initialTab === "briefings",
     observer: initialTab === "observer",
     memory: initialTab === "memory",
     activity: initialTab === "activity",
@@ -232,6 +239,9 @@ function getTabFromPath(pathname: string): AppTab {
   if (pathname.startsWith("/observer")) {
     return "observer";
   }
+  if (pathname.startsWith("/briefings")) {
+    return "briefings";
+  }
   if (pathname.startsWith("/memory")) {
     return "memory";
   }
@@ -253,6 +263,9 @@ function getPathForTab(tab: AppTab): string {
   }
   if (tab === "observer") {
     return "/observer";
+  }
+  if (tab === "briefings") {
+    return "/briefings";
   }
   if (tab === "memory") {
     return "/memory";

@@ -22,6 +22,8 @@
 docker compose -f docker-compose.prod.yml up --build -d
 ```
 
+В production compose также поднимается `document-converter` (LibreOffice headless), который используется backend-ом для DOCX → PDF.
+
 ## 3. Переменные окружения
 
 Ключевые production-переменные:

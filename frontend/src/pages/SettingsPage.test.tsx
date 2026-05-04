@@ -49,6 +49,8 @@ describe("SettingsPage", () => {
       assistant_name: "Asya",
       selected_model: "gpt-4o",
       system_prompt: "Базовый промт",
+      default_storage_provider: "google_drive",
+      default_storage_folders: {},
       api_key_configured: true,
     });
     vi.mocked(getModels).mockResolvedValue([{ id: "gpt-4o" }, { id: "openai/gpt-5" }]);
@@ -81,6 +83,8 @@ describe("SettingsPage", () => {
         assistant_name: "Asya",
         selected_model: "openai/gpt-5",
         system_prompt: "Новый системный промт",
+        default_storage_provider: "google_drive",
+        default_storage_folders: {},
       });
     });
     expect(await screen.findByText("Настройки сохранены.")).toBeInTheDocument();
@@ -140,6 +144,8 @@ describe("SettingsPage", () => {
       assistant_name: "Asya",
       selected_model: "embed-only",
       system_prompt: "Базовый промт",
+      default_storage_provider: "google_drive",
+      default_storage_folders: {},
       api_key_configured: true,
     });
     vi.mocked(getModels).mockResolvedValue([

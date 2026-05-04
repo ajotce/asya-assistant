@@ -5,6 +5,7 @@ from typing import Optional
 
 from app.core.config import Settings
 from app.db.models.user_settings import UserSettings
+from app.db.models.common import IntegrationProvider
 from app.models.schemas import SettingsResponse, SettingsUpdateRequest
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,8 @@ class SettingsService:
                     assistant_name=payload["assistant_name"],
                     system_prompt=payload["system_prompt"],
                     selected_model=payload["selected_model"],
+                    default_storage_provider=payload["default_storage_provider"],
+                    default_storage_folders=payload["default_storage_folders"],
                 )
                 self._db_session.add(row)
                 self._db_session.flush()
@@ -36,12 +39,16 @@ class SettingsService:
                 "assistant_name": row.assistant_name,
                 "system_prompt": row.system_prompt,
                 "selected_model": row.selected_model,
+                "default_storage_provider": row.default_storage_provider,
+                "default_storage_folders": row.default_storage_folders or {},
             }
 
         return SettingsResponse(
             assistant_name=payload["assistant_name"],
             system_prompt=payload["system_prompt"],
             selected_model=payload["selected_model"],
+            default_storage_provider=payload["default_storage_provider"],
+            default_storage_folders=payload["default_storage_folders"],
             api_key_configured=self._settings.vsellm_api_key_configured,
         )
 
@@ -52,6 +59,12 @@ class SettingsService:
         assistant_name = request.assistant_name.strip()
         system_prompt = request.system_prompt.strip()
         selected_model = request.selected_model.strip()
+        default_storage_provider = request.default_storage_provider.strip()
+        default_storage_folders = {
+            str(provider).strip(): str(path).strip()
+            for provider, path in request.default_storage_folders.items()
+            if str(provider).strip() and str(path).strip()
+        }
 
         if not assistant_name:
             raise SettingsValidationError("Имя ассистента не должно быть пустым.")
@@ -59,6 +72,12 @@ class SettingsService:
             raise SettingsValidationError("Системный промт не должен быть пустым.")
         if not selected_model:
             raise SettingsValidationError("Выбранная модель не должна быть пустой.")
+        if default_storage_provider not in {
+            IntegrationProvider.GOOGLE_DRIVE.value,
+            IntegrationProvider.YANDEX_DISK.value,
+            IntegrationProvider.ONEDRIVE.value,
+        }:
+            raise SettingsValidationError("Неподдерживаемый default storage provider.")
 
         row = self._db_session.get(UserSettings, user_id)
         if row is None:
@@ -67,11 +86,15 @@ class SettingsService:
                 assistant_name=assistant_name,
                 system_prompt=system_prompt,
                 selected_model=selected_model,
+                default_storage_provider=default_storage_provider,
+                default_storage_folders=default_storage_folders,
             )
         else:
             row.assistant_name = assistant_name
             row.system_prompt = system_prompt
             row.selected_model = selected_model
+            row.default_storage_provider = default_storage_provider
+            row.default_storage_folders = default_storage_folders
         self._db_session.add(row)
         self._db_session.flush()
 
@@ -82,4 +105,6 @@ class SettingsService:
             "assistant_name": self._settings.default_assistant_name,
             "system_prompt": self._settings.default_system_prompt,
             "selected_model": self._settings.default_chat_model,
+            "default_storage_provider": IntegrationProvider.GOOGLE_DRIVE.value,
+            "default_storage_folders": {},
         }

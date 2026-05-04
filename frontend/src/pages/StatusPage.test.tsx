@@ -1,18 +1,20 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getHealth, getUsage } from "../api/client";
+import { getHealth, getIntegrations, getUsage } from "../api/client";
 import StatusPage from "./StatusPage";
 
 vi.mock("../api/client", () => ({
   getHealth: vi.fn(),
   getUsage: vi.fn(),
+  getIntegrations: vi.fn(),
 }));
 
 describe("StatusPage", () => {
   beforeEach(() => {
     vi.mocked(getHealth).mockReset();
     vi.mocked(getUsage).mockReset();
+    vi.mocked(getIntegrations).mockReset();
   });
 
   it("показывает карточки с понятными статусами и раскрывает детали", async () => {
@@ -69,6 +71,11 @@ describe("StatusPage", () => {
         embedding_model: "text-embedding-3-small",
       },
     });
+    vi.mocked(getIntegrations).mockResolvedValue([
+      { provider: "yandex_disk", status: "connected", scopes: ["disk.read"], last_sync_at: null },
+      { provider: "onedrive", status: "not_connected", scopes: [], last_sync_at: null },
+      { provider: "icloud_drive", status: "not_connected", scopes: [], last_sync_at: null },
+    ]);
 
     render(<StatusPage />);
 
@@ -81,6 +88,9 @@ describe("StatusPage", () => {
     expect(screen.getByText("Активных сессий: 0")).toBeInTheDocument();
     expect(screen.getByText("Данные usage доступны")).toBeInTheDocument();
     expect(screen.getByText("Готово к записи")).toBeInTheDocument();
+    expect(screen.getByText("Yandex.Disk integration")).toBeInTheDocument();
+    expect(screen.getByText("OneDrive integration")).toBeInTheDocument();
+    expect(screen.getByText("iCloud Drive integration")).toBeInTheDocument();
     expect(screen.getByTestId("status-last-updated")).toHaveTextContent("Последнее обновление:");
     expect(screen.getByLabelText("Автообновление (15 сек)")).toBeInTheDocument();
 
@@ -101,6 +111,7 @@ describe("StatusPage", () => {
         embedding_model: "",
       },
     });
+    vi.mocked(getIntegrations).mockResolvedValue([]);
 
     render(<StatusPage />);
 
@@ -137,6 +148,7 @@ describe("StatusPage", () => {
       last_error: null,
     });
     vi.mocked(getUsage).mockRejectedValue(new Error("Usage endpoint недоступен"));
+    vi.mocked(getIntegrations).mockResolvedValue([]);
 
     render(<StatusPage />);
 

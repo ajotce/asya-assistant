@@ -5,9 +5,13 @@ from fastapi.responses import FileResponse
 
 from app.api.routes_access_requests import admin_router as admin_access_requests_router
 from app.api.routes_access_requests import public_router as access_requests_router
+from app.api.routes_action_rollback import router as action_rollback_router
 from app.api.routes_auth import router as auth_router
+from app.api.routes_briefings import router as briefings_router
 from app.api.routes_chats import router as chats_router
 from app.api.routes_diary import router as diary_router
+from app.api.routes_document_templates import router as document_templates_router
+from app.api.routes_documents import router as documents_router
 from app.api.routes_chat import router as chat_router
 from app.api.routes_health import router as health_router
 from app.api.routes_integrations import router as integrations_router
@@ -16,6 +20,7 @@ from app.api.routes_memory import router as memory_router
 from app.api.routes_observer import router as observer_router
 from app.api.routes_session import router as session_router
 from app.api.routes_settings import router as settings_router
+from app.api.routes_storage import router as storage_router
 from app.api.routes_spaces import router as spaces_router
 from app.api.routes_telegram import router as telegram_router
 from app.api.routes_usage import router as usage_router
@@ -69,11 +74,16 @@ def create_app() -> FastAPI:
     app.include_router(admin_access_requests_router, prefix="/api")
     app.include_router(models_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
+    app.include_router(storage_router, prefix="/api")
     app.include_router(session_router, prefix="/api")
     app.include_router(chats_router, prefix="/api")
+    app.include_router(briefings_router, prefix="/api")
     app.include_router(diary_router, prefix="/api")
+    app.include_router(document_templates_router, prefix="/api")
+    app.include_router(documents_router, prefix="/api")
     app.include_router(spaces_router, prefix="/api")
     app.include_router(memory_router, prefix="/api")
+    app.include_router(action_rollback_router, prefix="/api")
     app.include_router(observer_router, prefix="/api")
     app.include_router(integrations_router, prefix="/api")
     app.include_router(telegram_router, prefix="/api")

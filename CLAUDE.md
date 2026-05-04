@@ -8,6 +8,10 @@
 
 После `AGENTS.md` прочитай `docs/roadmap.md` и файлы `docs/acceptance/v0.X.md` для текущей фазы.
 
+Текущая фаза: `v0.5 — Extended integrations and documents`.
+Текущая базовая ветка фазы: `0.5-extended`.
+Параллельная работа: только через feature-ветки от `0.5-extended`, без прямых коммитов в `main`.
+
 ## Claude-специфика
 
 ### TodoWrite для отслеживания задач
@@ -34,4 +38,4 @@
 
 - `AGENTS.md` — основные правила
 - `docs/roadmap.md` — план развития
-- `docs/acceptance/v0.2.md` — критерии приёмки текущей фазы
+- `docs/acceptance/v0.5.md` — критерии приёмки текущей фазы

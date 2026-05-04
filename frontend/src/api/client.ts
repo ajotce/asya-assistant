@@ -1,6 +1,7 @@
 import type {
   AccessRequestApproveResponse,
   AccessRequestResponse,
+  ActionEventItem,
   ActivityLogItem,
   ActivityLogListRequest,
   AccessRequestSubmitRequest,
@@ -18,6 +19,10 @@ import type {
   DiaryEntryItem,
   DiaryEntryCreateRequest,
   DiaryEntryUpdateRequest,
+  DocumentConvertResponse,
+  DocumentFillResponse,
+  DocumentTemplateFillPreviewResponse,
+  DocumentTemplateItem,
   DiarySettingsPatchRequest,
   DiarySettingsResponse,
   ObservationItem,
@@ -39,6 +44,7 @@ import type {
   ModelInfo,
   PersonalityProfile,
   PersonalityProfileUpdateRequest,
+  RollbackPreview,
   ReasoningProbeRequest,
   ReasoningProbeResponse,
   SessionCreateResponse,
@@ -51,9 +57,15 @@ import type {
   SpaceMemorySettingsUpdateRequest,
   SpaceRenameRequest,
   UsageOverviewResponse,
+  IntegrationConnectionResponse,
   VoiceSettings,
   VoiceSettingsUpdateRequest,
   VoiceSTTResponse,
+  BriefingArchiveItem,
+  BriefingGenerateResponse,
+  BriefingItem,
+  BriefingSettingsPatchRequest,
+  BriefingSettingsResponse,
 } from "../types/api";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -79,6 +91,10 @@ export function getHealth(): Promise<HealthResponse> {
 
 export function getUsage(): Promise<UsageOverviewResponse> {
   return apiFetch<UsageOverviewResponse>("/api/usage");
+}
+
+export function getIntegrations(): Promise<IntegrationConnectionResponse[]> {
+  return apiFetch<IntegrationConnectionResponse[]>("/api/integrations");
 }
 
 export function getModels(): Promise<ModelInfo[]> {
@@ -137,6 +153,81 @@ export async function uploadSessionFiles(sessionId: string, files: File[]): Prom
     throw new Error(await extractErrorMessage(response, `Ошибка загрузки файлов (${response.status})`));
   }
   return (await response.json()) as SessionFilesUploadResponse;
+}
+
+export async function fillDocumentTemplate(args: {
+  templateFile: File;
+  valuesJson: string;
+  output: "docx" | "pdf" | "both";
+  filenameBase: string;
+}): Promise<DocumentFillResponse> {
+  const formData = new FormData();
+  formData.append("template", args.templateFile);
+  formData.append("values_json", args.valuesJson);
+  formData.append("output", args.output);
+  formData.append("filename_base", args.filenameBase);
+
+  const response = await fetch("/api/documents/fill", {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, `Ошибка шаблона (${response.status})`));
+  }
+  return (await response.json()) as DocumentFillResponse;
+}
+
+export async function convertDocumentDocxToPdf(args: {
+  sourceFile: File;
+  filenameBase: string;
+}): Promise<DocumentConvertResponse> {
+  const formData = new FormData();
+  formData.append("file", args.sourceFile);
+  formData.append("filename_base", args.filenameBase);
+
+  const response = await fetch("/api/documents/convert", {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, `Ошибка конвертации (${response.status})`));
+  }
+  return (await response.json()) as DocumentConvertResponse;
+}
+
+export function listDocumentTemplates(): Promise<DocumentTemplateItem[]> {
+  return apiFetch<DocumentTemplateItem[]>("/api/document-templates");
+}
+
+export function previewDocumentTemplateFill(
+  templateId: string,
+  values: Record<string, string>
+): Promise<DocumentTemplateFillPreviewResponse> {
+  return apiFetch<DocumentTemplateFillPreviewResponse>(`/api/document-templates/${encodeURIComponent(templateId)}/fill`, {
+    method: "POST",
+    body: JSON.stringify({ values, preview_only: true }),
+  });
+}
+
+export async function downloadDocumentTemplateFill(
+  templateId: string,
+  values: Record<string, string>
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`/api/document-templates/${encodeURIComponent(templateId)}/fill`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ values, preview_only: false }),
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, `Ошибка шаблона (${response.status})`));
+  }
+  const contentDisposition = response.headers.get("content-disposition") || "";
+  const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  const filename = filenameMatch?.[1] ?? "filled_template.docx";
+  return { blob: await response.blob(), filename };
 }
 
 interface StreamHandlers {
@@ -348,6 +439,28 @@ export function listActivityLog(filters: ActivityLogListRequest = {}): Promise<A
   const query = params.toString();
   const path = query ? `/api/activity-log?${query}` : "/api/activity-log";
   return apiFetch<ActivityLogItem[]>(path);
+}
+
+export function listReversibleActions(limit = 100, reversibleOnly = true): Promise<ActionEventItem[]> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    reversible_only: reversibleOnly ? "true" : "false",
+  });
+  return apiFetch<ActionEventItem[]>(`/api/actions/reversible?${params.toString()}`);
+}
+
+export function previewRollback(actionEventId: string): Promise<RollbackPreview> {
+  return apiFetch<RollbackPreview>(`/api/actions/${encodeURIComponent(actionEventId)}/rollback-preview`);
+}
+
+export function executeRollback(actionEventId: string, confirmed = true): Promise<{ action_event_id: string; status: string; message: string }> {
+  return apiFetch<{ action_event_id: string; status: string; message: string }>(
+    `/api/actions/${encodeURIComponent(actionEventId)}/rollback`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmed }),
+    }
+  );
 }
 
 export function createMemorySnapshot(body: MemorySnapshotCreateRequest): Promise<MemorySnapshotItem> {
@@ -663,4 +776,31 @@ export function postponeObservation(
     `/api/observer/observations/${encodeURIComponent(observationId)}/postpone`,
     { method: "POST", body: JSON.stringify(body) },
   );
+}
+
+
+export function getBriefingSettings(): Promise<BriefingSettingsResponse> {
+  return apiFetch<BriefingSettingsResponse>("/api/briefings/settings");
+}
+
+export function patchBriefingSettings(body: BriefingSettingsPatchRequest): Promise<BriefingSettingsResponse> {
+  return apiFetch<BriefingSettingsResponse>("/api/briefings/settings", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function generateBriefing(kind: "morning" | "evening"): Promise<BriefingGenerateResponse> {
+  return apiFetch<BriefingGenerateResponse>("/api/briefings/generate", {
+    method: "POST",
+    body: JSON.stringify({ kind }),
+  });
+}
+
+export function listBriefingsArchive(limit = 20): Promise<BriefingArchiveItem[]> {
+  return apiFetch<BriefingArchiveItem[]>(`/api/briefings/archive?limit=${encodeURIComponent(String(limit))}`);
+}
+
+export function getBriefingItem(briefingId: string): Promise<BriefingItem> {
+  return apiFetch<BriefingItem>(`/api/briefings/${encodeURIComponent(briefingId)}`);
 }

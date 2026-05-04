@@ -14,6 +14,29 @@ services:
       - asya_tmp:/app/tmp
       - ./frontend/dist:/app/frontend-dist:ro
     restart: unless-stopped
+    depends_on:
+      document-converter:
+        condition: service_healthy
+
+  document-converter:
+    build:
+      context: ./docker/document-converter
+      dockerfile: Dockerfile
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=3)"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
 
   caddy:
     image: caddy:2-alpine

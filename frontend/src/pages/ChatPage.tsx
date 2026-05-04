@@ -5,7 +5,9 @@ import {
   archiveChat,
   createSpace,
   createChat,
+  convertDocumentDocxToPdf,
   deleteChat,
+  fillDocumentTemplate,
   getSpaceSettings,
   getChatMessages,
   getVoiceSettings,
@@ -19,7 +21,13 @@ import {
   updateSpaceSettings,
   uploadSessionFiles,
 } from "../api/client";
-import type { ChatListItem, SpaceListItem, SpaceMemorySettingsResponse, VoiceSettings } from "../types/api";
+import type {
+  ChatListItem,
+  DocumentBinaryFilePayload,
+  SpaceListItem,
+  SpaceMemorySettingsResponse,
+  VoiceSettings,
+} from "../types/api";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 
 interface ChatMessage {
@@ -82,6 +90,11 @@ export default function ChatPage({
   const [error, setError] = useState<string | null>(null);
 
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings | null>(null);
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [templateValuesJson, setTemplateValuesJson] = useState<string>('{"name":"Asya"}');
+  const [templateOutput, setTemplateOutput] = useState<"docx" | "pdf" | "both">("both");
+  const [templateFilenameBase, setTemplateFilenameBase] = useState("document");
+  const [generatedFiles, setGeneratedFiles] = useState<DocumentBinaryFilePayload[]>([]);
   const voiceRecorder = useVoiceRecorder();
 
   const hasMessages = messages.length > 0;
@@ -530,6 +543,46 @@ export default function ChatPage({
     await sendUserMessageInSession(sessionId, text, filesToSend);
   }
 
+  async function handleFillTemplate() {
+    if (!templateFile || isGenerating) {
+      return;
+    }
+    setError(null);
+    setIsGenerating(true);
+    try {
+      const response = await fillDocumentTemplate({
+        templateFile,
+        valuesJson: templateValuesJson,
+        output: templateOutput,
+        filenameBase: templateFilenameBase,
+      });
+      setGeneratedFiles(response.files);
+    } catch (fillError) {
+      setError(getErrorMessage(fillError));
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function handleConvertDocx() {
+    if (!templateFile || isGenerating) {
+      return;
+    }
+    setError(null);
+    setIsGenerating(true);
+    try {
+      const response = await convertDocumentDocxToPdf({
+        sourceFile: templateFile,
+        filenameBase: templateFilenameBase,
+      });
+      setGeneratedFiles([response.file]);
+    } catch (convertError) {
+      setError(getErrorMessage(convertError));
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   async function sendUserMessageInSession(currentSessionId: string, text: string, filesToUpload: File[]) {
     setError(null);
     setIsGenerating(true);
@@ -834,6 +887,76 @@ export default function ChatPage({
 
           <form className="chat-form" onSubmit={handleSubmit}>
             <div className="chat-files">
+              <label className="settings-form__label" htmlFor="template-docx-input">
+                Шаблон DOCX для заполнения
+              </label>
+              <input
+                id="template-docx-input"
+                className="chat-files__input"
+                type="file"
+                accept=".docx"
+                onChange={(event) => setTemplateFile(event.target.files?.[0] ?? null)}
+                disabled={isGenerating}
+              />
+              <label className="settings-form__label" htmlFor="template-values-json">
+                Значения JSON (tokens {`{{name}}`})
+              </label>
+              <textarea
+                id="template-values-json"
+                className="chat-form__input"
+                rows={3}
+                value={templateValuesJson}
+                onChange={(event) => setTemplateValuesJson(event.target.value)}
+              />
+              <label className="settings-form__label" htmlFor="template-filename-base">
+                Имя файла
+              </label>
+              <input
+                id="template-filename-base"
+                className="chat-form__input"
+                value={templateFilenameBase}
+                onChange={(event) => setTemplateFilenameBase(event.target.value)}
+              />
+              <label className="settings-form__label" htmlFor="template-output-format">
+                Формат вывода
+              </label>
+              <select
+                id="template-output-format"
+                className="chat-form__input"
+                value={templateOutput}
+                onChange={(event) => setTemplateOutput(event.target.value as "docx" | "pdf" | "both")}
+              >
+                <option value="docx">DOCX</option>
+                <option value="pdf">PDF</option>
+                <option value="both">DOCX + PDF</option>
+              </select>
+              <div className="chat-edit-panel__actions">
+                <button type="button" className="chat-action-button" onClick={() => void handleFillTemplate()} disabled={!templateFile || isGenerating}>
+                  Сгенерировать документ
+                </button>
+                <button type="button" className="chat-action-button" onClick={() => void handleConvertDocx()} disabled={!templateFile || isGenerating}>
+                  Конвертировать DOCX в PDF
+                </button>
+              </div>
+              {generatedFiles.length > 0 ? (
+                <ul className="chat-files__list" aria-label="Сгенерированные файлы">
+                  {generatedFiles.map((file) => (
+                    <li key={`${file.filename}-${file.content_type}`} className="chat-files__item">
+                      <span className="chat-files__name">{file.filename}</span>
+                      <button
+                        type="button"
+                        className="chat-edit-button"
+                        onClick={() => downloadGeneratedFile(file)}
+                      >
+                        Скачать
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+
+            <div className="chat-files">
               <label className="settings-form__label" htmlFor="chat-files-input">
                 Файлы к сообщению (до {MAX_FILES_PER_MESSAGE})
               </label>
@@ -897,6 +1020,23 @@ export default function ChatPage({
       </div>
     </section>
   );
+}
+
+function downloadGeneratedFile(file: DocumentBinaryFilePayload): void {
+  const bytes = atob(file.content_base64);
+  const array = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i += 1) {
+    array[i] = bytes.charCodeAt(i);
+  }
+  const blob = new Blob([array], { type: file.content_type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function pickInitialChatId(chats: ChatListItem[], initialSessionId: string | null): string | null {

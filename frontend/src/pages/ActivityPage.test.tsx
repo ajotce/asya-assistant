@@ -1,12 +1,15 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { listActivityLog, listSpaces } from "../api/client";
+import { executeRollback, listActivityLog, listReversibleActions, listSpaces, previewRollback } from "../api/client";
 import ActivityPage from "./ActivityPage";
 
 vi.mock("../api/client", () => ({
   listActivityLog: vi.fn(),
   listSpaces: vi.fn(),
+  listReversibleActions: vi.fn(),
+  previewRollback: vi.fn(),
+  executeRollback: vi.fn(),
 }));
 
 describe("ActivityPage", () => {
@@ -33,6 +36,32 @@ describe("ActivityPage", () => {
         created_at: "2026-05-02T00:00:00Z",
       },
     ] as never);
+    vi.mocked(listReversibleActions).mockResolvedValue([
+      {
+        id: "ae-1",
+        provider: "todoist",
+        operation: "update",
+        target_id: "task-1",
+        reversible: true,
+        rollback_status: "not_requested",
+        safe_metadata: { activity_log_id: "act-1" },
+        created_at: "2026-05-02T00:00:00Z",
+        updated_at: "2026-05-02T00:00:00Z",
+      },
+    ] as never);
+    vi.mocked(previewRollback).mockResolvedValue({
+      action_event_id: "ae-1",
+      provider: "todoist",
+      operation: "update",
+      reversible: true,
+      rollback_strategy: "todoist_update_restore_fields",
+    } as never);
+    vi.mocked(executeRollback).mockResolvedValue({
+      action_event_id: "ae-1",
+      status: "executed",
+      message: "Rollback выполнен.",
+    } as never);
+    vi.spyOn(window, "confirm").mockReturnValue(false);
   });
 
   it("рендерит список событий", async () => {
@@ -55,5 +84,17 @@ describe("ActivityPage", () => {
         expect.objectContaining({ event_type: "memory_snapshot_created" })
       );
     });
+  });
+
+  it("показывает кнопку отката и preview", async () => {
+    render(<ActivityPage />);
+    await screen.findByText("Создан факт памяти: lang");
+
+    fireEvent.click(screen.getByRole("button", { name: "Откатить" }));
+
+    await waitFor(() => {
+      expect(previewRollback).toHaveBeenCalledWith("ae-1");
+    });
+    expect(screen.getByText(/Preview:/)).toBeInTheDocument();
   });
 });

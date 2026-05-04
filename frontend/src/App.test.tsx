@@ -41,6 +41,11 @@ import {
   streamChat,
   updateSettings,
   uploadSessionFiles,
+  getBriefingSettings,
+  patchBriefingSettings,
+  listBriefingsArchive,
+  getBriefingItem,
+  generateBriefing,
 } from "./api/client";
 
 vi.mock("./api/client", () => ({
@@ -86,6 +91,11 @@ vi.mock("./api/client", () => ({
   updateSettings: vi.fn(),
   getHealth: vi.fn(),
   getUsage: vi.fn(),
+  getBriefingSettings: vi.fn(),
+  patchBriefingSettings: vi.fn(),
+  listBriefingsArchive: vi.fn(),
+  getBriefingItem: vi.fn(),
+  generateBriefing: vi.fn(),
 }));
 
 describe("App routing", () => {
@@ -130,6 +140,11 @@ describe("App routing", () => {
     vi.mocked(updateSettings).mockReset();
     vi.mocked(getHealth).mockReset();
     vi.mocked(getUsage).mockReset();
+    vi.mocked(getBriefingSettings).mockReset();
+    vi.mocked(patchBriefingSettings).mockReset();
+    vi.mocked(listBriefingsArchive).mockReset();
+    vi.mocked(getBriefingItem).mockReset();
+    vi.mocked(generateBriefing).mockReset();
 
     vi.mocked(authMe).mockResolvedValue({
       id: "user-1",
@@ -266,6 +281,8 @@ describe("App routing", () => {
       assistant_name: "Asya",
       selected_model: "openai/gpt-5",
       system_prompt: "System prompt",
+      default_storage_provider: "google_drive",
+      default_storage_folders: {},
       api_key_configured: true,
     });
     vi.mocked(getModels).mockResolvedValue([{ id: "openai/gpt-5" }]);
@@ -299,6 +316,43 @@ describe("App routing", () => {
       },
       session: { enabled: true, active_sessions: 0 },
       last_error: null,
+    });
+    vi.mocked(getBriefingSettings).mockResolvedValue({
+      morning_enabled: true,
+      evening_enabled: true,
+      delivery_in_app: true,
+      delivery_telegram: false,
+      created_at: "2026-05-02T00:00:00Z",
+      updated_at: "2026-05-02T00:00:00Z",
+    });
+    vi.mocked(patchBriefingSettings).mockImplementation(async (body) => ({
+      ...body,
+      created_at: "2026-05-02T00:00:00Z",
+      updated_at: "2026-05-02T00:00:00Z",
+    }));
+    vi.mocked(listBriefingsArchive).mockResolvedValue([]);
+    vi.mocked(getBriefingItem).mockResolvedValue({
+      id: "b-1",
+      kind: "morning",
+      title: "Утренний брифинг",
+      content_markdown: "# Утро",
+      delivered_in_app: true,
+      delivered_telegram: false,
+      created_at: "2026-05-02T00:00:00Z",
+      updated_at: "2026-05-02T00:00:00Z",
+    });
+    vi.mocked(generateBriefing).mockResolvedValue({
+      status: "ok",
+      briefing: {
+        id: "b-2",
+        kind: "evening",
+        title: "Вечерний итог",
+        content_markdown: "# Вечер",
+        delivered_in_app: true,
+        delivered_telegram: false,
+        created_at: "2026-05-02T00:00:00Z",
+        updated_at: "2026-05-02T00:00:00Z",
+      },
     });
     vi.mocked(getUsage).mockResolvedValue({
       chat: { status: "unavailable" },

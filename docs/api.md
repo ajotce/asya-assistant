@@ -17,6 +17,7 @@
 - `/admin/access-requests`
 - `/integrations`
 - `/integrations/telegram`
+- `/storage`
 - `/voice`
 
 Все user-data endpoint-ы должны работать только в рамках `current user`.
@@ -39,6 +40,9 @@
 - `todoist`
 - `gmail`
 - `google_drive`
+- `yandex_disk`
+- `onedrive`
+- `icloud_drive`
 - `telegram`
 
 Статусы:
@@ -254,9 +258,98 @@ Spaces API во frontend (используется в `ChatPage`):
 
 ## 11. Telegram Integration API (v0.4)
 
+## 12. Documents API (v0.5)
+
+- `POST /api/documents/fill` (`multipart/form-data`)
+  - fields:
+    - `template`: DOCX-файл
+    - `values_json`: JSON-объект значений для placeholder-токенов (`{{key}}`)
+    - `output`: `docx` | `pdf` | `both`
+    - `filename_base`: базовое имя выходных файлов
+  - response: JSON с массивом файлов (`filename`, `content_type`, `content_base64`)
+- `POST /api/documents/convert` (`multipart/form-data`)
+  - fields:
+    - `file`: DOCX-файл
+    - `filename_base`: базовое имя PDF
+  - response: JSON с одним PDF-файлом (`filename`, `content_type`, `content_base64`)
+
+Ошибки:
+- `400` — неверный формат входных данных;
+- `502` — ошибка/недоступность DOCX→PDF конвертера;
+- сообщения ошибок должны быть user-readable.
+
+## 13. Document Templates API (v0.5, H1/H2)
+
+- `GET /api/document-templates`
+  - список шаблонов текущего пользователя.
+- `POST /api/document-templates`
+  - создание карточки шаблона (`name`, `description`, `provider`, `file_id`, `fields`, `output_settings`).
+- `PATCH /api/document-templates/{template_id}`
+  - обновление карточки шаблона.
+- `DELETE /api/document-templates/{template_id}`
+  - удаление карточки шаблона.
+- `POST /api/document-templates/{template_id}/fill`
+  - body: `{"values": {...}, "preview_only": true|false}`
+  - `preview_only=true`: возвращает JSON:
+    - `missing_fields: string[]`
+    - `invalid_fields: Record<string,string>`
+    - `ready: boolean`
+  - `preview_only=false`: возвращает сгенерированный DOCX-файл (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`).
+
+Валидация на fill:
+- `required` поля обязательны;
+- `vin`: 17 символов, только `[A-HJ-NPR-Z0-9]` (без `I`, `O`, `Q`);
+- `email`, `phone`, `date`: базовая проверка формата.
+
+User isolation:
+- все endpoint-ы `document-templates` user-scoped;
+- доступ к чужому `template_id` возвращает `404`.
+
 - `GET  /api/integrations/telegram/status` — статус привязки аккаунта
+
+## 12. IMAP Integration API (v0.5)
+
+- `POST /api/integrations/imap/test` — проверка IMAP параметров подключения.
+- `POST /api/integrations/imap/connect` — сохранить encrypted credentials и подключить IMAP.
+- `GET  /api/integrations/imap/folders` — список доступных папок.
+- `GET  /api/integrations/imap/messages?folder=INBOX&limit=30` — список писем.
+- `GET  /api/integrations/imap/messages/{uid}?folder=INBOX` — чтение письма.
+- `GET  /api/integrations/imap/search?q=...&folder=INBOX&limit=30` — поиск писем.
+- `POST /api/integrations/imap/messages/{uid}/read?folder=INBOX` — пометить как прочитанное.
+- `DELETE /api/integrations/imap` — отключить IMAP и удалить связанные секреты.
+
+Ограничения безопасности:
+- пароль/app password и другие credentials не возвращаются через API;
+- все endpoint-ы user-scoped;
+- в safe error metadata допускаются только безопасные сообщения без содержимого писем.
 - `POST /api/integrations/telegram/link-token` — создать one-time токен для привязки
 - `POST /api/integrations/telegram/unlink` — отвязать аккаунт
 - `POST /api/integrations/telegram/notify-test` — отправить тестовое уведомление
 
 Привязка: пользователь получает `one_time_token`, переходит по ссылке `https://t.me/<bot>?start=<token>` в Telegram — бот обрабатывает `/start <token>` и связывает аккаунты.
+## 4.1 Storage API (v0.5 foundation)
+
+- `GET /api/storage/providers` — список поддерживаемых file storage providers.
+- `GET /api/storage/files` — list/search файлов в provider (`provider`, `path`, optional `search`).
+- `POST /api/storage/files` — upload файла в provider (`provider`, `path`, multipart `file`).
+- `GET /api/storage/files/{provider}/{item_id}` — metadata файла/папки.
+
+Принципы:
+- user-scoped доступ;
+- default provider берётся из `user_settings.default_storage_provider`, если query `provider` не передан;
+- содержимое файлов не логируется;
+- секреты токенов в API не возвращаются.
+
+
+## 12. Briefings API (v0.5)
+
+- `GET /api/briefings/settings` — настройки morning/evening и каналов доставки.
+- `PATCH /api/briefings/settings` — обновить настройки брифингов.
+- `POST /api/briefings/generate` — ручная генерация (`kind`: `morning`/`evening`).
+- `GET /api/briefings/archive?limit=20` — архив последних брифингов.
+- `GET /api/briefings/{briefing_id}` — получить markdown/content выбранного брифинга.
+
+Особенности:
+- in-app уведомление пишется в Notification Center (`notification_sent` + `notification_center`).
+- при включённом Telegram delivery отправляется текст брифинга + кнопка `Открыть в Asya`.
+- если в настройках дневника `briefing_enabled=false`, раздел дневника не включается в содержимое брифинга.
