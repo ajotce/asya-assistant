@@ -159,8 +159,13 @@ class ActionRouter:
             return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=False)
         if tool == "bitrix" and operation in {"leads", "deals", "funnel_sum"}:
             return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=False)
-        if tool == "storage" and operation in {"search", "read", "save"}:
-            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=operation == "save")
+        if tool == "storage" and operation in {"search", "read", "save", "share", "delete"}:
+            return ParsedRoute(
+                tool=tool,
+                operation=operation,
+                args={"query": query},
+                requires_confirmation=operation in {"save", "share", "delete"},
+            )
         if tool == "imap" and operation in {"search", "read"}:
             return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=False)
         if tool == "document" and operation == "template_fill":
