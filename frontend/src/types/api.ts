@@ -503,3 +503,98 @@ export interface VoiceSTTResponse {
 export interface VoiceTTSRequest {
   text: string;
 }
+
+export interface IntegrationConnectionResponse {
+  provider: string;
+  status: string;
+  scopes: string[];
+  connected_at?: string | null;
+  last_refresh_at?: string | null;
+  last_sync_at?: string | null;
+  safe_error_metadata?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface IntegrationConnection {
+  provider: string;
+  status: string;
+  scopes: string[];
+  connected_at?: string | null;
+  last_refresh_at?: string | null;
+  last_sync_at?: string | null;
+  safe_error_metadata?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ImapConnectRequest {
+  email: string;
+  username: string;
+  password: string;
+  host: string;
+  port: number;
+  security: "ssl" | "starttls" | "plain";
+}
+
+export interface ImapConnectionTestResponse {
+  ok: boolean;
+  folders: string[];
+}
+
+export interface ImapFolderListResponse {
+  folders: string[];
+}
+
+export interface ImapMessageSummary {
+  uid: string;
+  subject: string;
+  from_name: string;
+  from_email: string;
+  date?: string | null;
+  is_unread: boolean;
+}
+
+export interface ImapMessageDetails extends ImapMessageSummary {
+  to: string[];
+  cc: string[];
+  text_body: string;
+}
+
+export interface GitHubRepoOwner {
+  login: string;
+}
+
+export interface GitHubRepoItem {
+  id: number;
+  name: string;
+  full_name: string;
+  private?: boolean;
+  html_url?: string;
+  owner: GitHubRepoOwner;
+}
+
+export interface GitHubIssueItem {
+  id: number;
+  number: number;
+  title: string;
+  state: string;
+  html_url?: string;
+}
+
+export interface GitHubPullItem {
+  id: number;
+  number: number;
+  title: string;
+  state: string;
+  html_url?: string;
+}
+
+export interface GitHubFileReadResponse {
+  content: string;
+  encoding: string;
+  path: string;
+  sha: string;
+  size: number;
+  html_url?: string | null;
+}
