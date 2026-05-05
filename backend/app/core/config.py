@@ -131,6 +131,10 @@ class Settings(BaseSettings):
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
     smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
 
+    doc_converter_enabled: bool = Field(default=False, alias="DOC_CONVERTER_ENABLED")
+    doc_converter_url: str = Field(default="http://document-converter:8090", alias="DOC_CONVERTER_URL")
+    doc_converter_timeout_seconds: int = Field(default=30, alias="DOC_CONVERTER_TIMEOUT_SECONDS")
+
     @property
     def vsellm_api_key_configured(self) -> bool:
         return bool(self.vsellm_api_key.strip())

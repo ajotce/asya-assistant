@@ -35,6 +35,8 @@ def test_get_settings_returns_defaults_for_user(tmp_path, monkeypatch) -> None:
     payload = response.json()
     assert payload["assistant_name"] == "Asya"
     assert payload["selected_model"] == "openai/gpt-5"
+    assert payload["default_storage_provider"] == "google_drive"
+    assert payload["default_storage_folders"] == {}
     assert payload["api_key_configured"] is False
     app.dependency_overrides.clear()
 
@@ -54,6 +56,8 @@ def test_put_settings_updates_only_current_user(tmp_path, monkeypatch) -> None:
         "assistant_name": "Ася A",
         "system_prompt": "Промт A",
         "selected_model": "openai/gpt-5-mini",
+        "default_storage_provider": "onedrive",
+        "default_storage_folders": {"onedrive": "/docs"},
     }
     put_resp = user_a.put("/api/settings", json=update)
     assert put_resp.status_code == 200
@@ -61,11 +65,13 @@ def test_put_settings_updates_only_current_user(tmp_path, monkeypatch) -> None:
     get_a = user_a.get("/api/settings")
     assert get_a.status_code == 200
     assert get_a.json()["assistant_name"] == "Ася A"
+    assert get_a.json()["default_storage_provider"] == "onedrive"
 
     get_b = user_b.get("/api/settings")
     assert get_b.status_code == 200
     assert get_b.json()["assistant_name"] == "Asya"
     assert get_b.json()["selected_model"] == "openai/gpt-5"
+    assert get_b.json()["default_storage_provider"] == "google_drive"
     app.dependency_overrides.clear()
 
 
@@ -73,7 +79,13 @@ def test_put_settings_validation_error(tmp_path, monkeypatch) -> None:
     client = _build_authed_client(tmp_path, monkeypatch, "validation@example.com")
     response = client.put(
         "/api/settings",
-        json={"assistant_name": "  ", "system_prompt": "ok", "selected_model": "openai/gpt-5"},
+        json={
+            "assistant_name": "  ",
+            "system_prompt": "ok",
+            "selected_model": "openai/gpt-5",
+            "default_storage_provider": "google_drive",
+            "default_storage_folders": {},
+        },
     )
     assert response.status_code == 400
     assert "не должно быть пустым" in response.json()["detail"]
@@ -88,6 +100,8 @@ def test_put_settings_rejects_unknown_fields(tmp_path, monkeypatch) -> None:
             "assistant_name": "Asya",
             "system_prompt": "ok",
             "selected_model": "openai/gpt-5",
+            "default_storage_provider": "google_drive",
+            "default_storage_folders": {},
             "vsellm_api_key": "forbidden",
         },
     )

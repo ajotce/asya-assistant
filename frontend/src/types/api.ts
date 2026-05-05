@@ -38,6 +38,8 @@ export interface SettingsResponse {
   assistant_name: string;
   system_prompt: string;
   selected_model: string;
+  default_storage_provider: string;
+  default_storage_folders: Record<string, string>;
   api_key_configured: boolean;
 }
 
@@ -45,6 +47,8 @@ export interface SettingsUpdateRequest {
   assistant_name: string;
   system_prompt: string;
   selected_model: string;
+  default_storage_provider: string;
+  default_storage_folders: Record<string, string>;
 }
 
 export interface ReasoningProbeItem {
@@ -137,6 +141,52 @@ export interface SessionFilesUploadResponse {
   session_id: string;
   files: SessionUploadedFileInfo[];
   file_ids: string[];
+}
+
+export interface DocumentBinaryFilePayload {
+  filename: string;
+  content_type: string;
+  content_base64: string;
+}
+
+export interface DocumentFillResponse {
+  output: "docx" | "pdf" | "both";
+  files: DocumentBinaryFilePayload[];
+}
+
+export interface DocumentConvertResponse {
+  file: DocumentBinaryFilePayload;
+}
+
+export interface DocumentTemplateField {
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  validation?: string | null;
+}
+
+export interface DocumentTemplateItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  provider: string;
+  file_id: string;
+  fields: DocumentTemplateField[];
+  output_settings: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentTemplateFillRequest {
+  values: Record<string, string>;
+  preview_only: boolean;
+}
+
+export interface DocumentTemplateFillPreviewResponse {
+  missing_fields: string[];
+  invalid_fields: Record<string, string>;
+  ready: boolean;
 }
 
 export interface UsageOverviewResponse {
@@ -373,6 +423,35 @@ export interface ActivityLogItem {
   created_at: string;
 }
 
+export interface ActionEventItem {
+  id: string;
+  provider: string;
+  operation: string;
+  target_id?: string | null;
+  reversible: boolean;
+  rollback_status: string;
+  rollback_strategy?: string | null;
+  rollback_deadline?: string | null;
+  rollback_notes?: string | null;
+  previous_state?: Record<string, unknown> | null;
+  safe_metadata?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RollbackPreview {
+  action_event_id: string;
+  provider: string;
+  operation: string;
+  target_id?: string | null;
+  reversible: boolean;
+  rollback_strategy?: string | null;
+  rollback_deadline?: string | null;
+  rollback_notes?: string | null;
+  previous_state?: Record<string, unknown> | null;
+  safe_metadata?: Record<string, unknown> | null;
+}
+
 export interface ActivityLogListRequest {
   limit?: number;
   event_type?: string;
@@ -502,4 +581,57 @@ export interface VoiceSTTResponse {
 
 export interface VoiceTTSRequest {
   text: string;
+}
+
+export interface IntegrationConnectionResponse {
+  provider: string;
+  status: string;
+  scopes: string[];
+  connected_at?: string | null;
+  last_refresh_at?: string | null;
+  last_sync_at?: string | null;
+  safe_error_metadata?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface BriefingSettingsResponse {
+  morning_enabled: boolean;
+  evening_enabled: boolean;
+  delivery_in_app: boolean;
+  delivery_telegram: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BriefingSettingsPatchRequest {
+  morning_enabled: boolean;
+  evening_enabled: boolean;
+  delivery_in_app: boolean;
+  delivery_telegram: boolean;
+}
+
+export interface BriefingArchiveItem {
+  id: string;
+  kind: string;
+  title: string;
+  delivered_in_app: boolean;
+  delivered_telegram: boolean;
+  created_at: string;
+}
+
+export interface BriefingItem {
+  id: string;
+  kind: string;
+  title: string;
+  content_markdown: string;
+  delivered_in_app: boolean;
+  delivered_telegram: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BriefingGenerateResponse {
+  status: string;
+  briefing: BriefingItem;
 }

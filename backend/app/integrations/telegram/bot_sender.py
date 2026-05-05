@@ -17,7 +17,14 @@ class TelegramBotSender:
         self._settings = settings
         self._links = TelegramAccountLinkRepository(session)
 
-    def send_notification(self, *, user_id: str, text: str) -> bool:
+    def send_notification(
+        self,
+        *,
+        user_id: str,
+        text: str,
+        button_text: str | None = None,
+        button_url: str | None = None,
+    ) -> bool:
         link = self._links.get_active_by_user_id(user_id)
         if link is None:
             return False
@@ -28,9 +35,14 @@ class TelegramBotSender:
         if not token:
             return False
         try:
+            payload: dict[str, object] = {"chat_id": int(link.telegram_chat_id), "text": safe_text}
+            if button_text and button_url:
+                payload["reply_markup"] = {
+                    "inline_keyboard": [[{"text": button_text[:64], "url": button_url[:1024]}]],
+                }
             httpx.post(
                 f"https://api.telegram.org/bot{token}/sendMessage",
-                json={"chat_id": int(link.telegram_chat_id), "text": safe_text},
+                json=payload,
                 timeout=httpx.Timeout(timeout=10.0, connect=3.0),
             )
             return True

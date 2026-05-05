@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
-import { listActivityLog, listSpaces } from "../api/client";
-import type { ActivityLogItem, ActivityLogListRequest, SpaceListItem } from "../types/api";
+import { executeRollback, listActivityLog, listReversibleActions, listSpaces, previewRollback } from "../api/client";
+import type { ActionEventItem, ActivityLogItem, ActivityLogListRequest, RollbackPreview, SpaceListItem } from "../types/api";
 
 const EVENT_OPTIONS = [
   "",
@@ -34,6 +34,8 @@ export default function ActivityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [events, setEvents] = useState<ActivityLogItem[]>([]);
+  const [reversibleByActivity, setReversibleByActivity] = useState<Record<string, ActionEventItem>>({});
+  const [previewByActivity, setPreviewByActivity] = useState<Record<string, RollbackPreview>>({});
   const [spaces, setSpaces] = useState<SpaceListItem[]>([]);
   const [filters, setFilters] = useState<ActivityLogListRequest>({ limit: 100 });
 
@@ -45,12 +47,20 @@ export default function ActivityPage() {
     setLoading(true);
     setError(null);
     try {
-      const [eventsData, spacesData] = await Promise.all([
+      const [eventsData, spacesData, actionEventsData] = await Promise.all([
         listActivityLog(nextFilters),
         listSpaces(),
+        listReversibleActions(200, false),
       ]);
       setEvents(eventsData);
       setSpaces(spacesData.filter((space) => !space.is_archived));
+      const byActivity: Record<string, ActionEventItem> = {};
+      for (const action of actionEventsData) {
+        if (action.safe_metadata && typeof action.safe_metadata["activity_log_id"] === "string") {
+          byActivity[action.safe_metadata["activity_log_id"]] = action;
+        }
+      }
+      setReversibleByActivity(byActivity);
     } catch (loadError) {
       setError(getErrorMessage(loadError));
     } finally {
@@ -61,6 +71,25 @@ export default function ActivityPage() {
   async function handleApplyFilters(event: FormEvent) {
     event.preventDefault();
     await loadAll(filters);
+  }
+
+  async function handlePreview(activityId: string) {
+    const action = reversibleByActivity[activityId];
+    if (!action) {
+      return;
+    }
+    try {
+      const preview = await previewRollback(action.id);
+      setPreviewByActivity((prev) => ({ ...prev, [activityId]: preview }));
+      const shouldExecute = window.confirm("Выполнить откат этого действия?");
+      if (!shouldExecute) {
+        return;
+      }
+      await executeRollback(action.id, true);
+      await loadAll(filters);
+    } catch (previewError) {
+      setError(getErrorMessage(previewError));
+    }
   }
 
   if (loading) {
@@ -157,6 +186,22 @@ export default function ActivityPage() {
             <p className="status-text">
               Сущность: {entityTypeLabel(item.entity_type)} · Пространство: {spaceNameById(spaces, item.space_id)} · Время: {formatDate(item.created_at)}
             </p>
+            {reversibleByActivity[item.id]?.reversible ? (
+              <div>
+                <button
+                  type="button"
+                  className="chat-action-button"
+                  onClick={() => void handlePreview(item.id)}
+                >
+                  Откатить
+                </button>
+                {previewByActivity[item.id] ? (
+                  <p className="status-text">
+                    Preview: {previewByActivity[item.id].provider}.{previewByActivity[item.id].operation} · strategy: {previewByActivity[item.id].rollback_strategy ?? "n/a"}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>

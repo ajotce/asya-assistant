@@ -29,6 +29,10 @@ make build-frontend
 docker compose up --build
 ```
 
+Compose поднимет два сервиса:
+- `backend`
+- `document-converter` (LibreOffice headless для DOCX → PDF)
+
 При старте backend автоматически запускает Alembic bootstrap:
 - для чистой БД применяется `upgrade head`;
 - для legacy БД 0.2 без `alembic_version` выполняется безопасный `stamp` до `20260502_03` и затем `upgrade` до актуальной схемы v0.3.
@@ -84,6 +88,14 @@ docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci 
 
 - Локальный сценарий остаётся через `docker-compose.yml`.
 - Production: `docker compose -f docker-compose.prod.yml up --build -d`.
+
+## DOCX → PDF converter
+
+Для конвертации документов backend использует отдельный сервис `document-converter`.
+Нужные env-переменные:
+- `DOC_CONVERTER_ENABLED=true`
+- `DOC_CONVERTER_URL=http://document-converter:8090`
+- `DOC_CONVERTER_TIMEOUT_SECONDS=30`
 
 ## Документы проекта
 - `AGENTS.md`

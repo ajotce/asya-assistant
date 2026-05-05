@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -18,3 +18,5 @@ class UserSettings(Base, TimestampMixin):
     assistant_name: Mapped[str] = mapped_column(String(120), nullable=False)
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
     selected_model: Mapped[str] = mapped_column(String(200), nullable=False)
+    default_storage_provider: Mapped[str] = mapped_column(String(64), nullable=False, default="google_drive")
+    default_storage_folders: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)

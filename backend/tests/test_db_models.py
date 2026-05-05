@@ -29,9 +29,13 @@ def test_sqlalchemy_models_create_expected_tables(tmp_path) -> None:
         "memory_chunks",
         "behavior_rules",
         "assistant_personality_profiles",
+        "briefing_settings",
+        "briefings",
         "memory_changes",
         "memory_snapshots",
         "activity_logs",
+        "observed_entity_snapshots",
+        "observed_entity_state_changes",
     }
 
     user_indexes = inspector.get_indexes("users")

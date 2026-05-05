@@ -1,15 +1,18 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import {
+  downloadDocumentTemplateFill,
   getModels,
   getReasoningCache,
   getSettings,
+  listDocumentTemplates,
+  previewDocumentTemplateFill,
   probeReasoningModels,
   updateSettings,
 } from "../api/client";
 import AdminAccessRequestsSection from "../components/AdminAccessRequestsSection";
 import type { ThemePreference } from "../hooks/useTheme";
-import type { ModelInfo, ReasoningProbeItem, SettingsResponse } from "../types/api";
+import type { DocumentTemplateItem, ModelInfo, ReasoningProbeItem, SettingsResponse } from "../types/api";
 
 interface SettingsPageProps {
   themePreference: ThemePreference;
@@ -34,12 +37,16 @@ interface SettingsFormState {
   assistant_name: string;
   selected_model: string;
   system_prompt: string;
+  default_storage_provider: string;
+  default_storage_folders: Record<string, string>;
 }
 
 const emptyState: SettingsFormState = {
   assistant_name: "",
   selected_model: "",
   system_prompt: "",
+  default_storage_provider: "google_drive",
+  default_storage_folders: {},
 };
 
 export default function SettingsPage({ themePreference, onThemePreferenceChange, currentUserRole }: SettingsPageProps) {
@@ -56,6 +63,12 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
   const [reasoningProbeLoading, setReasoningProbeLoading] = useState(false);
   const [reasoningError, setReasoningError] = useState<string | null>(null);
   const [reasoningProbeRanOnce, setReasoningProbeRanOnce] = useState(false);
+  const [templates, setTemplates] = useState<DocumentTemplateItem[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [templateValues, setTemplateValues] = useState<Record<string, string>>({});
+  const [templateMessage, setTemplateMessage] = useState<string | null>(null);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [templateLoading, setTemplateLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -83,6 +96,31 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
     }
 
     loadSettings();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    async function loadTemplates() {
+      try {
+        const items = await listDocumentTemplates();
+        if (!active) {
+          return;
+        }
+        setTemplates(items);
+        if (items.length > 0) {
+          setSelectedTemplateId(items[0].id);
+        }
+      } catch {
+        if (!active) {
+          return;
+        }
+        setTemplateError("Не удалось загрузить шаблоны документов.");
+      }
+    }
+    loadTemplates();
     return () => {
       active = false;
     };
@@ -162,6 +200,8 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
       assistant_name: settings.assistant_name,
       selected_model: settings.selected_model,
       system_prompt: settings.system_prompt,
+      default_storage_provider: settings.default_storage_provider || "google_drive",
+      default_storage_folders: settings.default_storage_folders || {},
     });
     setApiKeyConfigured(settings.api_key_configured);
   }
@@ -171,6 +211,7 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
   }
 
   const selectedModelMeta = models.find((model) => model.id === form.selected_model);
+  const selectedTemplate = templates.find((item) => item.id === selectedTemplateId) ?? null;
   const selectedModelIsChatUnsupported = selectedModelMeta?.supports_chat === false;
   const modelCompatibilityWarning = selectedModelIsChatUnsupported
     ? `Модель '${form.selected_model}' по metadata провайдера не поддерживает chat/completions. Выберите другую chat-модель.`
@@ -189,6 +230,59 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
       setError(getErrorMessage(saveError));
     } finally {
       setSaving(false);
+    }
+  }
+
+  function updateTemplateField(key: string, value: string) {
+    setTemplateValues((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleTemplatePreview() {
+    if (!selectedTemplateId) {
+      return;
+    }
+    setTemplateLoading(true);
+    setTemplateError(null);
+    setTemplateMessage(null);
+    try {
+      const preview = await previewDocumentTemplateFill(selectedTemplateId, templateValues);
+      if (preview.ready) {
+        setTemplateMessage("Все обязательные поля заполнены, можно скачивать DOCX.");
+      } else {
+        const invalid = Object.entries(preview.invalid_fields)
+          .map(([key, value]) => `${key}: ${value}`)
+          .join(", ");
+        setTemplateMessage(
+          `Missing: ${preview.missing_fields.join(", ") || "—"}. Invalid: ${invalid || "—"}.`
+        );
+      }
+    } catch (previewError) {
+      setTemplateError(getErrorMessage(previewError));
+    } finally {
+      setTemplateLoading(false);
+    }
+  }
+
+  async function handleTemplateDownload() {
+    if (!selectedTemplateId) {
+      return;
+    }
+    setTemplateLoading(true);
+    setTemplateError(null);
+    setTemplateMessage(null);
+    try {
+      const { blob, filename } = await downloadDocumentTemplateFill(selectedTemplateId, templateValues);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setTemplateMessage("DOCX успешно сформирован.");
+    } catch (downloadError) {
+      setTemplateError(getErrorMessage(downloadError));
+    } finally {
+      setTemplateLoading(false);
     }
   }
 
@@ -295,6 +389,20 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
           rows={6}
         />
 
+        <label className="settings-form__label" htmlFor="default-storage-provider">
+          Хранилище файлов по умолчанию
+        </label>
+        <select
+          id="default-storage-provider"
+          className="settings-form__input"
+          value={form.default_storage_provider}
+          onChange={(event) => updateField("default_storage_provider", event.target.value)}
+        >
+          <option value="google_drive">Google Drive</option>
+          <option value="yandex_disk">Yandex.Disk</option>
+          <option value="onedrive">OneDrive</option>
+        </select>
+
         <button type="submit" className="settings-form__submit" disabled={saving || selectedModelIsChatUnsupported}>
           {saving ? "Сохранение..." : "Сохранить"}
         </button>
@@ -337,6 +445,57 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
             ))}
           </ul>
         ) : null}
+      </section>
+      <section className="reasoning-probe" aria-label="Шаблоны документов">
+        <div className="page__row">
+          <h3 className="reasoning-probe__title">Заполнение шаблона DOCX</h3>
+        </div>
+        {templates.length === 0 ? <p className="status-text">Шаблоны пока не созданы.</p> : null}
+        {templates.length > 0 ? (
+          <>
+            <label className="settings-form__label" htmlFor="document-template-id">
+              Шаблон
+            </label>
+            <select
+              id="document-template-id"
+              className="settings-form__input"
+              value={selectedTemplateId}
+              onChange={(event) => {
+                setSelectedTemplateId(event.target.value);
+                setTemplateValues({});
+              }}
+            >
+              {templates.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            {selectedTemplate?.fields.map((field) => (
+              <div key={field.key}>
+                <label className="settings-form__label" htmlFor={`field-${field.key}`}>
+                  {field.label} ({field.key}){field.required ? " *" : ""}
+                </label>
+                <input
+                  id={`field-${field.key}`}
+                  className="settings-form__input"
+                  value={templateValues[field.key] ?? ""}
+                  onChange={(event) => updateTemplateField(field.key, event.target.value)}
+                />
+              </div>
+            ))}
+            <div className="settings-form__row">
+              <button type="button" className="chat-action-button" onClick={handleTemplatePreview} disabled={templateLoading}>
+                Проверить поля
+              </button>
+              <button type="button" className="chat-action-button" onClick={handleTemplateDownload} disabled={templateLoading}>
+                Скачать DOCX
+              </button>
+            </div>
+          </>
+        ) : null}
+        {templateError ? <p className="status-text status-text--error">{templateError}</p> : null}
+        {templateMessage ? <p className="status-text">{templateMessage}</p> : null}
       </section>
       {currentUserRole === "admin" ? <AdminAccessRequestsSection /> : null}
     </section>

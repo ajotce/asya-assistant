@@ -125,6 +125,8 @@ class ActivityEventType(str, Enum):
     OBSERVATION_UPDATED = "observation_updated"
     NOTIFICATION_CENTER = "notification_center"
     INTEGRATION_ACTION_EXECUTED = "integration_action_executed"
+    ACTION_ROLLBACK_EXECUTED = "action_rollback_executed"
+    ACTION_ROLLBACK_SKIPPED = "action_rollback_skipped"
     OBSERVER_SYNC = "observer_sync"
 
 
@@ -142,7 +144,16 @@ class ActivityEntityType(str, Enum):
     DIARY_ENTRY = "diary_entry"
     OBSERVATION = "observation"
     INTEGRATION_ACTION = "integration_action"
+    ACTION_EVENT = "action_event"
     OBSERVER = "observer"
+
+
+class RollbackStatus(str, Enum):
+    NOT_REQUESTED = "not_requested"
+    PREVIEWED = "previewed"
+    EXECUTED = "executed"
+    SKIPPED = "skipped"
+    FAILED = "failed"
 
 
 class VoiceProvider(str, Enum):
@@ -166,6 +177,11 @@ class IntegrationProvider(str, Enum):
     GMAIL = "gmail"
     GOOGLE_DRIVE = "google_drive"
     TELEGRAM = "telegram"
+    BITRIX24 = "bitrix24"
+    IMAP = "imap"
+    YANDEX_DISK = "yandex_disk"
+    ONEDRIVE = "onedrive"
+    ICLOUD_DRIVE = "icloud_drive"
 
 
 class IntegrationConnectionStatus(str, Enum):

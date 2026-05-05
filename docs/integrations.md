@@ -1,5 +1,10 @@
 # Integrations (Asya v0.4)
 
+## Обновление v0.5
+
+- Для Bitrix24 добавлен отдельный audit: `docs/integrations/bitrix24.md`.
+- Scope Bitrix24 в Asya v0.5: строго read-only (только чтение CRM/Tasks/Telephony данных, без write операций).
+
 ## Что сделано в foundation шаге
 
 - Реализован общий OAuth 2.0 + PKCE слой для `linear`, `google_calendar`, `todoist`.

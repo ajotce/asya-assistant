@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getHealth, getUsage } from "../api/client";
-import type { HealthResponse, UsageOverviewResponse } from "../types/api";
+import { getHealth, getIntegrations, getUsage } from "../api/client";
+import type { HealthResponse, IntegrationConnectionResponse, UsageOverviewResponse } from "../types/api";
 
 type Severity = "ok" | "warning" | "error" | "unknown";
 
@@ -18,6 +18,8 @@ export default function StatusPage() {
   const [usage, setUsage] = useState<UsageOverviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [usageError, setUsageError] = useState<string | null>(null);
+  const [integrations, setIntegrations] = useState<IntegrationConnectionResponse[] | null>(null);
+  const [integrationsError, setIntegrationsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -27,20 +29,27 @@ export default function StatusPage() {
     setLoading(true);
     setError(null);
     setUsageError(null);
+    setIntegrationsError(null);
     try {
-      const [healthData, usageData] = await Promise.all([
+      const [healthData, usageData, integrationsData] = await Promise.all([
         getHealth(),
         getUsage().catch((usageLoadError) => {
           setUsageError(getErrorMessage(usageLoadError));
           return null;
         }),
+        getIntegrations().catch((integrationsLoadError) => {
+          setIntegrationsError(getErrorMessage(integrationsLoadError));
+          return null;
+        }),
       ]);
       setHealth(healthData);
       setUsage(usageData);
+      setIntegrations(integrationsData);
       setLastUpdatedAt(new Date());
     } catch (statusError) {
       setHealth(null);
       setUsage(null);
+      setIntegrations(null);
       setError(getErrorMessage(statusError));
     } finally {
       setLoading(false);
@@ -62,8 +71,8 @@ export default function StatusPage() {
   }, [autoRefresh, refreshStatus]);
 
   const cards = useMemo(
-    () => buildStatusCards({ health, usage, usageError, healthError: error }),
-    [health, usage, usageError, error]
+    () => buildStatusCards({ health, usage, usageError, integrations, integrationsError, healthError: error }),
+    [health, usage, usageError, integrations, integrationsError, error]
   );
 
   function toggleCard(cardId: string) {
@@ -153,11 +162,15 @@ function buildStatusCards({
   health,
   usage,
   usageError,
+  integrations,
+  integrationsError,
   healthError,
 }: {
   health: HealthResponse | null;
   usage: UsageOverviewResponse | null;
   usageError: string | null;
+  integrations: IntegrationConnectionResponse[] | null;
+  integrationsError: string | null;
   healthError: string | null;
 }): StatusCardData[] {
   const cards: StatusCardData[] = [];
@@ -176,6 +189,13 @@ function buildStatusCards({
       severity: usageError ? "error" : "unknown",
       summary: usageError ? "Ошибка получения" : "Нет данных",
       details: [usageError ?? "Usage недоступен, пока нет health-данных."],
+    });
+    cards.push({
+      id: "providers",
+      label: "File providers",
+      severity: integrationsError ? "error" : "unknown",
+      summary: integrationsError ? "Ошибка получения" : "Нет данных",
+      details: [integrationsError ?? "Интеграции пока не загружены."],
     });
     return cards;
   }
@@ -284,7 +304,50 @@ function buildStatusCards({
     ],
   });
 
+  cards.push(...buildFileProviderCards(integrations, integrationsError));
+
   return cards;
+}
+
+function buildFileProviderCards(
+  integrations: IntegrationConnectionResponse[] | null,
+  integrationsError: string | null
+): StatusCardData[] {
+  const targets = [
+    { code: "yandex_disk", label: "Yandex.Disk" },
+    { code: "onedrive", label: "OneDrive" },
+    { code: "icloud_drive", label: "iCloud Drive" },
+  ];
+
+  return targets.map((target) => {
+    const item = integrations?.find((integration) => integration.provider === target.code);
+    const status = item?.status ?? "not_connected";
+    const severity: Severity =
+      status === "connected" ? "ok" : status === "error" ? "error" : status === "expired" ? "warning" : "unknown";
+    return {
+      id: `provider-${target.code}`,
+      label: `${target.label} integration`,
+      severity: integrationsError ? "error" : severity,
+      summary: integrationsError ? "Ошибка получения" : formatProviderSummary(status),
+      details: integrationsError
+        ? [integrationsError]
+        : [
+            `provider: ${target.code}`,
+            `status: ${status}`,
+            `scopes: ${(item?.scopes ?? []).join(", ") || "—"}`,
+            `last_sync_at: ${item?.last_sync_at ?? "—"}`,
+          ],
+    };
+  });
+}
+
+function formatProviderSummary(status: string): string {
+  if (status === "connected") return "Подключен";
+  if (status === "not_connected") return "Не подключен";
+  if (status === "expired") return "Нужна перепривязка";
+  if (status === "error") return "Ошибка подключения";
+  if (status === "revoked") return "Отключен";
+  return "Неизвестно";
 }
 
 function getVseLLMSeverity(health: HealthResponse): Severity {
