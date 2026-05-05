@@ -1,4 +1,23 @@
 # Development Log
+## 2026-05-05 (Координация v0.5: финализация перед PR в main)
+- Что подтверждено:
+  - PROMPT 21 и PROMPT 22 завершены и сведены в `0.5-extended` (security/logging fixes + QA rerun).
+  - Закрыты блокирующие/major замечания независимого QA:
+    - убрано логирование raw email-body;
+    - убрано логирование `setup_link`/token;
+    - подтверждён controlled fallback `409` для Bitrix/IMAP в partial build;
+    - rollback/tool routing не обещает невозможного (честный ответ при отсутствии handler).
+- Проверки (финальный прогон):
+  - `make backend-py312-pytest` -> `169 passed`
+  - `make backend-py312-ruff` -> `OK`
+  - `make backend-py312-mypy` -> `Success: no issues found in 141 source files`
+  - `alembic heads` / `alembic current` (py312) -> `20260502_08 (head) (mergepoint)`
+  - `frontend: npm run lint && npm test && npm run build` -> `OK`
+- Что отложено в v1.0+:
+  - полный product-scope document templates;
+  - полный product-scope briefings;
+  - полная консолидация всех planned v0.5 треков как отдельных завершённых инициатив.
+
 ## 2026-05-05 (Координация v0.5: merge и сведение ветки 0.5-extended)
 - Что сделано:
   - Обновлена `0.5-extended` от `origin`.

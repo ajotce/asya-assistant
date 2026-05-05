@@ -34,4 +34,4 @@
 
 - `AGENTS.md` — основные правила
 - `docs/roadmap.md` — план развития
-- `docs/acceptance/v0.2.md` — критерии приёмки текущей фазы
+- `docs/acceptance/v0.5.md` — критерии приёмки текущей фазы

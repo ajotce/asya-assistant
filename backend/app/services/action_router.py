@@ -14,7 +14,10 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.activity_log_repository import ActivityLogRepository
 
 try:
-    from app.integrations.bitrix24 import Bitrix24ConfigurationError, Bitrix24Service  # type: ignore[import-untyped]
+    from app.integrations.bitrix24 import (  # type: ignore[import-not-found,import-untyped]
+        Bitrix24ConfigurationError,
+        Bitrix24Service,
+    )
 except ModuleNotFoundError:
     Bitrix24ConfigurationError = RuntimeError
     Bitrix24Service = None  # type: ignore[assignment]
@@ -357,15 +360,18 @@ class ActionRouter:
     def _execute(self, *, tool: str, operation: str, args: dict[str, Any], user_id: str) -> str:
         handler = self._tool_handlers.get((tool, operation))
         if handler is None:
-            return f"Выполнено действие: {tool}.{operation}"
+            return (
+                f"Операция {tool}.{operation} сейчас недоступна: "
+                "в текущей конфигурации нет подключенного обработчика."
+            )
         result = handler(user_id=user_id, **args)
         if isinstance(result, str):
             return result
         if isinstance(result, dict):
             if "message" in result and isinstance(result["message"], str):
                 return result["message"]
-            return f"Выполнено действие: {tool}.{operation}. Данные получены."
-        return f"Выполнено действие: {tool}.{operation}"
+            return f"Операция {tool}.{operation} выполнена. Данные получены."
+        return f"Операция {tool}.{operation} выполнена."
 
     @staticmethod
     def _now() -> datetime:

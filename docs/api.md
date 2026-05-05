@@ -13,6 +13,7 @@
   - `GET /api/integrations/github/search`
 - Для сборок без подключённого модуля `bitrix24`/`imap` соответствующие endpoints возвращают `409`
   (интеграция недоступна в текущем build), вместо падения импорта приложения.
+- PR readiness (2026-05-05): backend `py312` checks и QA smoke по integrations/API зелёные.
 
 Документ описывает фактическое API после завершения v0.3 и foundation-слоя интеграций v0.4.
 
