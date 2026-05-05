@@ -5,6 +5,7 @@
 - GitHub интеграция работает в read-only режиме (репозитории/issues/pulls/commits/read file/search).
 - Write-операции GitHub и Bitrix24 в API/action-router не включены в текущий scope.
 - При отсутствии модуля интеграции backend возвращает контролируемый `409`, а не stack trace/500.
+- По итогам финализации v0.5 убрано логирование raw email-body и setup-link/token из dev notifier/transport.
 
 ## Секреты интеграций (v0.4 foundation)
 

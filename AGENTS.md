@@ -6,7 +6,7 @@
 
 ## Что такое Asya
 
-Asya — персональный AI-ассистент. Сейчас проект находится в фазе **0.2: multi-user foundation**. Цель фазы — превратить одноюзерное локальное приложение в multi-user систему с БД, миграциями, авторизацией и шифрованием. Без открытой регистрации, без новых фич — только инфраструктура.
+Asya — персональный AI-ассистент. Сейчас проект находится в фазе **0.5: extended integrations and documents (integration tranche)**. Текущий приоритет — безопасно завершить и поддерживать интеграционный scope v0.5 и готовить переход к v1.0.
 
 Полный план развития до 2.0 — в `docs/roadmap.md`. Прочитай его перед началом работы, чтобы понимать общий контекст.
 
@@ -14,32 +14,26 @@ Asya — персональный AI-ассистент. Сейчас проек
 
 ## Текущая фаза и фокус
 
-**Текущая фаза: 0.2 — Multi-user foundation.**
+**Текущая фаза: 0.5 — Extended integrations and documents (integration tranche).**
 
 Что входит в фазу:
 
-- БД (SQLite) с миграциями через Alembic.
-- Multi-user модель: User, Session, Chat, Message с FK на user_id.
-- Аутентификация: логин+пароль, без magic-link, без OAuth.
-- Шифрование секретов в БД через master-key из `.env`.
-- CLI для создания пользователей вручную (открытая регистрация откладывается на 0.4).
-- Множественные чаты и Base-chat.
-- Личный кабинет с базовыми настройками.
-- Перенос текущего in-memory кода на БД.
+- GitHub read-only integration flow (API + router intents).
+- Bitrix24 read-only integration flow (API + router intents).
+- IMAP-readonly integration flow.
+- File-storage providers foundation (`yandex_disk`, `onedrive`, `icloud_drive`) в общем integration-layer.
+- Security hardening: отсутствие логирования raw секретов/токенов.
+- QA/acceptance консолидация для PR `0.5-extended -> main`.
 
-Что **не** входит в фазу 0.2 (вообще не трогать):
+Что **не** входит в текущий релизный транш v0.5:
 
-- Память (профиль, эпизоды, правила, личность ассистента) — это 0.3.
-- Голос — это 0.4 (push-to-talk) и 1.0 (wake-word).
-- Дневник — это 0.4.
-- Тихий наблюдатель — это 0.4.
-- Telegram, Linear, Todoist, Gmail, GitHub, Bitrix24, Drive, Yandex.Disk, iCloud, OneDrive — это 0.4 и 0.5.
-- Шаблоны документов — это 0.5.
-- Magic-link / email-flow — исключён из проекта.
+- Полный product-scope `document-templates` (end-to-end generation + export как завершённая фича).
+- Полный product-scope `briefings/workflows`.
+- Фичи v1.0+ (wake-word, полноценный production voice stack, advanced integrations beyond approved v0.5 scope).
 
 Если задача требует чего-то из «не входит» — **остановись и спроси пользователя**. Не реализуй ничего из этого без явного разрешения.
 
-**Рабочая ветка:** `0.2-multi-user`. Все коммиты, относящиеся к 0.2, идут туда.
+**Рабочая ветка:** `0.5-extended`. Все коммиты, относящиеся к v0.5, идут туда до merge в `main`.
 
 ---
 

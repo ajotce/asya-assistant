@@ -29,7 +29,10 @@ from app.services.integration_connection_service import IntegrationConnectionSer
 router = APIRouter(tags=["integrations"])
 
 try:
-    from app.integrations.bitrix24 import Bitrix24ConfigurationError, Bitrix24Service  # type: ignore[import-untyped]
+    from app.integrations.bitrix24 import (  # type: ignore[import-not-found,import-untyped]
+        Bitrix24ConfigurationError,
+        Bitrix24Service,
+    )
 except ModuleNotFoundError:
     Bitrix24ConfigurationError = RuntimeError
     Bitrix24Service = None  # type: ignore[assignment]
@@ -41,7 +44,7 @@ try:
         ImapMessageNotFoundError,
         ImapService,
         ImapSettings,
-    )  # type: ignore[import-untyped]
+    )  # type: ignore[import-not-found,import-untyped]
 except ModuleNotFoundError:
     ImapConfigurationError = RuntimeError
     ImapConnectionError = RuntimeError
@@ -389,7 +392,7 @@ def bitrix24_list_pipelines_stages_sources(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> Bitrix24PipelinesResponse:
-    service = Bitrix24Service(db_session)
+    service = _bitrix_service_or_409(db_session)
     data = service.list_pipelines_stages_sources(user_id=current_user.id)
     return Bitrix24PipelinesResponse(
         pipelines=data["pipelines"],

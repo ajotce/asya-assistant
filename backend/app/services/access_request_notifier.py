@@ -34,12 +34,11 @@ class DevLogAccessRequestNotifier(AccessRequestNotifier):
         )
 
     def on_approved(self, request: AccessRequest, user: User, setup_link: str) -> None:
+        _ = setup_link
         logger.info(
-            "access_request_approved id=%s email=%s user_id=%s setup_link=%s",
+            "access_request_approved_notification_sent request_id=%s user_id=%s",
             request.id,
-            request.email,
             user.id,
-            setup_link,
         )
 
     def on_rejected(self, request: AccessRequest) -> None:
