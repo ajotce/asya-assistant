@@ -16,7 +16,8 @@ class EmailTransport:
 
 class MockEmailTransport(EmailTransport):
     def send(self, *, to_email: str, subject: str, text_body: str) -> None:
-        logger.info("mock_email to=%s subject=%s body=%s", to_email, subject, text_body)
+        _ = text_body
+        logger.info("mock_email to=%s subject=%s", to_email, subject)
 
 
 class SmtpEmailTransport(EmailTransport):
