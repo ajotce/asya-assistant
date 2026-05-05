@@ -23,7 +23,7 @@
 - Обновлена confirmation policy:
   - read actions — без подтверждения;
   - document generation (`document.template_fill`) — без подтверждения по умолчанию;
-  - write (`storage.save`) — только через pending + `/confirm`;
+  - write/share/delete (`storage.save`, `storage.share`, `storage.delete`) — только через pending + `/confirm`;
   - rollback execute — только через pending + `/confirm`.
 
 ## Безопасность и ограничения

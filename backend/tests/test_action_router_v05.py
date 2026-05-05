@@ -115,3 +115,51 @@ def test_rollback_execute_requires_confirmation() -> None:
 
     router.handle(user_id="u1", session_id="s1", message=f"/confirm {first.pending_action_id}")
     assert called["value"] == 1
+
+
+def test_storage_share_requires_confirmation_and_no_hidden_write() -> None:
+    called = {"value": 0}
+
+    def _handler(**_) -> str:
+        called["value"] += 1
+        return "Файл расшарен"
+
+    router = _router({("storage", "share"): _handler})
+    first = router.handle(user_id="u1", session_id="s1", message="/tool storage share report.txt")
+
+    assert first.handled is True
+    assert first.pending_action_id is not None
+    assert called["value"] == 0
+
+    second = router.handle(
+        user_id="u1",
+        session_id="s1",
+        message=f"/confirm {first.pending_action_id}",
+    )
+    assert second.handled is True
+    assert "расшар" in second.message.lower()
+    assert called["value"] == 1
+
+
+def test_storage_delete_requires_confirmation_and_no_hidden_write() -> None:
+    called = {"value": 0}
+
+    def _handler(**_) -> str:
+        called["value"] += 1
+        return "Файл удалён"
+
+    router = _router({("storage", "delete"): _handler})
+    first = router.handle(user_id="u1", session_id="s1", message="/tool storage delete report.txt")
+
+    assert first.handled is True
+    assert first.pending_action_id is not None
+    assert called["value"] == 0
+
+    second = router.handle(
+        user_id="u1",
+        session_id="s1",
+        message=f"/confirm {first.pending_action_id}",
+    )
+    assert second.handled is True
+    assert "удал" in second.message.lower()
+    assert called["value"] == 1
