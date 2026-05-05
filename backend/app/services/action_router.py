@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import json
 import re
 import secrets
-from typing import Any
+from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
 from app.db.models.common import ActivityEntityType, ActivityEventType
-from app.repositories.document_template_repository import DocumentTemplateRepository
-from app.repositories.activity_log_repository import ActivityLogRepository
+from app.integrations.bitrix24 import Bitrix24Service
 from app.repositories.action_event_repository import ActionEventRepository
+from app.repositories.activity_log_repository import ActivityLogRepository
+from app.repositories.document_template_repository import DocumentTemplateRepository
 from app.services.document_fill_service import DocumentFillService
 from app.services.file_storage_service import FileStorageService
 
@@ -35,12 +36,26 @@ class ActionResult:
     pending_action_id: str | None = None
 
 
+@dataclass
+class ParsedRoute:
+    tool: str
+    operation: str
+    args: dict[str, Any]
+    requires_confirmation: bool
+
+
 class ActionRouter:
-    def __init__(self, session: Session, pending_store: dict[str, PendingAction]) -> None:
+    def __init__(
+        self,
+        session: Session,
+        pending_store: dict[str, PendingAction],
+        tool_handlers: dict[tuple[str, str], Callable[..., Any]] | None = None,
+    ) -> None:
         self._session = session
         self._pending_store = pending_store
         self._activity = ActivityLogRepository(session)
         self._action_events = ActionEventRepository(session)
+        self._tool_handlers = tool_handlers or {}
 
     def handle(self, *, user_id: str, session_id: str, message: str) -> ActionResult:
         text = message.strip()
@@ -48,7 +63,11 @@ class ActionRouter:
             return ActionResult(handled=False, message="")
 
         pending_fill = self._find_pending_document_fill(user_id=user_id)
-        if pending_fill is not None and not text.lower().startswith("/confirm ") and not text.lower().startswith("/tool "):
+        if (
+            pending_fill is not None
+            and not text.lower().startswith("/confirm ")
+            and not text.lower().startswith("/tool ")
+        ):
             result = self._handle_document_fill(
                 user_id=user_id,
                 session_id=session_id,
@@ -62,36 +81,50 @@ class ActionRouter:
             action_id = text.split(" ", 1)[1].strip()
             return self._confirm_action(user_id=user_id, action_id=action_id)
 
-        doc_fill_result = self._handle_document_fill(user_id=user_id, session_id=session_id, message=text, pending=None)
+        doc_fill_result = self._handle_document_fill(
+            user_id=user_id,
+            session_id=session_id,
+            message=text,
+            pending=None,
+        )
         if doc_fill_result.handled:
             return doc_fill_result
 
-        route = self._parse_natural_storage_command(text)
+        route = self._parse_message(text)
         if route is None:
-            if not text.lower().startswith("/tool "):
-                return ActionResult(handled=False, message="")
-            command = text[len("/tool ") :].strip()
-            route = self._parse_command(command)
-            if route is None:
-                return ActionResult(
-                    handled=True,
-                    message=(
-                        "Неподдерживаемая tool-команда. Доступно: "
-                        "calendar list/create, todoist list/create, linear update, gmail search/draft."
-                    ),
-                )
+            if text.lower().startswith("/tool "):
+                return ActionResult(handled=True, message="Неподдерживаемая tool-команда.")
+            return ActionResult(handled=False, message="")
+
+        if not route.requires_confirmation:
+            execution = self._execute_route(route=route, user_id=user_id)
+            self._activity.create(
+                user_id=user_id,
+                event_type=ActivityEventType.INTEGRATION_ACTION_EXECUTED,
+                entity_type=ActivityEntityType.INTEGRATION_ACTION,
+                entity_id=secrets.token_hex(8),
+                summary=f"Выполнено действие {route.tool}.{route.operation}",
+                meta={
+                    "tool": route.tool,
+                    "operation": route.operation,
+                    "arg_keys": sorted(list(route.args.keys())),
+                    "has_sensitive_content": False,
+                },
+            )
+            self._session.commit()
+            return ActionResult(handled=True, message=execution)
 
         action_id = secrets.token_hex(8)
         self._pending_store[action_id] = PendingAction(
             id=action_id,
             user_id=user_id,
             session_id=session_id,
-            tool=route["tool"],
-            operation=route["operation"],
-            args=route["args"],
+            tool=route.tool,
+            operation=route.operation,
+            args=route.args,
             created_at=self._now(),
         )
-        summary = f"{route['tool']}.{route['operation']}"
+        summary = f"{route.tool}.{route.operation}"
         return ActionResult(
             handled=True,
             message=(
@@ -106,6 +139,12 @@ class ActionRouter:
         if pending is None or pending.user_id != user_id:
             return ActionResult(handled=True, message="Pending action не найдена или уже выполнена.")
 
+        execution = self._execute(
+            tool=pending.tool,
+            operation=pending.operation,
+            args=pending.args,
+            user_id=user_id,
+        )
         del self._pending_store[action_id]
         activity = self._activity.create(
             user_id=user_id,
@@ -135,50 +174,229 @@ class ActionRouter:
             rollback_notes=rollback_meta["rollback_notes"],
         )
         self._session.commit()
-        return ActionResult(
-            handled=True,
-            message=f"Действие выполнено: {pending.tool}.{pending.operation}",
-        )
+        return ActionResult(handled=True, message=execution)
+
+    def _parse_message(self, message: str) -> ParsedRoute | None:
+        text = message.strip()
+        if text.lower().startswith("/tool "):
+            return self._parse_tool_command(text[len("/tool ") :].strip())
+
+        storage_route = self._parse_natural_storage_command(text)
+        if storage_route is not None:
+            return storage_route
+
+        return self._parse_intent_text(text)
 
     @staticmethod
-    def _parse_command(command: str) -> dict[str, Any] | None:
+    def _parse_tool_command(command: str) -> ParsedRoute | None:
         parts = command.split()
         if len(parts) < 2:
             return None
         tool, operation = parts[0].lower(), parts[1].lower()
+        query = " ".join(parts[2:])
+
         if tool == "calendar" and operation in {"list", "create", "update"}:
-            return ActionRouter._parse_tool_args(tool, operation, parts[2:])
+            return ActionRouter._parse_tool_args(
+                tool,
+                operation,
+                parts[2:],
+                requires_confirmation=operation in {"create", "update"},
+            )
         if tool == "todoist" and operation in {"list", "create", "update"}:
-            return ActionRouter._parse_tool_args(tool, operation, parts[2:])
+            return ActionRouter._parse_tool_args(
+                tool,
+                operation,
+                parts[2:],
+                requires_confirmation=operation in {"create", "update"},
+            )
         if tool == "linear" and operation == "update":
-            return ActionRouter._parse_tool_args(tool, operation, parts[2:])
+            return ActionRouter._parse_tool_args(
+                tool,
+                operation,
+                parts[2:],
+                requires_confirmation=True,
+            )
         if tool == "gmail" and operation in {"search", "draft"}:
-            return ActionRouter._parse_tool_args(tool, operation, parts[2:])
-        if tool in {"drive", "yandex", "onedrive"} and operation == "create":
-            return ActionRouter._parse_tool_args(tool, operation, parts[2:])
-        if tool in {"drive", "yandex", "onedrive"} and operation == "search":
-            return ActionRouter._parse_tool_args(tool, operation, parts[2:])
+            return ActionRouter._parse_tool_args(
+                tool,
+                operation,
+                parts[2:],
+                requires_confirmation=operation == "draft",
+            )
+        if tool in {"drive", "yandex", "onedrive"} and operation in {"create", "search"}:
+            return ActionRouter._parse_tool_args(
+                tool,
+                operation,
+                parts[2:],
+                requires_confirmation=operation == "create",
+            )
         if tool in {"memory", "rules", "personality"} and operation == "update":
-            return ActionRouter._parse_tool_args(tool, operation, parts[2:])
+            return ActionRouter._parse_tool_args(
+                tool,
+                operation,
+                parts[2:],
+                requires_confirmation=True,
+            )
+        if tool == "github" and operation in {"repos", "issues", "prs", "file"}:
+            return ParsedRoute(
+                tool=tool,
+                operation=operation,
+                args={"query": query},
+                requires_confirmation=False,
+            )
+        if tool == "bitrix" and operation in {"leads", "deals", "funnel_sum"}:
+            return ParsedRoute(
+                tool=tool,
+                operation=operation,
+                args={"query": query},
+                requires_confirmation=False,
+            )
+        if tool == "storage" and operation in {"search", "read", "save"}:
+            return ParsedRoute(
+                tool=tool,
+                operation=operation,
+                args={"query": query},
+                requires_confirmation=operation == "save",
+            )
+        if tool == "imap" and operation in {"search", "read"}:
+            return ParsedRoute(
+                tool=tool,
+                operation=operation,
+                args={"query": query},
+                requires_confirmation=False,
+            )
+        if tool == "document" and operation == "template_fill":
+            return ParsedRoute(
+                tool=tool,
+                operation=operation,
+                args={"query": query},
+                requires_confirmation=False,
+            )
+        if tool == "briefing" and operation == "generate":
+            return ParsedRoute(
+                tool=tool,
+                operation=operation,
+                args={"query": query},
+                requires_confirmation=False,
+            )
+        if tool == "rollback" and operation in {"preview", "execute"}:
+            return ParsedRoute(
+                tool=tool,
+                operation=operation,
+                args={"query": query},
+                requires_confirmation=operation == "execute",
+            )
         return None
 
     @staticmethod
-    def _parse_natural_storage_command(message: str) -> dict[str, Any] | None:
-        lower = message.strip().lower()
-        if "найди документ" in lower and "моих файлах" in lower:
-            return {"tool": "drive", "operation": "search", "args": {"query": message.strip()}}
-        if "сохрани файл" not in lower:
-            return None
-        if "onedrive" in lower or "one drive" in lower:
-            return {"tool": "onedrive", "operation": "create", "args": {"query": message.strip()}}
-        if "yandex" in lower or "яндекс" in lower:
-            return {"tool": "yandex", "operation": "create", "args": {"query": message.strip()}}
-        if "drive" in lower:
-            return {"tool": "drive", "operation": "create", "args": {"query": message.strip()}}
-        return {"tool": "drive", "operation": "create", "args": {"query": message.strip()}}
+    def _parse_intent_text(message: str) -> ParsedRoute | None:
+        lowered = message.lower()
+
+        if "сколько лидов" in lowered:
+            return ParsedRoute(
+                tool="bitrix",
+                operation="leads",
+                args={
+                    "source_id": ActionRouter._extract_source_id(message),
+                    "created_since": date.today() if "сегодня" in lowered else None,
+                    "query": message,
+                },
+                requires_confirmation=False,
+            )
+        if "покажи сделки" in lowered:
+            date_from, date_to = ActionRouter._extract_date_range(message)
+            return ParsedRoute(
+                tool="bitrix",
+                operation="deals",
+                args={"date_from": date_from, "date_to": date_to, "query": message},
+                requires_confirmation=False,
+            )
+        if "что нового" in lowered and "pr" in lowered:
+            return ParsedRoute(
+                tool="github",
+                operation="prs",
+                args={"query": message},
+                requires_confirmation=False,
+            )
+        if "сколько денег" in lowered and "воронк" in lowered:
+            return ParsedRoute(
+                tool="bitrix",
+                operation="funnel_sum",
+                args={"query": message},
+                requires_confirmation=False,
+            )
+        if "найди файл" in lowered and "яндекс" in lowered:
+            return ParsedRoute(
+                tool="storage",
+                operation="search",
+                args={"provider": "yandex_disk", "query": message},
+                requires_confirmation=False,
+            )
+        if "гарантийный талон" in lowered:
+            return ParsedRoute(
+                tool="document",
+                operation="template_fill",
+                args={"template": "warranty_card", "query": message},
+                requires_confirmation=False,
+            )
+        if "вечерний итог" in lowered or "сгенерируй итог" in lowered:
+            return ParsedRoute(
+                tool="briefing",
+                operation="generate",
+                args={"type": "evening", "query": message},
+                requires_confirmation=False,
+            )
+        if "откати последнее действие" in lowered:
+            return ParsedRoute(
+                tool="rollback",
+                operation="preview",
+                args={"target": "last_action"},
+                requires_confirmation=False,
+            )
+        rollback_execute_match = re.search(r"/rollback\s+execute\s+(\S+)", lowered)
+        if rollback_execute_match:
+            return ParsedRoute(
+                tool="rollback",
+                operation="execute",
+                args={"action_id": rollback_execute_match.group(1)},
+                requires_confirmation=True,
+            )
+        return None
 
     @staticmethod
-    def _parse_tool_args(tool: str, operation: str, tokens: list[str]) -> dict[str, Any]:
+    def _parse_natural_storage_command(message: str) -> ParsedRoute | None:
+        lower = message.strip().lower()
+        if "найди документ" in lower and "моих файлах" in lower:
+            return ParsedRoute(
+                tool="drive",
+                operation="search",
+                args={"query": message.strip()},
+                requires_confirmation=True,
+            )
+        if "сохрани файл" not in lower:
+            return None
+
+        provider = "drive"
+        if "onedrive" in lower or "one drive" in lower:
+            provider = "onedrive"
+        elif "yandex" in lower or "яндекс" in lower:
+            provider = "yandex"
+
+        return ParsedRoute(
+            tool=provider,
+            operation="create",
+            args={"query": message.strip()},
+            requires_confirmation=True,
+        )
+
+    @staticmethod
+    def _parse_tool_args(
+        tool: str,
+        operation: str,
+        tokens: list[str],
+        *,
+        requires_confirmation: bool,
+    ) -> ParsedRoute:
         args: dict[str, Any] = {"query": " ".join(tokens)}
         key_values: dict[str, str] = {}
         for token in tokens:
@@ -192,7 +410,56 @@ class ActionRouter:
                 args["previous_state"] = json.loads(key_values["previous_state"])
             except json.JSONDecodeError:
                 args["previous_state"] = None
-        return {"tool": tool, "operation": operation, "args": args}
+        return ParsedRoute(
+            tool=tool,
+            operation=operation,
+            args=args,
+            requires_confirmation=requires_confirmation,
+        )
+
+    def _execute_route(self, *, route: ParsedRoute, user_id: str) -> str:
+        return self._execute(tool=route.tool, operation=route.operation, args=route.args, user_id=user_id)
+
+    def _execute(self, *, tool: str, operation: str, args: dict[str, Any], user_id: str) -> str:
+        handler = self._tool_handlers.get((tool, operation))
+        if handler is not None:
+            result = handler(user_id=user_id, **args)
+            return self._format_execution_result(tool=tool, operation=operation, result=result)
+
+        if tool == "bitrix" and operation in {"leads", "deals"}:
+            return self._execute_bitrix_read(operation=operation, args=args, user_id=user_id)
+
+        return f"Выполнено действие: {tool}.{operation}"
+
+    def _execute_bitrix_read(self, *, operation: str, args: dict[str, Any], user_id: str) -> str:
+        service = Bitrix24Service(self._session)
+        if operation == "leads":
+            result = service.list_leads(
+                user_id=user_id,
+                source_id=args.get("source_id"),
+                created_since=args.get("created_since"),
+            )
+            total = self._extract_total(result)
+            return f"Найдено лидов: {total}"
+        if operation == "deals":
+            result = service.list_deals(
+                user_id=user_id,
+                date_from=args.get("date_from"),
+                date_to=args.get("date_to"),
+            )
+            total = self._extract_total(result)
+            return f"Найдено сделок: {total}"
+        return f"Выполнено действие: bitrix.{operation}"
+
+    @staticmethod
+    def _format_execution_result(*, tool: str, operation: str, result: Any) -> str:
+        if isinstance(result, str):
+            return result
+        if isinstance(result, dict):
+            if "message" in result and isinstance(result["message"], str):
+                return result["message"]
+            return f"Выполнено действие: {tool}.{operation}. Данные получены."
+        return f"Выполнено действие: {tool}.{operation}"
 
     def _handle_document_fill(
         self,
@@ -212,7 +479,10 @@ class ActionRouter:
 
         template = None
         if pending is not None:
-            template = repo.get_for_user(template_id=str(pending.args.get("template_id", "")), user_id=user_id)
+            template = repo.get_for_user(
+                template_id=str(pending.args.get("template_id", "")),
+                user_id=user_id,
+            )
         if template is None:
             template = self._match_template(templates=templates, message=message)
         if template is None:
@@ -231,7 +501,11 @@ class ActionRouter:
         storage = FileStorageService(self._session, user_id=user_id)
         template_bytes = storage.read(provider=template.provider, item_id=template.file_id)
         filler = DocumentFillService()
-        preview = filler.preview(template_fields=template.fields or [], values=values, template_bytes=template_bytes)
+        preview = filler.preview(
+            template_fields=template.fields or [],
+            values=values,
+            template_bytes=template_bytes,
+        )
         if not preview.ok:
             action_id = secrets.token_hex(8)
             self._pending_store[action_id] = PendingAction(
@@ -272,7 +546,11 @@ class ActionRouter:
 
     def _find_pending_document_fill(self, *, user_id: str) -> PendingAction | None:
         for item in self._pending_store.values():
-            if item.user_id == user_id and item.tool == "document_template" and item.operation == "fill_collect":
+            if (
+                item.user_id == user_id
+                and item.tool == "document_template"
+                and item.operation == "fill_collect"
+            ):
                 return item
         return None
 
@@ -291,6 +569,28 @@ class ActionRouter:
         return None
 
     @staticmethod
+    def _extract_source_id(message: str) -> str | None:
+        match = re.search(r"источника?\s+([a-zA-Z0-9_-]+)", message, flags=re.IGNORECASE)
+        return match.group(1) if match else None
+
+    @staticmethod
+    def _extract_date_range(message: str) -> tuple[date | None, date | None]:
+        values = re.findall(r"\d{4}-\d{2}-\d{2}", message)
+        date_from = date.fromisoformat(values[0]) if len(values) >= 1 else None
+        date_to = date.fromisoformat(values[1]) if len(values) >= 2 else None
+        return date_from, date_to
+
+    @staticmethod
+    def _extract_total(result: dict[str, Any]) -> int:
+        raw_total = result.get("total")
+        if isinstance(raw_total, int):
+            return raw_total
+        items = result.get("result")
+        if isinstance(items, list):
+            return len(items)
+        return 0
+
+    @staticmethod
     def _build_rollback_meta(pending: PendingAction) -> dict[str, Any]:
         provider_map = {
             "calendar": "google_calendar",
@@ -303,6 +603,7 @@ class ActionRouter:
             "memory": "memory",
             "rules": "rules",
             "personality": "personality",
+            "storage": str(pending.args.get("provider") or "storage"),
         }
         provider = provider_map.get(pending.tool, pending.tool)
         previous_state = pending.args.get("previous_state")
@@ -332,7 +633,10 @@ class ActionRouter:
             reversible = bool(target_id and isinstance(previous_state, dict))
             rollback_strategy = "calendar_update_restore_fields"
             rollback_notes = None if reversible else "Нет previous_state для отката calendar update."
-        elif provider in {"google_drive", "yandex_disk", "onedrive"} and pending.operation == "create":
+        elif provider in {"google_drive", "yandex_disk", "onedrive"} and pending.operation in {
+            "create",
+            "save",
+        }:
             reversible = bool(target_id)
             rollback_strategy = "drive_create_delete_file_if_safe"
             rollback_notes = None if reversible else "Нет target_id файла для отката create."
