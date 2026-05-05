@@ -1,4 +1,5 @@
 from __future__ import annotations
+# mypy: disable-error-code=import-untyped
 
 from datetime import date
 from typing import NoReturn
@@ -9,15 +10,7 @@ from sqlalchemy.orm import Session
 from app.api.deps_auth import get_current_user, get_db_session
 from app.db.models.common import IntegrationProvider
 from app.db.models.user import User
-from app.integrations.bitrix24 import Bitrix24ConfigurationError, Bitrix24Service
 from app.integrations.github import GitHubAPIError, GitHubAccessDeniedError, GitHubNotConnectedError, GitHubService
-from app.integrations.imap import (
-    ImapConfigurationError,
-    ImapConnectionError,
-    ImapMessageNotFoundError,
-    ImapService,
-    ImapSettings,
-)
 from app.models.schemas import (
     Bitrix24EntityResponse,
     Bitrix24ListResponse,
@@ -34,6 +27,27 @@ from app.models.schemas import (
 from app.services.integration_connection_service import IntegrationConnectionService
 
 router = APIRouter(tags=["integrations"])
+
+try:
+    from app.integrations.bitrix24 import Bitrix24ConfigurationError, Bitrix24Service  # type: ignore[import-untyped]
+except ModuleNotFoundError:
+    Bitrix24ConfigurationError = RuntimeError
+    Bitrix24Service = None  # type: ignore[assignment]
+
+try:
+    from app.integrations.imap import (
+        ImapConfigurationError,
+        ImapConnectionError,
+        ImapMessageNotFoundError,
+        ImapService,
+        ImapSettings,
+    )  # type: ignore[import-untyped]
+except ModuleNotFoundError:
+    ImapConfigurationError = RuntimeError
+    ImapConnectionError = RuntimeError
+    ImapMessageNotFoundError = RuntimeError
+    ImapService = None  # type: ignore[assignment]
+    ImapSettings = None  # type: ignore[assignment]
 
 
 def _parse_provider(raw: str) -> IntegrationProvider:
@@ -114,6 +128,18 @@ def _handle_imap_error(exc: Exception) -> NoReturn:
     raise exc
 
 
+def _bitrix_service_or_409(db_session: Session):
+    if Bitrix24Service is None:
+        raise HTTPException(status_code=409, detail="Bitrix24 integration is not available in this build.")
+    return Bitrix24Service(db_session)
+
+
+def _imap_service_or_409(db_session: Session):
+    if ImapService is None or ImapSettings is None:
+        raise HTTPException(status_code=409, detail="IMAP integration is not available in this build.")
+    return ImapService(db_session)
+
+
 @router.post("/integrations/imap/test", response_model=ImapConnectionTestResponse)
 def imap_test_connection(
     payload: ImapConnectRequest,
@@ -121,7 +147,7 @@ def imap_test_connection(
     db_session: Session = Depends(get_db_session),
 ) -> ImapConnectionTestResponse:
     _ = current_user
-    service = ImapService(db_session)
+    service = _imap_service_or_409(db_session)
     try:
         result = service.test_connection(
             settings=ImapSettings(
@@ -144,7 +170,7 @@ def imap_connect(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> IntegrationConnectionResponse:
-    service = ImapService(db_session)
+    service = _imap_service_or_409(db_session)
     try:
         service.connect(
             user=current_user,
@@ -171,7 +197,7 @@ def imap_list_folders(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> ImapFolderListResponse:
-    service = ImapService(db_session)
+    service = _imap_service_or_409(db_session)
     try:
         folders = service.list_folders(user_id=current_user.id)
     except Exception as exc:  # noqa: BLE001
@@ -186,7 +212,7 @@ def imap_list_messages(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> list[ImapMessageSummaryResponse]:
-    service = ImapService(db_session)
+    service = _imap_service_or_409(db_session)
     try:
         items = service.list_messages(user_id=current_user.id, folder=folder, limit=limit)
     except Exception as exc:  # noqa: BLE001
@@ -201,7 +227,7 @@ def imap_get_message(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> ImapMessageDetailsResponse:
-    service = ImapService(db_session)
+    service = _imap_service_or_409(db_session)
     try:
         item = service.get_message(user_id=current_user.id, uid=uid, folder=folder)
     except Exception as exc:  # noqa: BLE001
@@ -217,7 +243,7 @@ def imap_search_messages(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> list[ImapMessageSummaryResponse]:
-    service = ImapService(db_session)
+    service = _imap_service_or_409(db_session)
     try:
         items = service.search_messages(user_id=current_user.id, query=q, folder=folder, limit=limit)
     except Exception as exc:  # noqa: BLE001
@@ -232,7 +258,7 @@ def imap_mark_as_read(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> dict:
-    service = ImapService(db_session)
+    service = _imap_service_or_409(db_session)
     try:
         service.mark_as_read(user_id=current_user.id, uid=uid, folder=folder)
     except Exception as exc:  # noqa: BLE001
@@ -245,7 +271,7 @@ def imap_disconnect(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> IntegrationConnectionResponse:
-    service = ImapService(db_session)
+    service = _imap_service_or_409(db_session)
     service.disconnect(user=current_user)
     item = IntegrationConnectionService(db_session).get_connection_or_default(user=current_user, provider=IntegrationProvider.IMAP)
     return _to_response(item)
@@ -258,7 +284,7 @@ def bitrix24_list_leads(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> Bitrix24ListResponse:
-    service = Bitrix24Service(db_session)
+    service = _bitrix_service_or_409(db_session)
     try:
         data = service.list_leads(
             user_id=current_user.id,
@@ -280,7 +306,7 @@ def bitrix24_get_lead(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> Bitrix24EntityResponse:
-    service = Bitrix24Service(db_session)
+    service = _bitrix_service_or_409(db_session)
     return Bitrix24EntityResponse(result=service.get_lead(user_id=current_user.id, lead_id=lead_id).get("result", {}))
 
 
@@ -291,7 +317,7 @@ def bitrix24_list_deals(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> Bitrix24ListResponse:
-    service = Bitrix24Service(db_session)
+    service = _bitrix_service_or_409(db_session)
     data = service.list_deals(
         user_id=current_user.id,
         date_from=_parse_optional_date(date_from),
@@ -306,7 +332,7 @@ def bitrix24_get_deal(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> Bitrix24EntityResponse:
-    service = Bitrix24Service(db_session)
+    service = _bitrix_service_or_409(db_session)
     return Bitrix24EntityResponse(result=service.get_deal(user_id=current_user.id, deal_id=deal_id).get("result", {}))
 
 
@@ -315,7 +341,7 @@ def bitrix24_list_contacts(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> Bitrix24ListResponse:
-    service = Bitrix24Service(db_session)
+    service = _bitrix_service_or_409(db_session)
     data = service.list_contacts(user_id=current_user.id)
     return Bitrix24ListResponse(result=data.get("result", []), total=data.get("total"), next=data.get("next"))
 
@@ -326,7 +352,7 @@ def bitrix24_get_contact(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> Bitrix24EntityResponse:
-    service = Bitrix24Service(db_session)
+    service = _bitrix_service_or_409(db_session)
     return Bitrix24EntityResponse(
         result=service.get_contact(user_id=current_user.id, contact_id=contact_id).get("result", {})
     )
@@ -337,7 +363,7 @@ def bitrix24_list_tasks(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> Bitrix24ListResponse:
-    service = Bitrix24Service(db_session)
+    service = _bitrix_service_or_409(db_session)
     data = service.list_tasks(user_id=current_user.id)
     return Bitrix24ListResponse(result=data.get("result", []), total=data.get("total"), next=data.get("next"))
 
@@ -349,7 +375,7 @@ def bitrix24_list_calls(
     current_user: User = Depends(get_current_user),
     db_session: Session = Depends(get_db_session),
 ) -> Bitrix24ListResponse:
-    service = Bitrix24Service(db_session)
+    service = _bitrix_service_or_409(db_session)
     data = service.list_calls(
         user_id=current_user.id,
         date_from=_parse_optional_date(date_from),

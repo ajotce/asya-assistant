@@ -9,10 +9,15 @@ from typing import Any, Callable
 from sqlalchemy.orm import Session
 
 from app.db.models.common import ActivityEntityType, ActivityEventType
-from app.integrations.bitrix24 import Bitrix24ConfigurationError, Bitrix24Service
 from app.integrations.github import GitHubAccessDeniedError, GitHubNotConnectedError, GitHubService
 from app.repositories.user_repository import UserRepository
 from app.repositories.activity_log_repository import ActivityLogRepository
+
+try:
+    from app.integrations.bitrix24 import Bitrix24ConfigurationError, Bitrix24Service  # type: ignore[import-untyped]
+except ModuleNotFoundError:
+    Bitrix24ConfigurationError = RuntimeError
+    Bitrix24Service = None  # type: ignore[assignment]
 
 
 @dataclass
@@ -269,6 +274,8 @@ class ActionRouter:
 
     def _handle_bitrix24_readonly(self, *, user_id: str, text: str) -> ActionResult | None:
         lowered = text.lower()
+        if Bitrix24Service is None:
+            return None
         service = Bitrix24Service(self._session)
 
         source_match = re.search(r"сколько лидов сегодня пришло из источника\s+(.+)\??$", lowered, re.IGNORECASE)

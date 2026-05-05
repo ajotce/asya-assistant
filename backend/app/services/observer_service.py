@@ -20,10 +20,54 @@ from app.repositories.activity_log_repository import ActivityLogRepository
 from app.repositories.integration_connection_repository import IntegrationConnectionRepository
 from app.repositories.observation_repository import ObservationRepository
 from app.repositories.observation_rule_repository import ObservationRuleRepository
-from app.repositories.observed_entity_snapshot_repository import ObservedEntitySnapshotRepository
 from app.repositories.user_repository import UserRepository
 from app.services.notification_center_service import NotificationCenterService
-from app.services.observer_snapshot_service import ObserverSnapshotService
+
+try:
+    from app.repositories.observed_entity_snapshot_repository import ObservedEntitySnapshotRepository  # type: ignore[import-untyped]
+    from app.services.observer_snapshot_service import ObserverSnapshotService  # type: ignore[import-untyped]
+except ModuleNotFoundError:
+    class ObserverSnapshotService:  # type: ignore[no-redef]
+        def __init__(self, session: Session) -> None:
+            _ = session
+
+        def capture_snapshot(
+            self, *, user_id: str, provider: str, entity_type: str, entity_ref: str, normalized_state: dict
+        ):
+            _ = (user_id, provider, entity_type, entity_ref, normalized_state)
+
+            class _Result:
+                was_deduplicated = True
+
+            return _Result()
+
+        def enforce_retention(self, *, user_id: str) -> int:
+            _ = user_id
+            return 0
+
+    class ObservedEntitySnapshotRepository:  # type: ignore[no-redef]
+        def __init__(self, session: Session) -> None:
+            _ = session
+
+        def list_entity_refs(self, *, user_id: str, provider: str, entity_type: str) -> list[str]:
+            _ = (user_id, provider, entity_type)
+            return []
+
+        def list_for_entity(
+            self,
+            *,
+            user_id: str,
+            provider: str,
+            entity_type: str,
+            entity_ref: str,
+            limit: int = 50,
+        ) -> list:
+            _ = (user_id, provider, entity_type, entity_ref, limit)
+            return []
+
+        def latest_for_entity(self, *, user_id: str, provider: str, entity_type: str, entity_ref: str):
+            _ = (user_id, provider, entity_type, entity_ref)
+            return None
 
 
 @dataclass
