@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     diary_audio_dir: str = Field(default="./data/diary_audio", alias="DIARY_AUDIO_DIR")
     scheduler_enabled: bool = Field(default=True, alias="SCHEDULER_ENABLED")
     observer_interval_minutes: int = Field(default=15, alias="OBSERVER_INTERVAL_MINUTES")
+    observer_snapshot_retention_days: int = Field(default=30, alias="OBSERVER_SNAPSHOT_RETENTION_DAYS")
 
     linear_oauth_client_id: str = Field(default="", alias="LINEAR_OAUTH_CLIENT_ID")
     linear_oauth_client_secret: str = Field(default="", alias="LINEAR_OAUTH_CLIENT_SECRET")
@@ -123,6 +124,18 @@ class Settings(BaseSettings):
         default="https://api.todoist.com/sync/v9/access_tokens/revoke",
         alias="TODOIST_OAUTH_REVOKE_URL",
     )
+    github_oauth_client_id: str = Field(default="", alias="GITHUB_OAUTH_CLIENT_ID")
+    github_oauth_client_secret: str = Field(default="", alias="GITHUB_OAUTH_CLIENT_SECRET")
+    github_oauth_authorize_url: str = Field(
+        default="https://github.com/login/oauth/authorize",
+        alias="GITHUB_OAUTH_AUTHORIZE_URL",
+    )
+    github_oauth_token_url: str = Field(
+        default="https://github.com/login/oauth/access_token",
+        alias="GITHUB_OAUTH_TOKEN_URL",
+    )
+    github_oauth_revoke_url: str = Field(default="", alias="GITHUB_OAUTH_REVOKE_URL")
+    github_api_base_url: str = Field(default="https://api.github.com", alias="GITHUB_API_BASE_URL")
     email_transport: str = Field(default="mock", alias="EMAIL_TRANSPORT")
     email_from: str = Field(default="noreply@asya.local", alias="EMAIL_FROM")
     smtp_host: str = Field(default="", alias="SMTP_HOST")

@@ -164,8 +164,14 @@ class IntegrationProvider(str, Enum):
     GOOGLE_CALENDAR = "google_calendar"
     TODOIST = "todoist"
     GMAIL = "gmail"
+    IMAP = "imap"
     GOOGLE_DRIVE = "google_drive"
     TELEGRAM = "telegram"
+    GITHUB = "github"
+    BITRIX24 = "bitrix24"
+    YANDEX_DISK = "yandex_disk"
+    ONEDRIVE = "onedrive"
+    ICLOUD_DRIVE = "icloud_drive"
 
 
 class IntegrationConnectionStatus(str, Enum):
