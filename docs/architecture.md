@@ -1,5 +1,15 @@
 # Architecture (Asya Local)
 
+## Обновление v0.5 (2026-05-05)
+
+- `ActionRouter` расширен сценариями v0.5:
+  - GitHub read-only интенты/команды;
+  - Bitrix24 read-only интенты/команды;
+  - confirm-policy для операций, требующих подтверждения, сохранён.
+- В интеграционном слое добавлен `GitHubService` (read-only operations).
+- Для частичных сборок введены runtime fallback-ы в API/service слое, чтобы отсутствие отдельных
+  integration-модулей не ломало запуск backend.
+
 Документ фиксирует фактическую архитектуру после завершения v0.3 и foundation-слой v0.4 для интеграций.
 
 ## 1. Текущее состояние (факт: v0.3 + v0.4 foundation)

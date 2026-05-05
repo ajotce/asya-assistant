@@ -1,5 +1,19 @@
 # API (Asya Local)
 
+## Обновление v0.5 (2026-05-05)
+
+- Добавлены GitHub read-only endpoints:
+  - `GET /api/integrations/github/status`
+  - `GET /api/integrations/github/repos`
+  - `GET /api/integrations/github/repos/{owner}/{repo}`
+  - `GET /api/integrations/github/repos/{owner}/{repo}/issues`
+  - `GET /api/integrations/github/repos/{owner}/{repo}/pulls`
+  - `GET /api/integrations/github/repos/{owner}/{repo}/commits`
+  - `GET /api/integrations/github/repos/{owner}/{repo}/files`
+  - `GET /api/integrations/github/search`
+- Для сборок без подключённого модуля `bitrix24`/`imap` соответствующие endpoints возвращают `409`
+  (интеграция недоступна в текущем build), вместо падения импорта приложения.
+
 Документ описывает фактическое API после завершения v0.3 и foundation-слоя интеграций v0.4.
 
 Базовый префикс: `/api`

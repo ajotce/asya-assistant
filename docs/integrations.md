@@ -1,4 +1,15 @@
-# Integrations (Asya v0.4)
+# Integrations (Asya v0.5)
+
+## Координаторская сводка (2026-05-05)
+
+- Базовая ветка интеграции: `0.5-extended`.
+- Сведены изменения `chat-actions-v05` и `observer-state-snapshots` (включая GitHub read-only API/tool routing).
+- Ветка `0.5/file-storage-providers` отсутствует в репозитории (локально и на `origin`).
+- Ветки `0.5/github-readonly`, `0.5/bitrix24-readonly`, `0.5/imap-mail`, `0.5/document-templates`,
+  `0.5/briefings`, `0.5/memory-personality-evolution`, `0.5/action-rollback` не содержат уникальных
+  коммитов относительно текущей `0.5-extended`.
+- Для частичных сборок добавлены safe fallback-ы: если модуль провайдера не включён в текущий build,
+  соответствующие endpoints возвращают `409` с явным сообщением.
 
 ## Что сделано в foundation шаге
 
