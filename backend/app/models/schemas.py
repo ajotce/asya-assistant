@@ -419,6 +419,72 @@ class IntegrationConnectionResponse(BaseModel):
     updated_at: Optional[str] = None
 
 
+class ImapConnectRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=320)
+    username: str = Field(min_length=1, max_length=320)
+    password: str = Field(min_length=1, max_length=1024)
+    host: str = Field(min_length=1, max_length=255)
+    port: int = Field(ge=1, le=65535)
+    security: str = Field(min_length=3, max_length=16)
+
+
+class ImapConnectionTestResponse(BaseModel):
+    ok: bool
+    folders: list[str]
+
+
+class ImapFolderListResponse(BaseModel):
+    folders: list[str]
+
+
+class ImapMessageSummaryResponse(BaseModel):
+    uid: str
+    subject: str
+    from_name: str
+    from_email: str
+    date: Optional[str] = None
+    is_unread: bool
+
+
+class ImapMessageDetailsResponse(ImapMessageSummaryResponse):
+    to: list[str]
+    cc: list[str]
+    text_body: str
+
+
+class Bitrix24ListResponse(BaseModel):
+    result: list[dict]
+    total: Optional[int] = None
+    next: Optional[int] = None
+
+
+class Bitrix24EntityResponse(BaseModel):
+    result: dict
+
+
+class Bitrix24PipelinesResponse(BaseModel):
+    pipelines: dict
+    stages: dict
+    sources: dict
+
+
+class GitHubFileReadResponse(BaseModel):
+    content: str
+    encoding: str
+    path: str
+    sha: str
+    size: int
+    html_url: Optional[str] = None
+
+
+class GitHubSearchResponse(BaseModel):
+    total_count: int
+    incomplete_results: bool
+    items: list[dict]
+
+
 class TelegramLinkTokenResponse(BaseModel):
     one_time_token: str
     expires_at: str

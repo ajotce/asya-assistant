@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.common import IntegrationProvider
 from app.integrations.oauth_base import OAuthIntegration
+from app.integrations.providers.github_oauth import GitHubOAuthIntegration
 from app.integrations.providers.google_oauth import GoogleOAuthIntegration
 from app.integrations.providers.linear_oauth import LinearOAuthIntegration
 from app.integrations.providers.todoist_oauth import TodoistOAuthIntegration
@@ -16,4 +17,6 @@ def build_oauth_integration(session: Session, provider: IntegrationProvider) -> 
         return GoogleOAuthIntegration(session)
     if provider == IntegrationProvider.TODOIST:
         return TodoistOAuthIntegration(session)
+    if provider == IntegrationProvider.GITHUB:
+        return GitHubOAuthIntegration(session)
     raise ValueError("OAuth provider not supported in this phase.")

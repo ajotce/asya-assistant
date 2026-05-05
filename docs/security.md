@@ -1,5 +1,11 @@
 # Security (Asya)
 
+## Обновление v0.5 (2026-05-05)
+
+- GitHub интеграция работает в read-only режиме (репозитории/issues/pulls/commits/read file/search).
+- Write-операции GitHub и Bitrix24 в API/action-router не включены в текущий scope.
+- При отсутствии модуля интеграции backend возвращает контролируемый `409`, а не stack trace/500.
+
 ## Секреты интеграций (v0.4 foundation)
 
 - Access token и refresh token интеграций не хранятся в `integration_connections`.

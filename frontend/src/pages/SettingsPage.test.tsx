@@ -3,10 +3,24 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  connectImap,
+  disconnectImap,
+  getImapMessage,
+  getGitHubStatus,
+  getIntegrations,
   getModels,
   getReasoningCache,
   getSettings,
+  listImapFolders,
+  listImapMessages,
+  listGitHubIssues,
+  listGitHubPulls,
+  listGitHubRepos,
+  markImapAsRead,
   probeReasoningModels,
+  readGitHubFile,
+  searchImapMessages,
+  testImapConnection,
   updateSettings,
 } from "../api/client";
 import { type ThemePreference } from "../hooks/useTheme";
@@ -33,6 +47,20 @@ vi.mock("../api/client", () => ({
   getModels: vi.fn(),
   getReasoningCache: vi.fn(),
   getSettings: vi.fn(),
+  getIntegrations: vi.fn(),
+  getGitHubStatus: vi.fn(),
+  testImapConnection: vi.fn(),
+  connectImap: vi.fn(),
+  disconnectImap: vi.fn(),
+  listImapFolders: vi.fn(),
+  listImapMessages: vi.fn(),
+  searchImapMessages: vi.fn(),
+  getImapMessage: vi.fn(),
+  markImapAsRead: vi.fn(),
+  listGitHubRepos: vi.fn(),
+  listGitHubIssues: vi.fn(),
+  listGitHubPulls: vi.fn(),
+  readGitHubFile: vi.fn(),
   probeReasoningModels: vi.fn(),
   updateSettings: vi.fn(),
 }));
@@ -42,6 +70,20 @@ describe("SettingsPage", () => {
     vi.mocked(getSettings).mockReset();
     vi.mocked(getModels).mockReset();
     vi.mocked(getReasoningCache).mockReset();
+    vi.mocked(getIntegrations).mockReset();
+    vi.mocked(getGitHubStatus).mockReset();
+    vi.mocked(testImapConnection).mockReset();
+    vi.mocked(connectImap).mockReset();
+    vi.mocked(disconnectImap).mockReset();
+    vi.mocked(listImapFolders).mockReset();
+    vi.mocked(listImapMessages).mockReset();
+    vi.mocked(searchImapMessages).mockReset();
+    vi.mocked(getImapMessage).mockReset();
+    vi.mocked(markImapAsRead).mockReset();
+    vi.mocked(listGitHubRepos).mockReset();
+    vi.mocked(listGitHubIssues).mockReset();
+    vi.mocked(listGitHubPulls).mockReset();
+    vi.mocked(readGitHubFile).mockReset();
     vi.mocked(probeReasoningModels).mockReset();
     vi.mocked(updateSettings).mockReset();
 
@@ -53,6 +95,41 @@ describe("SettingsPage", () => {
     });
     vi.mocked(getModels).mockResolvedValue([{ id: "gpt-4o" }, { id: "openai/gpt-5" }]);
     vi.mocked(getReasoningCache).mockResolvedValue({ results: [] });
+    vi.mocked(getIntegrations).mockResolvedValue([
+      { provider: "bitrix24", status: "not_connected", scopes: [] },
+      { provider: "github", status: "not_connected", scopes: [] },
+      { provider: "imap", status: "not_connected", scopes: [] },
+    ]);
+    vi.mocked(getGitHubStatus).mockResolvedValue({ provider: "github", status: "not_connected", scopes: [] });
+    vi.mocked(testImapConnection).mockResolvedValue({ ok: true, folders: ["INBOX"] });
+    vi.mocked(connectImap).mockResolvedValue({ provider: "imap", status: "connected", scopes: ["mail.read"] });
+    vi.mocked(disconnectImap).mockResolvedValue({ provider: "imap", status: "revoked", scopes: [] });
+    vi.mocked(listImapFolders).mockResolvedValue({ folders: ["INBOX"] });
+    vi.mocked(listImapMessages).mockResolvedValue([]);
+    vi.mocked(searchImapMessages).mockResolvedValue([]);
+    vi.mocked(getImapMessage).mockResolvedValue({
+      uid: "1",
+      subject: "s",
+      from_name: "n",
+      from_email: "e@example.com",
+      date: null,
+      is_unread: true,
+      to: [],
+      cc: [],
+      text_body: "body",
+    });
+    vi.mocked(markImapAsRead).mockResolvedValue({ status: "ok" });
+    vi.mocked(listGitHubRepos).mockResolvedValue([]);
+    vi.mocked(listGitHubIssues).mockResolvedValue([]);
+    vi.mocked(listGitHubPulls).mockResolvedValue([]);
+    vi.mocked(readGitHubFile).mockResolvedValue({
+      content: "",
+      encoding: "base64",
+      path: "README.md",
+      sha: "x",
+      size: 0,
+      html_url: null,
+    });
     vi.mocked(probeReasoningModels).mockResolvedValue({ results: [] });
     vi.mocked(updateSettings).mockImplementation(async (payload) => ({
       ...payload,
@@ -64,6 +141,9 @@ describe("SettingsPage", () => {
     renderSettingsPage();
 
     expect(await screen.findByRole("heading", { name: "Настройки" })).toBeInTheDocument();
+    expect(await screen.findByTestId("bitrix24-status")).toHaveTextContent("Bitrix24 (read-only): not_connected");
+    expect(await screen.findByTestId("github-status")).toHaveTextContent("GitHub (read-only): not_connected");
+    expect(await screen.findByTestId("imap-status")).toHaveTextContent("IMAP: not_connected");
     expect(await screen.findByRole("option", { name: "gpt-4o" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "openai/gpt-5" })).toBeInTheDocument();
   });
@@ -153,5 +233,19 @@ describe("SettingsPage", () => {
     const unsupportedOption = await screen.findByRole("option", { name: "embed-only (без chat/completions)" });
     expect(unsupportedOption).toBeDisabled();
     expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
+  });
+
+  it("позволяет протестировать и подключить IMAP", async () => {
+    renderSettingsPage();
+    await screen.findByTestId("imap-status");
+
+    fireEvent.change(screen.getByPlaceholderText("email"), { target: { value: "imap@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText("username"), { target: { value: "imap@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText("password/app password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Test" }));
+    expect(await screen.findByText(/Проверка успешна/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+    await waitFor(() => expect(connectImap).toHaveBeenCalled());
   });
 });

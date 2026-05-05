@@ -1,4 +1,21 @@
 # Development Log
+## 2026-05-05 (Координация v0.5: merge и сведение ветки 0.5-extended)
+- Что сделано:
+  - Обновлена `0.5-extended` от `origin`.
+  - Сведены изменения `chat-actions-v05` и `observer-state-snapshots` в интеграционную ветку.
+  - Разрешён конфликт в `backend/app/services/action_router.py` с сохранением confirm-policy.
+  - Добавлены compatibility fallback-ы для частичного состава integration-модулей:
+    - `routes_integrations.py`: controlled `409`, если `bitrix24`/`imap` модуль недоступен;
+    - `action_router.py` и `observer_service.py`: безопасный optional import.
+  - Проверен Alembic chain: один head (`20260502_08`), clean upgrade работает.
+  - Выполнены backend/frontend/docker проверки для текущего состояния ветки.
+- Что осталось блокером:
+  - Отдельной ветки `0.5/file-storage-providers` нет, но базовый scope провайдеров файлового хранилища
+    уже присутствует в коде через общий integration-layer.
+  - Аналогично подтверждено, что `bitrix24-readonly` и `imap-mail` присутствуют в коде без обязательной
+    зависимости от одноимённой feature-ветки.
+  - Несколько веток из списка v0.5 не имеют уникальных коммитов относительно текущей `0.5-extended`.
+
 ## 2026-05-02 (Asya v0.4: OAuth/PKCE foundation для Linear/Google/Todoist)
 - Что сделано:
   - Добавлен общий OAuth/PKCE слой:

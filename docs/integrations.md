@@ -1,4 +1,20 @@
-# Integrations (Asya v0.4)
+# Integrations (Asya v0.5)
+
+## Координаторская сводка (2026-05-05)
+
+- Базовая ветка интеграции: `0.5-extended`.
+- Сведены изменения `chat-actions-v05` и `observer-state-snapshots` (включая GitHub read-only API/tool routing).
+- Scope `file-storage-providers` реализован в общей интеграционной модели (без отдельной feature-ветки):
+  провайдеры `yandex_disk`, `onedrive`, `icloud_drive` присутствуют в `IntegrationProvider` и в
+  user-scoped `/api/integrations` статусах.
+- Аналогично branchless подтверждены:
+  - `bitrix24-readonly`: API `/api/integrations/bitrix24/*` + read-only intents в `ActionRouter`;
+  - `imap-mail`: API `/api/integrations/imap/*` + UI в Settings.
+- Ветки `0.5/github-readonly`, `0.5/bitrix24-readonly`, `0.5/imap-mail`, `0.5/document-templates`,
+  `0.5/briefings`, `0.5/memory-personality-evolution`, `0.5/action-rollback` не содержат уникальных
+  коммитов относительно текущей `0.5-extended`.
+- Для частичных сборок добавлены safe fallback-ы: если модуль провайдера не включён в текущий build,
+  соответствующие endpoints возвращают `409` с явным сообщением.
 
 ## Что сделано в foundation шаге
 

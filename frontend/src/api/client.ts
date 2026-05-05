@@ -51,6 +51,16 @@ import type {
   SpaceMemorySettingsUpdateRequest,
   SpaceRenameRequest,
   UsageOverviewResponse,
+  IntegrationConnectionResponse,
+  ImapConnectRequest,
+  ImapConnectionTestResponse,
+  ImapFolderListResponse,
+  ImapMessageDetails,
+  ImapMessageSummary,
+  GitHubFileReadResponse,
+  GitHubIssueItem,
+  GitHubPullItem,
+  GitHubRepoItem,
   VoiceSettings,
   VoiceSettingsUpdateRequest,
   VoiceSTTResponse,
@@ -79,6 +89,92 @@ export function getHealth(): Promise<HealthResponse> {
 
 export function getUsage(): Promise<UsageOverviewResponse> {
   return apiFetch<UsageOverviewResponse>("/api/usage");
+}
+
+export function getIntegrations(): Promise<IntegrationConnectionResponse[]> {
+  return apiFetch<IntegrationConnectionResponse[]>("/api/integrations");
+}
+
+export function getGitHubStatus(): Promise<IntegrationConnectionResponse> {
+  return apiFetch<IntegrationConnectionResponse>("/api/integrations/github/status");
+}
+
+export function listGitHubRepos(visibility?: string): Promise<GitHubRepoItem[]> {
+  const query = visibility ? `?visibility=${encodeURIComponent(visibility)}` : "";
+  return apiFetch<GitHubRepoItem[]>(`/api/integrations/github/repos${query}`);
+}
+
+export function listGitHubIssues(owner: string, repo: string, state = "open"): Promise<GitHubIssueItem[]> {
+  return apiFetch<GitHubIssueItem[]>(
+    `/api/integrations/github/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=${encodeURIComponent(state)}`
+  );
+}
+
+export function listGitHubPulls(owner: string, repo: string, state = "open"): Promise<GitHubPullItem[]> {
+  return apiFetch<GitHubPullItem[]>(
+    `/api/integrations/github/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=${encodeURIComponent(state)}`
+  );
+}
+
+export function readGitHubFile(owner: string, repo: string, path: string, ref?: string): Promise<GitHubFileReadResponse> {
+  const params = new URLSearchParams({ path });
+  if (ref) {
+    params.set("ref", ref);
+  }
+  return apiFetch<GitHubFileReadResponse>(
+    `/api/integrations/github/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/files?${params.toString()}`
+  );
+}
+
+export function testImapConnection(body: ImapConnectRequest): Promise<ImapConnectionTestResponse> {
+  return apiFetch<ImapConnectionTestResponse>("/api/integrations/imap/test", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function connectImap(body: ImapConnectRequest): Promise<IntegrationConnectionResponse> {
+  return apiFetch<IntegrationConnectionResponse>("/api/integrations/imap/connect", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function disconnectImap(): Promise<IntegrationConnectionResponse> {
+  return apiFetch<IntegrationConnectionResponse>("/api/integrations/imap", {
+    method: "DELETE",
+  });
+}
+
+export function listImapFolders(): Promise<ImapFolderListResponse> {
+  return apiFetch<ImapFolderListResponse>("/api/integrations/imap/folders");
+}
+
+export function listImapMessages(folder = "INBOX", limit = 30): Promise<ImapMessageSummary[]> {
+  return apiFetch<ImapMessageSummary[]>(
+    `/api/integrations/imap/messages?folder=${encodeURIComponent(folder)}&limit=${limit}`
+  );
+}
+
+export function searchImapMessages(query: string, folder = "INBOX", limit = 30): Promise<ImapMessageSummary[]> {
+  return apiFetch<ImapMessageSummary[]>(
+    `/api/integrations/imap/search?q=${encodeURIComponent(query)}&folder=${encodeURIComponent(folder)}&limit=${limit}`
+  );
+}
+
+export function getImapMessage(uid: string, folder = "INBOX"): Promise<ImapMessageDetails> {
+  return apiFetch<ImapMessageDetails>(
+    `/api/integrations/imap/messages/${encodeURIComponent(uid)}?folder=${encodeURIComponent(folder)}`
+  );
+}
+
+export function markImapAsRead(uid: string, folder = "INBOX"): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(
+    `/api/integrations/imap/messages/${encodeURIComponent(uid)}/read?folder=${encodeURIComponent(folder)}`,
+    {
+      method: "POST",
+    }
+  );
 }
 
 export function getModels(): Promise<ModelInfo[]> {

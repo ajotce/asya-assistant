@@ -2,13 +2,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import re
 import secrets
-from typing import Any
+from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
 from app.db.models.common import ActivityEntityType, ActivityEventType
+from app.integrations.github import GitHubAccessDeniedError, GitHubNotConnectedError, GitHubService
+from app.repositories.user_repository import UserRepository
 from app.repositories.activity_log_repository import ActivityLogRepository
+
+try:
+    from app.integrations.bitrix24 import Bitrix24ConfigurationError, Bitrix24Service  # type: ignore[import-untyped]
+except ModuleNotFoundError:
+    Bitrix24ConfigurationError = RuntimeError
+    Bitrix24Service = None  # type: ignore[assignment]
 
 
 @dataclass
@@ -29,11 +38,26 @@ class ActionResult:
     pending_action_id: str | None = None
 
 
+@dataclass
+class ParsedRoute:
+    tool: str
+    operation: str
+    args: dict[str, Any]
+    requires_confirmation: bool
+
+
 class ActionRouter:
-    def __init__(self, session: Session, pending_store: dict[str, PendingAction]) -> None:
+    def __init__(
+        self,
+        session: Session,
+        pending_store: dict[str, PendingAction],
+        tool_handlers: dict[tuple[str, str], Callable[..., Any]] | None = None,
+    ) -> None:
         self._session = session
         self._pending_store = pending_store
         self._activity = ActivityLogRepository(session)
+        self._tool_handlers = tool_handlers or {}
+        self._users = UserRepository(session)
 
     def handle(self, *, user_id: str, session_id: str, message: str) -> ActionResult:
         text = message.strip()
@@ -44,31 +68,48 @@ class ActionRouter:
             action_id = text.split(" ", 1)[1].strip()
             return self._confirm_action(user_id=user_id, action_id=action_id)
 
-        if not text.lower().startswith("/tool "):
+        bitrix_result = self._handle_bitrix24_readonly(user_id=user_id, text=text)
+        if bitrix_result is not None:
+            return bitrix_result
+        github_result = self._handle_github_readonly(user_id=user_id, text=text)
+        if github_result is not None:
+            return github_result
+
+        route = self._parse_message(text)
+        if route is None:
+            if text.lower().startswith("/tool "):
+                return ActionResult(handled=True, message="Неподдерживаемая tool-команда.")
             return ActionResult(handled=False, message="")
 
-        command = text[len("/tool ") :].strip()
-        route = self._parse_command(command)
-        if route is None:
-            return ActionResult(
-                handled=True,
-                message=(
-                    "Неподдерживаемая tool-команда. Доступно: "
-                    "calendar list/create, todoist list/create, linear update, gmail search/draft."
-                ),
+        if not route.requires_confirmation:
+            execution = self._execute_route(route=route, user_id=user_id)
+            self._activity.create(
+                user_id=user_id,
+                event_type=ActivityEventType.INTEGRATION_ACTION_EXECUTED,
+                entity_type=ActivityEntityType.INTEGRATION_ACTION,
+                entity_id=secrets.token_hex(8),
+                summary=f"Выполнено действие {route.tool}.{route.operation}",
+                meta={
+                    "tool": route.tool,
+                    "operation": route.operation,
+                    "arg_keys": sorted(list(route.args.keys())),
+                    "has_sensitive_content": False,
+                },
             )
+            self._session.commit()
+            return ActionResult(handled=True, message=execution)
 
         action_id = secrets.token_hex(8)
         self._pending_store[action_id] = PendingAction(
             id=action_id,
             user_id=user_id,
             session_id=session_id,
-            tool=route["tool"],
-            operation=route["operation"],
-            args=route["args"],
+            tool=route.tool,
+            operation=route.operation,
+            args=route.args,
             created_at=self._now(),
         )
-        summary = f"{route['tool']}.{route['operation']}"
+        summary = f"{route.tool}.{route.operation}"
         return ActionResult(
             handled=True,
             message=(
@@ -83,6 +124,12 @@ class ActionRouter:
         if pending is None or pending.user_id != user_id:
             return ActionResult(handled=True, message="Pending action не найдена или уже выполнена.")
 
+        execution = self._execute(
+            tool=pending.tool,
+            operation=pending.operation,
+            args=pending.args,
+            user_id=user_id,
+        )
         del self._pending_store[action_id]
         self._activity.create(
             user_id=user_id,
@@ -100,24 +147,225 @@ class ActionRouter:
         self._session.commit()
         return ActionResult(
             handled=True,
-            message=f"Действие выполнено: {pending.tool}.{pending.operation}",
+            message=execution,
         )
 
+    def _parse_message(self, message: str) -> ParsedRoute | None:
+        text = message.strip()
+        if text.lower().startswith("/tool "):
+            return self._parse_tool_command(text[len("/tool ") :].strip())
+        return self._parse_intent_text(text)
+
     @staticmethod
-    def _parse_command(command: str) -> dict[str, Any] | None:
+    def _parse_tool_command(command: str) -> ParsedRoute | None:
         parts = command.split()
         if len(parts) < 2:
             return None
         tool, operation = parts[0].lower(), parts[1].lower()
+        query = " ".join(parts[2:])
         if tool == "calendar" and operation in {"list", "create"}:
-            return {"tool": "calendar", "operation": operation, "args": {"query": " ".join(parts[2:])}}
+            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=operation == "create")
         if tool == "todoist" and operation in {"list", "create"}:
-            return {"tool": "todoist", "operation": operation, "args": {"query": " ".join(parts[2:])}}
+            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=operation == "create")
         if tool == "linear" and operation == "update":
-            return {"tool": "linear", "operation": operation, "args": {"query": " ".join(parts[2:])}}
+            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=True)
         if tool == "gmail" and operation in {"search", "draft"}:
-            return {"tool": "gmail", "operation": operation, "args": {"query": " ".join(parts[2:])}}
+            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=operation == "draft")
+        if tool == "github" and operation in {"repos", "issues", "prs", "file"}:
+            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=False)
+        if tool == "bitrix" and operation in {"leads", "deals", "funnel_sum"}:
+            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=False)
+        if tool == "storage" and operation in {"search", "read", "save", "share", "delete"}:
+            return ParsedRoute(
+                tool=tool,
+                operation=operation,
+                args={"query": query},
+                requires_confirmation=operation in {"save", "share", "delete"},
+            )
+        if tool == "imap" and operation in {"search", "read"}:
+            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=False)
+        if tool == "document" and operation == "template_fill":
+            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=False)
+        if tool == "briefing" and operation == "generate":
+            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=False)
+        if tool == "rollback" and operation in {"preview", "execute"}:
+            return ParsedRoute(tool=tool, operation=operation, args={"query": query}, requires_confirmation=operation == "execute")
         return None
+
+    def _handle_github_readonly(self, *, user_id: str, text: str) -> ActionResult | None:
+        lowered = text.lower()
+        user = self._users.get_by_id(user_id)
+        if user is None:
+            return None
+        service = GitHubService(self._session)
+
+        if "что в моих pr" in lowered or "что в моих пулл-реквестах" in lowered:
+            try:
+                repos = service.list_repositories(user=user, per_page=20)
+                open_prs: list[str] = []
+                for repo in repos[:10]:
+                    owner = repo.get("owner", {}).get("login")
+                    name = repo.get("name")
+                    if not owner or not name:
+                        continue
+                    pulls = service.list_pull_requests(user=user, owner=str(owner), repo=str(name), per_page=10)
+                    for pr in pulls:
+                        title = str(pr.get("title", "без названия"))
+                        url = str(pr.get("html_url", ""))
+                        open_prs.append(f"- {owner}/{name}: {title} {url}".strip())
+                        if len(open_prs) >= 10:
+                            break
+                    if len(open_prs) >= 10:
+                        break
+            except (GitHubNotConnectedError, GitHubAccessDeniedError) as exc:
+                return ActionResult(handled=True, message=str(exc))
+            if not open_prs:
+                return ActionResult(handled=True, message="Открытых PR по доступным репозиториям не найдено.")
+            return ActionResult(handled=True, message="Открытые PR:\n" + "\n".join(open_prs))
+
+        if "покажи открытые issues" in lowered:
+            repo_match = re.search(r"в\s+репозитории\s+([a-z0-9_.-]+)/([a-z0-9_.-]+)", lowered, re.IGNORECASE)
+            if not repo_match:
+                return ActionResult(
+                    handled=True,
+                    message="Уточни репозиторий: 'покажи открытые issues в репозитории owner/repo'.",
+                )
+            owner, repo_name = repo_match.group(1), repo_match.group(2)
+            try:
+                issues = service.list_issues(user=user, owner=owner, repo=repo_name, state="open", per_page=20)
+            except (GitHubNotConnectedError, GitHubAccessDeniedError) as exc:
+                return ActionResult(handled=True, message=str(exc))
+            lines = [f"- #{item.get('number')}: {item.get('title', 'без названия')}" for item in issues[:10]]
+            return ActionResult(
+                handled=True,
+                message=(f"Открытые issues в {owner}/{repo_name}:\n" + "\n".join(lines))
+                if lines
+                else "Открытых issues нет.",
+            )
+
+        file_match = re.search(
+            r"прочитай файл\s+(.+?)\s+в\s+репозитории\s+([a-z0-9_.-]+)/([a-z0-9_.-]+)(?:\s+ref\s+([a-z0-9_./-]+))?$",
+            lowered,
+            re.IGNORECASE,
+        )
+        if file_match:
+            file_path, owner, repo_name, ref = (
+                file_match.group(1).strip(),
+                file_match.group(2),
+                file_match.group(3),
+                file_match.group(4),
+            )
+            try:
+                payload = service.read_file(user=user, owner=owner, repo=repo_name, path=file_path, ref=ref)
+            except (GitHubNotConnectedError, GitHubAccessDeniedError) as exc:
+                return ActionResult(handled=True, message=str(exc))
+            encoded = str(payload.get("content", "")).replace("\n", "")
+            try:
+                import base64
+
+                content = base64.b64decode(encoded).decode("utf-8", errors="replace")
+            except Exception:  # noqa: BLE001
+                return ActionResult(handled=True, message="Не удалось декодировать содержимое файла.")
+            if len(content) > 2000:
+                content = content[:2000] + "\n... (обрезано)"
+            return ActionResult(handled=True, message=f"Файл {file_path}:\n{content}")
+
+        return None
+
+    def _handle_bitrix24_readonly(self, *, user_id: str, text: str) -> ActionResult | None:
+        lowered = text.lower()
+        if Bitrix24Service is None:
+            return None
+        service = Bitrix24Service(self._session)
+
+        source_match = re.search(r"сколько лидов сегодня пришло из источника\s+(.+)\??$", lowered, re.IGNORECASE)
+        if source_match:
+            source_id = source_match.group(1).strip().upper()
+            try:
+                payload = service.list_leads(user_id=user_id, source_id=source_id, created_since=self._now().date())
+            except Bitrix24ConfigurationError:
+                return ActionResult(handled=True, message="Bitrix24 не подключён. Нужна настройка подключения.")
+            leads = payload.get("result", [])
+            return ActionResult(handled=True, message=f"Сегодня из источника {source_id} пришло лидов: {len(leads)}.")
+
+        money_match = re.search(
+            r"сколько денег в воронке\s+(.+)\s+на стадии\s+(.+)\??$",
+            lowered,
+            re.IGNORECASE,
+        )
+        if money_match:
+            pipeline = money_match.group(1).strip().lower()
+            stage = money_match.group(2).strip().lower()
+            try:
+                payload = service.list_deals(user_id=user_id)
+            except Bitrix24ConfigurationError:
+                return ActionResult(handled=True, message="Bitrix24 не подключён. Нужна настройка подключения.")
+            total = 0.0
+            for deal in payload.get("result", []):
+                category = str(deal.get("CATEGORY_ID", "")).lower()
+                stage_id = str(deal.get("STAGE_ID", "")).lower()
+                if pipeline in category and stage in stage_id:
+                    try:
+                        total += float(deal.get("OPPORTUNITY", 0))
+                    except (TypeError, ValueError):
+                        continue
+            return ActionResult(handled=True, message=f"Сумма в воронке {pipeline} на стадии {stage}: {total:.2f}.")
+
+        period_match = re.search(r"покажи сделки за период\s+(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2})", lowered, re.IGNORECASE)
+        if period_match:
+            date_from = datetime.fromisoformat(period_match.group(1)).date()
+            date_to = datetime.fromisoformat(period_match.group(2)).date()
+            try:
+                payload = service.list_deals(user_id=user_id, date_from=date_from, date_to=date_to)
+            except Bitrix24ConfigurationError:
+                return ActionResult(handled=True, message="Bitrix24 не подключён. Нужна настройка подключения.")
+            deals = payload.get("result", [])
+            return ActionResult(
+                handled=True,
+                message=f"Сделок за период {date_from.isoformat()}..{date_to.isoformat()}: {len(deals)}.",
+            )
+        return None
+
+    @staticmethod
+    def _parse_intent_text(message: str) -> ParsedRoute | None:
+        lowered = message.lower()
+        if "что нового" in lowered and "pr" in lowered:
+            return ParsedRoute(tool="github", operation="prs", args={"query": message}, requires_confirmation=False)
+        if "сколько денег" in lowered and "воронк" in lowered:
+            return ParsedRoute(tool="bitrix", operation="funnel_sum", args={"query": message}, requires_confirmation=False)
+        if "найди файл" in lowered and "яндекс" in lowered:
+            return ParsedRoute(tool="storage", operation="search", args={"provider": "yandex_disk", "query": message}, requires_confirmation=False)
+        if "гарантийный талон" in lowered:
+            return ParsedRoute(tool="document", operation="template_fill", args={"template": "warranty_card", "query": message}, requires_confirmation=False)
+        if "вечерний итог" in lowered or "сгенерируй итог" in lowered:
+            return ParsedRoute(tool="briefing", operation="generate", args={"type": "evening", "query": message}, requires_confirmation=False)
+        if "откати последнее действие" in lowered:
+            return ParsedRoute(tool="rollback", operation="preview", args={"target": "last_action"}, requires_confirmation=False)
+        rollback_execute_match = re.search(r"/rollback\s+execute\s+(\S+)", lowered)
+        if rollback_execute_match:
+            return ParsedRoute(
+                tool="rollback",
+                operation="execute",
+                args={"action_id": rollback_execute_match.group(1)},
+                requires_confirmation=True,
+            )
+        return None
+
+    def _execute_route(self, *, route: ParsedRoute, user_id: str) -> str:
+        return self._execute(tool=route.tool, operation=route.operation, args=route.args, user_id=user_id)
+
+    def _execute(self, *, tool: str, operation: str, args: dict[str, Any], user_id: str) -> str:
+        handler = self._tool_handlers.get((tool, operation))
+        if handler is None:
+            return f"Выполнено действие: {tool}.{operation}"
+        result = handler(user_id=user_id, **args)
+        if isinstance(result, str):
+            return result
+        if isinstance(result, dict):
+            if "message" in result and isinstance(result["message"], str):
+                return result["message"]
+            return f"Выполнено действие: {tool}.{operation}. Данные получены."
+        return f"Выполнено действие: {tool}.{operation}"
 
     @staticmethod
     def _now() -> datetime:
