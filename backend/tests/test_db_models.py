@@ -32,8 +32,6 @@ def test_sqlalchemy_models_create_expected_tables(tmp_path) -> None:
         "memory_changes",
         "memory_snapshots",
         "activity_logs",
-        "user_exports",
-        "deleted_user_audit",
     }
 
     user_indexes = inspector.get_indexes("users")

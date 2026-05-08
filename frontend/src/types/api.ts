@@ -197,30 +197,6 @@ export interface AuthSetupPasswordRequest {
   password: string;
 }
 
-export interface UserExportStartResponse {
-  export_id: string;
-  status: string;
-}
-
-export interface UserExportStatusResponse {
-  export_id: string;
-  status: string;
-  download_url?: string | null;
-  expires_at?: string | null;
-  error?: string | null;
-}
-
-export interface UserDeleteConfirmResponse {
-  confirmation_token: string;
-  expires_in_seconds: number;
-}
-
-export interface UserDeleteResponse {
-  status: string;
-  export_id: string;
-  export_download_url?: string | null;
-}
-
 export interface AccessRequestSubmitRequest {
   email: string;
   display_name: string;

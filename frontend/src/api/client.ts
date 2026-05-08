@@ -9,10 +9,6 @@ import type {
   AuthRegisterRequest,
   AuthRegisterResponse,
   AuthSetupPasswordRequest,
-  UserDeleteConfirmResponse,
-  UserDeleteResponse,
-  UserExportStartResponse,
-  UserExportStatusResponse,
   AuthUser,
   ChatCreateRequest,
   ChatListItem,
@@ -522,38 +518,6 @@ export function authSetupPassword(body: AuthSetupPasswordRequest): Promise<AuthU
   return apiFetch<AuthUser>("/api/auth/setup-password", {
     method: "POST",
     body: JSON.stringify(body),
-  });
-}
-
-export function startUserExport(): Promise<UserExportStartResponse> {
-  return apiFetch<UserExportStartResponse>("/api/me/export", {
-    method: "POST",
-  });
-}
-
-export function getUserExportStatus(exportId: string): Promise<UserExportStatusResponse> {
-  return apiFetch<UserExportStatusResponse>(`/api/me/export/${encodeURIComponent(exportId)}`);
-}
-
-export function deleteUserExport(exportId: string): Promise<{ status: string }> {
-  return apiFetch<{ status: string }>(`/api/me/export/${encodeURIComponent(exportId)}`, {
-    method: "DELETE",
-  });
-}
-
-export function requestDeleteConfirmation(): Promise<UserDeleteConfirmResponse> {
-  return apiFetch<UserDeleteConfirmResponse>("/api/me", {
-    method: "DELETE",
-  });
-}
-
-export function deleteMyAccount(params: {
-  confirmation_token: string;
-  password: string;
-}): Promise<UserDeleteResponse> {
-  const search = new URLSearchParams(params).toString();
-  return apiFetch<UserDeleteResponse>(`/api/me?${search}`, {
-    method: "DELETE",
   });
 }
 

@@ -15,7 +15,6 @@ from app.api.routes_health import router as health_router
 from app.api.routes_integrations import router as integrations_router
 from app.api.routes_models import router as models_router
 from app.api.routes_memory import router as memory_router
-from app.api.routes_me import router as me_router
 from app.api.routes_observer import router as observer_router
 from app.api.routes_session import router as session_router
 from app.api.routes_settings import router as settings_router
@@ -79,7 +78,6 @@ def create_app() -> FastAPI:
     app.include_router(diary_router, prefix="/api")
     app.include_router(spaces_router, prefix="/api")
     app.include_router(memory_router, prefix="/api")
-    app.include_router(me_router, prefix="/api")
     app.include_router(observer_router, prefix="/api")
     app.include_router(integrations_router, prefix="/api")
     app.include_router(telegram_router, prefix="/api")

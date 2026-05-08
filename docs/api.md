@@ -15,19 +15,6 @@
   (интеграция недоступна в текущем build), вместо падения импорта приложения.
 - PR readiness (2026-05-05): backend `py312` checks и QA smoke по integrations/API зелёные.
 
-## Обновление v1.0.8 (2026-05-08)
-
-- Добавлены endpoints user export:
-  - `POST /api/me/export` — старт фоновой выгрузки, возвращает `export_id`.
-  - `GET /api/me/export/{export_id}` — статус (`pending|processing|ready|failed`) и `download_url` при готовности.
-  - `GET /api/me/export/{export_id}/download?token=...` — одноразовое скачивание ZIP-архива.
-  - `DELETE /api/me/export/{export_id}` — удаление архива и метаданных экспорта.
-- Добавлен двухступенчатый delete account:
-  - `DELETE /api/me` — запрос подтверждения, возвращает `confirmation_token` (TTL 15 минут).
-  - `DELETE /api/me?confirmation_token=...&password=...` — удаление аккаунта с обязательным auto-export.
-- Email-рассылка export URL в этом этапе не выполняется: ссылка возвращается только в API response.
-- Требование безопасности K8: архив не включает `encrypted_secrets`, OAuth tokens и другие integration secrets.
-
 Документ описывает фактическое API после завершения v0.3 и foundation-слоя интеграций v0.4.
 
 Базовый префикс: `/api`

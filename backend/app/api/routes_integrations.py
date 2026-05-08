@@ -1,5 +1,5 @@
-# mypy: disable-error-code=import-untyped
 from __future__ import annotations
+# mypy: disable-error-code=import-untyped
 
 from datetime import date
 from typing import NoReturn
