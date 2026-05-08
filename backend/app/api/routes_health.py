@@ -3,10 +3,13 @@ import time
 from pathlib import Path
 from typing import Optional, Tuple
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
 import httpx
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
+from app.db.session import create_session
 from app.models.schemas import (
     HealthEmbeddingsInfo,
     HealthFilesInfo,
@@ -116,3 +119,36 @@ def get_health() -> HealthResponse:
         session=HealthSessionInfo(enabled=True, active_sessions=session_store.active_sessions_count()),
         last_error=vsellm_error,
     )
+
+
+@router.get("/healthz")
+def healthz() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@router.get("/readyz")
+def readyz(response: Response) -> dict[str, object]:
+    settings = get_settings()
+    checks: dict[str, object] = {"db": False, "tmp_writable": False}
+
+    try:
+        session = create_session()
+        try:
+            session.execute(text("SELECT 1"))
+            checks["db"] = True
+        finally:
+            session.close()
+    except SQLAlchemyError:
+        checks["db"] = False
+
+    tmp_path = Path(settings.tmp_dir).resolve()
+    try:
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        checks["tmp_writable"] = os.access(tmp_path, os.W_OK)
+    except OSError:
+        checks["tmp_writable"] = False
+
+    ready = bool(checks["db"]) and bool(checks["tmp_writable"])
+    if not ready:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return {"status": "ok" if ready else "degraded", "checks": checks}

@@ -1,7 +1,9 @@
 from pathlib import Path
+import uuid
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from starlette.requests import Request
 
 from app.api.routes_access_requests import admin_router as admin_access_requests_router
 from app.api.routes_access_requests import public_router as access_requests_router
@@ -22,6 +24,7 @@ from app.api.routes_usage import router as usage_router
 from app.api.routes_voice import router as voice_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.request_context import request_id_ctx
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 
 
@@ -55,7 +58,7 @@ def register_frontend_routes(app: FastAPI, dist_dir: Path) -> None:
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, settings.log_format)
 
     app = FastAPI(
         title="Asya Backend",
@@ -64,6 +67,7 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
     app.include_router(health_router, prefix="/api")
+    app.include_router(health_router)
     app.include_router(auth_router, prefix="/api")
     app.include_router(access_requests_router, prefix="/api")
     app.include_router(admin_access_requests_router, prefix="/api")
@@ -82,6 +86,17 @@ def create_app() -> FastAPI:
     app.include_router(usage_router, prefix="/api")
     if settings.app_env == "local" and settings.serve_frontend:
         register_frontend_routes(app=app, dist_dir=settings.frontend_dist_dir)
+
+    @app.middleware("http")
+    async def add_request_id(request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        token = request_id_ctx.set(request_id)
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id
+            return response
+        finally:
+            request_id_ctx.reset(token)
 
     @app.on_event("startup")
     def _startup_scheduler() -> None:
