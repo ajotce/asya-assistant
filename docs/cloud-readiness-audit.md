@@ -98,3 +98,37 @@
 - `P1`: 10
 - `P2`: 4
 
+## Status after 1.0.2
+
+Легенда:
+- ✅ закрыто в 1.0.2
+- ⚠️ частично / временное решение в 1.0.2
+- ⏭️ перенесено в 1.0.3+ (за рамками текущего шага)
+
+P0:
+- #2 ✅
+- #4 ✅
+- #7 ⚠️ process-local runtime session store помечен как ephemeral; source of truth для chat state уже в БД.
+- #8 ⏭️ (S3/provider abstraction планируется в 1.0.4, сейчас local/dev fallback)
+- #9 ✅
+- #10 ⏭️ (полный storage provider migration в 1.0.4)
+- #11 ⏭️ (полный diary audio S3 migration в 1.0.4)
+- #15 ⚠️ добавлен explicit production warning + policy (`SCHEDULER_ENABLED=false`), но distributed scheduler ещё не внедрён.
+- #17 ✅
+
+P1:
+- #1 ✅
+- #3 ✅
+- #5 ✅
+- #6 ✅
+- #12 ✅
+- #13 ✅
+- #14 ✅
+- #18 ✅ (`TELEGRAM_WEBHOOK_URL` удалён из `.env.example` как неиспользуемый до внедрения webhook-mode)
+- #19 ✅
+- #22 ✅
+
+P2:
+- #16 ⚠️ явно помечен как process-local ephemeral (без Redis на этом этапе).
+- #20 ✅
+- #21 ✅
