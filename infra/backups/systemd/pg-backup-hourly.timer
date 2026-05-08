@@ -1,0 +1,10 @@
+[Unit]
+Description=Asya PostgreSQL incremental backup (hourly)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=pg-backup@incremental.service
+
+[Install]
+WantedBy=timers.target

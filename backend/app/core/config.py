@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     object_storage_backend: str = Field(default="local", alias="OBJECT_STORAGE_BACKEND")
     object_storage_local_dir: str = Field(default="./data/blob", alias="OBJECT_STORAGE_LOCAL_DIR")
     s3_endpoint: str = Field(default="", alias="S3_ENDPOINT")
+    s3_presign_endpoint: str = Field(default="", alias="S3_PRESIGN_ENDPOINT")
     s3_bucket: str = Field(default="", alias="S3_BUCKET")
     s3_access_key: str = Field(default="", alias="S3_ACCESS_KEY")
     s3_secret_key: str = Field(default="", alias="S3_SECRET_KEY")
@@ -160,6 +161,15 @@ class Settings(BaseSettings):
     smtp_username: str = Field(default="", alias="SMTP_USERNAME")
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
     smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
+    sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
+    sentry_traces_sample_rate: float = Field(default=0.0, alias="SENTRY_TRACES_SAMPLE_RATE")
+    sentry_profiles_sample_rate: float = Field(default=0.0, alias="SENTRY_PROFILES_SAMPLE_RATE")
+    metrics_enabled: bool = Field(default=True, alias="METRICS_ENABLED")
+    metrics_path: str = Field(default="/metrics", alias="METRICS_PATH")
+    metrics_basic_auth_username: str = Field(default="", alias="METRICS_BASIC_AUTH_USERNAME")
+    metrics_basic_auth_password: str = Field(default="", alias="METRICS_BASIC_AUTH_PASSWORD")
+    metrics_ip_allowlist: str = Field(default="127.0.0.1,::1", alias="METRICS_IP_ALLOWLIST")
+    enable_test_routes: bool = Field(default=False, alias="ENABLE_TEST_ROUTES")
 
     @property
     def vsellm_api_key_configured(self) -> bool:

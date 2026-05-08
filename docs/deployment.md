@@ -37,8 +37,10 @@ docker compose -f docker-compose.prod.yml up --build -d
 - `ASYA_DATABASE_URL=postgresql+psycopg://...` (рекомендуемый primary способ)
 - `DATABASE_URL=...` поддерживается как backward-compatible alias
 - или полный блок `POSTGRES_*` (`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_SSLMODE`)
-- `FILE_STORAGE_BACKEND=local|s3` (в 1.0.2 реализована provider abstraction, по умолчанию local)
-- `FILE_STORAGE_LOCAL_DIR=/app/data/blob` (для local backend)
+- `OBJECT_STORAGE_BACKEND=local|s3` (object storage abstraction, по умолчанию `local` для dev)
+- `OBJECT_STORAGE_LOCAL_DIR=/app/data/blob` (для `local` backend)
+- `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION` (для `s3` backend)
+- `S3_PRESIGN_ENDPOINT` (опционально; endpoint для выдачи presigned URL, если он отличается от внутреннего `S3_ENDPOINT`)
 - OAuth redirect URI-переменные (`*_OAUTH_REDIRECT_URI`)
 - SMTP-переменные (`EMAIL_TRANSPORT=smtp`, `SMTP_*`)
 - `SCHEDULER_ENABLED=false` для multi-instance production (локальный in-process scheduler не должен стартовать на каждом pod).
@@ -67,3 +69,6 @@ docker compose -f docker-compose.prod.yml up --build -d
 - `GET /api/health` — legacy подробный health endpoint (оставлен для обратной совместимости).
 - `docker compose logs -f backend caddy` для runtime-диагностики.
 - Все backend-логи пишутся в stdout/stderr в JSON-формате с полями `ts`, `level`, `logger`, `event`, `request_id`.
+- Локальный monitoring stack (Prometheus/Grafana/Loki/Promtail) запускается через:
+  `docker compose -f docker-compose.yml -f docker-compose.monitoring.yml --profile monitoring up -d`.
+- Детальная инструкция по метрикам/алертам/Sentry: `docs/monitoring.md`.

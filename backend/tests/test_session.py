@@ -73,12 +73,12 @@ def test_upload_file_to_session_and_cleanup_on_delete(tmp_path, monkeypatch) -> 
     stored = file_store.get_session_files(session_id)
     assert len(stored) == 1
     stored_key = stored[0].path
-    assert blob_storage.get_bytes(stored_key)
+    assert blob_storage.get(stored_key)
 
     delete_resp = client.delete(f"/api/session/{session_id}")
     assert delete_resp.status_code == 204
     try:
-        blob_storage.get_bytes(stored_key)
+        blob_storage.get(stored_key)
         assert False, "blob must be deleted"
     except FileNotFoundError:
         pass

@@ -136,7 +136,7 @@ class DiaryService:
         suffix = Path(original_filename).suffix or ".webm"
         filename = f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{hashlib.sha1(payload).hexdigest()[:10]}{suffix}"
         object_key = f"diary/{user_id}/{filename}"
-        blob_storage.put_bytes(object_key, payload)
+        blob_storage.put(object_key, payload, content_type="audio/webm")
         return object_key
 
     def _transcribe_entry(self, item: DiaryEntry) -> str:

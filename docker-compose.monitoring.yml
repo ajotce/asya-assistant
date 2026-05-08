@@ -1,0 +1,88 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    profiles: ["monitoring"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/grafana/alerts.yaml:/etc/prometheus/alerts/asya-alerts.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - default
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    profiles: ["monitoring"]
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./infra/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      - default
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    profiles: ["monitoring"]
+    depends_on:
+      - prometheus
+      - loki
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./infra/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - default
+
+  loki:
+    image: grafana/loki:3.1.1
+    profiles: ["monitoring"]
+    command: ["-config.file=/etc/loki/config.yml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./infra/loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    networks:
+      - default
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    profiles: ["monitoring"]
+    depends_on:
+      - loki
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - promtail_data:/tmp
+    networks:
+      - default
+
+  backend:
+    profiles: ["monitoring"]
+    environment:
+      METRICS_ENABLED: "true"
+      METRICS_PATH: /metrics
+      METRICS_BASIC_AUTH_USERNAME: ""
+      METRICS_BASIC_AUTH_PASSWORD: ""
+      METRICS_IP_ALLOWLIST: ${METRICS_IP_ALLOWLIST:-127.0.0.1,::1,172.16.0.0/12}
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  promtail_data:

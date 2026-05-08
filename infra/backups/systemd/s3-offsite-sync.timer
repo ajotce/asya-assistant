@@ -1,0 +1,10 @@
+[Unit]
+Description=Asya object storage off-site sync timer
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=s3-offsite-sync.service
+
+[Install]
+WantedBy=timers.target

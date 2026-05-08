@@ -1,0 +1,10 @@
+[Unit]
+Description=Asya backup retention cleanup timer
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=backup-cleanup.service
+
+[Install]
+WantedBy=timers.target

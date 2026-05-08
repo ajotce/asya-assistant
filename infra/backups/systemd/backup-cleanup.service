@@ -1,0 +1,12 @@
+[Unit]
+Description=Asya backup retention cleanup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/asya-backups/asya-backups.env
+ExecStart=/opt/asya/infra/backups/cleanup_old_backups.sh
+
+[Install]
+WantedBy=multi-user.target

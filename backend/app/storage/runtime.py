@@ -27,6 +27,7 @@ def _build_object_storage() -> ObjectStorage:
         return S3ObjectStorage(
             bucket=settings.s3_bucket,
             endpoint_url=settings.s3_endpoint.strip() or None,
+            presign_endpoint_url=settings.s3_presign_endpoint.strip() or None,
             region=settings.s3_region,
             access_key=settings.s3_access_key,
             secret_key=settings.s3_secret_key,

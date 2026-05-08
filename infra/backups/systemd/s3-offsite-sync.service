@@ -1,0 +1,12 @@
+[Unit]
+Description=Asya object storage off-site sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/asya-backups/asya-backups.env
+ExecStart=/opt/asya/infra/backups/s3_sync_backup.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -15,6 +15,7 @@ from app.services.encrypted_secret_service import EncryptedSecretService, Secret
 from app.services.integration_connection_service import IntegrationConnectionService, IntegrationConnectionUpsertPayload
 from app.services.secret_crypto_service import SecretCryptoService
 from app.core.config import get_settings
+from app.observability.metrics import observe_integration_api_call
 
 
 class OAuthProviderError(RuntimeError):
@@ -135,9 +136,11 @@ class OAuthIntegration(ABC):
             return
         try:
             response = httpx.post(self._config.revoke_url, data={"token": token}, timeout=20.0)
+            observe_integration_api_call(self._config.provider.value, "oauth_revoke", response.status_code < 400)
             if response.status_code >= 400:
                 raise OAuthProviderError(f"Не удалось отозвать токен: {response.status_code}.")
         except httpx.HTTPError as exc:
+            observe_integration_api_call(self._config.provider.value, "oauth_revoke", False)
             raise OAuthProviderError("Ошибка сети при revoke токена.") from exc
 
     def get_authenticated_client(self, user_id: str) -> AuthenticatedOAuthClient:
@@ -160,8 +163,10 @@ class OAuthIntegration(ABC):
         try:
             response = httpx.post(self._config.token_url, data=payload, timeout=20.0)
         except httpx.HTTPError as exc:
+            observe_integration_api_call(self._config.provider.value, "oauth_token", False)
             raise OAuthProviderError("Сетевая ошибка провайдера при обмене OAuth-кода.") from exc
 
+        observe_integration_api_call(self._config.provider.value, "oauth_token", response.status_code < 400)
         if response.status_code >= 400:
             text = response.text[:500]
             if "invalid_grant" in text.lower():

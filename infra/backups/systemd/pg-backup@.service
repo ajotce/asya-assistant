@@ -1,0 +1,13 @@
+[Unit]
+Description=Asya PostgreSQL backup (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/asya-backups/asya-backups.env
+Environment=BACKUP_MODE=%i
+ExecStart=/opt/asya/infra/backups/pg_backup.sh
+
+[Install]
+WantedBy=multi-user.target

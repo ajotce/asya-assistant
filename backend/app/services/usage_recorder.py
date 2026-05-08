@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.core.config import Settings
+from app.observability.metrics import observe_llm_tokens
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.usage_record_repository import UsageRecordRepository
 
@@ -41,6 +42,11 @@ class UsageRecorder:
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
         )
+        observe_llm_tokens(
+            kind="chat",
+            model=self._safe_model_name(usage.get("model"), self._settings.default_chat_model),
+            total_tokens=total_tokens,
+        )
 
     def record_embeddings_usage(self, session_id: str, usage: dict | None) -> None:
         if not isinstance(usage, dict):
@@ -59,6 +65,11 @@ class UsageRecorder:
             model=self._safe_model_name(usage.get("model"), self._settings.default_embedding_model or "unknown"),
             prompt_tokens=input_tokens,
             completion_tokens=None,
+            total_tokens=total_tokens,
+        )
+        observe_llm_tokens(
+            kind="embeddings",
+            model=self._safe_model_name(usage.get("model"), self._settings.default_embedding_model or "unknown"),
             total_tokens=total_tokens,
         )
 

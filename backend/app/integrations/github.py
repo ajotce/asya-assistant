@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.db.models.common import IntegrationProvider, UserRole
 from app.db.models.user import User
 from app.integrations.oauth_service import OAuthIntegrationService
+from app.observability.metrics import observe_integration_api_call
 from app.services.integration_connection_service import IntegrationConnectionService
 
 
@@ -149,7 +150,13 @@ class GitHubService:
         try:
             response = httpx.get(url, headers=headers, params=params, timeout=20.0)
         except httpx.HTTPError as exc:
+            observe_integration_api_call(IntegrationProvider.GITHUB.value, "rest_get", False)
             raise GitHubAPIError("Ошибка сети при запросе к GitHub API.") from exc
+        observe_integration_api_call(
+            IntegrationProvider.GITHUB.value,
+            "rest_get",
+            response.status_code < 400,
+        )
         if response.status_code == 401:
             raise GitHubNotConnectedError("GitHub токен недействителен или отозван.")
         if response.status_code == 403:
