@@ -34,7 +34,8 @@ docker compose -f docker-compose.prod.yml up --build -d
 - `LOG_FORMAT=json` (structured logs в stdout/stderr)
 - `MASTER_ENCRYPTION_KEY=<fernet-key>`
 - `AUTH_SESSION_HASH_SECRET=<случайная строка>`
-- `DATABASE_URL=postgresql+psycopg://...` (рекомендуемый primary способ)
+- `ASYA_DATABASE_URL=postgresql+psycopg://...` (рекомендуемый primary способ)
+- `DATABASE_URL=...` поддерживается как backward-compatible alias
 - или полный блок `POSTGRES_*` (`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_SSLMODE`)
 - `FILE_STORAGE_BACKEND=local|s3` (в 1.0.2 реализована provider abstraction, по умолчанию local)
 - `FILE_STORAGE_LOCAL_DIR=/app/data/blob` (для local backend)
