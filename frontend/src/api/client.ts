@@ -10,6 +10,9 @@ import type {
   AuthRegisterResponse,
   AuthSetupPasswordRequest,
   AuthUser,
+  DeleteMeConfirmResponse,
+  DeleteMePrepareResponse,
+  DeleteMeRequest,
   ChatCreateRequest,
   ChatListItem,
   ChatMessageItem,
@@ -64,6 +67,8 @@ import type {
   VoiceSettings,
   VoiceSettingsUpdateRequest,
   VoiceSTTResponse,
+  UserExportStartResponse,
+  UserExportStatusResponse,
 } from "../types/api";
 
 declare global {
@@ -511,6 +516,27 @@ export function authRegister(body: AuthRegisterRequest): Promise<AuthRegisterRes
   return apiFetch<AuthRegisterResponse>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+export function startUserExport(): Promise<UserExportStartResponse> {
+  return apiFetch<UserExportStartResponse>("/api/me/export", { method: "POST" });
+}
+
+export function getUserExportStatus(exportId: string): Promise<UserExportStatusResponse> {
+  return apiFetch<UserExportStatusResponse>(`/api/me/export/${encodeURIComponent(exportId)}`);
+}
+
+export function prepareDeleteMe(body: DeleteMeRequest): Promise<DeleteMePrepareResponse> {
+  return apiFetch<DeleteMePrepareResponse>("/api/me", {
+    method: "DELETE",
+    body: JSON.stringify(body),
+  });
+}
+
+export function confirmDeleteMe(token: string): Promise<DeleteMeConfirmResponse> {
+  return apiFetch<DeleteMeConfirmResponse>(`/api/me/confirm?token=${encodeURIComponent(token)}`, {
+    method: "DELETE",
   });
 }
 

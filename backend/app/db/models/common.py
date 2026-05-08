@@ -182,6 +182,13 @@ class IntegrationConnectionStatus(str, Enum):
     ERROR = "error"
 
 
+class UserExportStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+
+
 class ObservationStatus(str, Enum):
     NEW = "new"
     SEEN = "seen"

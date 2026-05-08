@@ -197,6 +197,34 @@ export interface AuthSetupPasswordRequest {
   password: string;
 }
 
+export interface UserExportStartResponse {
+  export_id: string;
+  status: string;
+}
+
+export interface UserExportStatusResponse {
+  export_id: string;
+  status: string;
+  download_url?: string | null;
+  expires_at?: string | null;
+}
+
+export interface DeleteMeRequest {
+  password: string;
+}
+
+export interface DeleteMePrepareResponse {
+  confirmation_token: string;
+  expires_at: string;
+}
+
+export interface DeleteMeConfirmResponse {
+  status: string;
+  export_id: string;
+  download_url?: string | null;
+  expires_at?: string | null;
+}
+
 export interface AccessRequestSubmitRequest {
   email: string;
   display_name: string;

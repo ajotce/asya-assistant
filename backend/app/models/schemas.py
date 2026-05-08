@@ -684,3 +684,33 @@ class PersonalityProfileUpdateRequest(BaseModel):
     can_gently_disagree: bool = True
     address_user_by_name: bool = True
     is_active: bool = True
+
+
+class UserExportStartResponse(BaseModel):
+    export_id: str
+    status: str
+
+
+class UserExportStatusResponse(BaseModel):
+    export_id: str
+    status: str
+    download_url: Optional[str] = None
+    expires_at: Optional[str] = None
+
+
+class DeleteMeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=8, max_length=200)
+
+
+class DeleteMePrepareResponse(BaseModel):
+    confirmation_token: str
+    expires_at: str
+
+
+class DeleteMeConfirmResponse(BaseModel):
+    status: str
+    export_id: str
+    download_url: Optional[str] = None
+    expires_at: Optional[str] = None

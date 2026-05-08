@@ -17,7 +17,11 @@ import {
   listGitHubPulls,
   listGitHubRepos,
   markImapAsRead,
+  getUserExportStatus,
+  startUserExport,
   probeReasoningModels,
+  prepareDeleteMe,
+  confirmDeleteMe,
   readGitHubFile,
   searchImapMessages,
   testImapConnection,
@@ -57,11 +61,15 @@ vi.mock("../api/client", () => ({
   searchImapMessages: vi.fn(),
   getImapMessage: vi.fn(),
   markImapAsRead: vi.fn(),
+  getUserExportStatus: vi.fn(),
+  startUserExport: vi.fn(),
   listGitHubRepos: vi.fn(),
   listGitHubIssues: vi.fn(),
   listGitHubPulls: vi.fn(),
   readGitHubFile: vi.fn(),
   probeReasoningModels: vi.fn(),
+  prepareDeleteMe: vi.fn(),
+  confirmDeleteMe: vi.fn(),
   updateSettings: vi.fn(),
 }));
 
@@ -80,11 +88,15 @@ describe("SettingsPage", () => {
     vi.mocked(searchImapMessages).mockReset();
     vi.mocked(getImapMessage).mockReset();
     vi.mocked(markImapAsRead).mockReset();
+    vi.mocked(getUserExportStatus).mockReset();
+    vi.mocked(startUserExport).mockReset();
     vi.mocked(listGitHubRepos).mockReset();
     vi.mocked(listGitHubIssues).mockReset();
     vi.mocked(listGitHubPulls).mockReset();
     vi.mocked(readGitHubFile).mockReset();
     vi.mocked(probeReasoningModels).mockReset();
+    vi.mocked(prepareDeleteMe).mockReset();
+    vi.mocked(confirmDeleteMe).mockReset();
     vi.mocked(updateSettings).mockReset();
 
     vi.mocked(getSettings).mockResolvedValue({
@@ -119,6 +131,8 @@ describe("SettingsPage", () => {
       text_body: "body",
     });
     vi.mocked(markImapAsRead).mockResolvedValue({ status: "ok" });
+    vi.mocked(startUserExport).mockResolvedValue({ export_id: "exp-1", status: "pending" });
+    vi.mocked(getUserExportStatus).mockResolvedValue({ export_id: "exp-1", status: "ready", download_url: "/api/me/export/download/token-1" });
     vi.mocked(listGitHubRepos).mockResolvedValue([]);
     vi.mocked(listGitHubIssues).mockResolvedValue([]);
     vi.mocked(listGitHubPulls).mockResolvedValue([]);
@@ -131,6 +145,8 @@ describe("SettingsPage", () => {
       html_url: null,
     });
     vi.mocked(probeReasoningModels).mockResolvedValue({ results: [] });
+    vi.mocked(prepareDeleteMe).mockResolvedValue({ confirmation_token: "confirm-1", expires_at: "2026-05-09T00:00:00Z" });
+    vi.mocked(confirmDeleteMe).mockResolvedValue({ status: "deleted", export_id: "exp-1", download_url: null, expires_at: null });
     vi.mocked(updateSettings).mockImplementation(async (payload) => ({
       ...payload,
       api_key_configured: true,
@@ -247,5 +263,32 @@ describe("SettingsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Connect" }));
     await waitFor(() => expect(connectImap).toHaveBeenCalled());
+  });
+
+  it("запускает экспорт и получает статус ready", async () => {
+    renderSettingsPage();
+    await screen.findByRole("heading", { name: "Настройки" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Скачать мои данные" }));
+    await waitFor(() => expect(startUserExport).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Обновить статус" }));
+    await waitFor(() => expect(getUserExportStatus).toHaveBeenCalledWith("exp-1"));
+    expect(await screen.findByText("Статус экспорта: ready")).toBeInTheDocument();
+  });
+
+  it("открывает модал удаления и выполняет двухшаговое подтверждение", async () => {
+    renderSettingsPage();
+    await screen.findByRole("heading", { name: "Настройки" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Открыть подтверждение удаления" }));
+    expect(screen.getByRole("dialog", { name: "Удаление учётки" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Введите пароль"), { target: { value: "strong-pass-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Подтвердить пароль" }));
+    await waitFor(() => expect(prepareDeleteMe).toHaveBeenCalledWith({ password: "strong-pass-123" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить учётку" }));
+    await waitFor(() => expect(confirmDeleteMe).toHaveBeenCalledWith("confirm-1"));
   });
 });

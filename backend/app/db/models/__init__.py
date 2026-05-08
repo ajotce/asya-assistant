@@ -6,6 +6,7 @@ from app.db.models.behavior_rule import BehaviorRule
 from app.db.models.chat import Chat
 from app.db.models.diary_entry import DiaryEntry
 from app.db.models.diary_settings import DiarySettings
+from app.db.models.deleted_user_audit import DeletedUserAudit
 from app.db.models.encrypted_secret import EncryptedSecret
 from app.db.models.file_meta import FileMeta
 from app.db.models.integration_connection import IntegrationConnection
@@ -25,6 +26,7 @@ from app.db.models.telegram_account_link import TelegramAccountLink
 from app.db.models.telegram_link_token import TelegramLinkToken
 from app.db.models.user_profile_fact import UserProfileFact
 from app.db.models.user_settings import UserSettings
+from app.db.models.user_export import UserExport
 from app.db.models.user_voice_settings import UserVoiceSettings
 from app.db.models.usage_record import UsageRecord
 from app.db.models.user import User
@@ -38,6 +40,7 @@ __all__ = [
     "Chat",
     "DiaryEntry",
     "DiarySettings",
+    "DeletedUserAudit",
     "EncryptedSecret",
     "FileMeta",
     "IntegrationConnection",
@@ -57,6 +60,7 @@ __all__ = [
     "TelegramLinkToken",
     "UserProfileFact",
     "UserSettings",
+    "UserExport",
     "UserVoiceSettings",
     "UsageRecord",
     "User",

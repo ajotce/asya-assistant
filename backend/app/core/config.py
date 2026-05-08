@@ -86,6 +86,7 @@ class Settings(BaseSettings):
     voice_max_audio_bytes: int = Field(default=15728640, alias="VOICE_MAX_AUDIO_BYTES")
     voice_tts_enabled_default: bool = Field(default=False, alias="VOICE_TTS_ENABLED_DEFAULT")
     diary_audio_dir: str = Field(default="./data/diary_audio", alias="DIARY_AUDIO_DIR")
+    export_dir: str = Field(default="./exports", alias="EXPORT_DIR")
     scheduler_enabled: bool = Field(default=True, alias="SCHEDULER_ENABLED")
     scheduler_instance_role: str = Field(default="leader", alias="SCHEDULER_INSTANCE_ROLE")
     observer_interval_minutes: int = Field(default=15, alias="OBSERVER_INTERVAL_MINUTES")

@@ -9,6 +9,7 @@ import {
   getModels,
   getReasoningCache,
   getSettings,
+  getUserExportStatus,
   listImapFolders,
   listImapMessages,
   listGitHubIssues,
@@ -17,8 +18,11 @@ import {
   markImapAsRead,
   probeReasoningModels,
   readGitHubFile,
+  startUserExport,
   searchImapMessages,
   testImapConnection,
+  prepareDeleteMe,
+  confirmDeleteMe,
   updateSettings,
 } from "../api/client";
 import AdminAccessRequestsSection from "../components/AdminAccessRequestsSection";
@@ -123,6 +127,14 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
   const [imapQuery, setImapQuery] = useState("");
   const [imapFolder, setImapFolder] = useState("INBOX");
   const [imapSelectedMessage, setImapSelectedMessage] = useState<ImapMessageDetails | null>(null);
+  const [exportId, setExportId] = useState<string | null>(null);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [exportDownloadUrl, setExportDownloadUrl] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmToken, setDeleteConfirmToken] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -158,6 +170,24 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!exportId || exportStatus === "ready" || exportStatus === "failed") {
+      return;
+    }
+    const timerId = window.setInterval(() => {
+      void (async () => {
+        try {
+          const payload = await getUserExportStatus(exportId);
+          setExportStatus(payload.status);
+          setExportDownloadUrl(payload.download_url ?? null);
+        } catch {
+          // keep current state; manual refresh remains available
+        }
+      })();
+    }, 3000);
+    return () => window.clearInterval(timerId);
+  }, [exportId, exportStatus]);
 
   useEffect(() => {
     let active = true;
@@ -421,6 +451,87 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
     } finally {
       setImapLoading(false);
     }
+  }
+
+  async function handleStartExport() {
+    setExportBusy(true);
+    setError(null);
+    try {
+      const started = await startUserExport();
+      setExportId(started.export_id);
+      setExportStatus(started.status);
+      setExportDownloadUrl(null);
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function handlePollExport() {
+    if (!exportId) {
+      return;
+    }
+    setExportBusy(true);
+    setError(null);
+    try {
+      const payload = await getUserExportStatus(exportId);
+      setExportStatus(payload.status);
+      setExportDownloadUrl(payload.download_url ?? null);
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function handlePrepareDelete() {
+    if (!deletePassword.trim()) {
+      setError("Введите пароль для удаления учётки.");
+      return;
+    }
+    setDeleteBusy(true);
+    setError(null);
+    try {
+      const prepared = await prepareDeleteMe({ password: deletePassword });
+      setDeleteConfirmToken(prepared.confirmation_token);
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteConfirmToken) {
+      return;
+    }
+    setDeleteBusy(true);
+    setError(null);
+    try {
+      const response = await confirmDeleteMe(deleteConfirmToken);
+      if (response.download_url) {
+        window.open(response.download_url, "_blank");
+      }
+      window.location.href = "/";
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  function openDeleteModal() {
+    setDeleteModalOpen(true);
+  }
+
+  function closeDeleteModal() {
+    if (deleteBusy) {
+      return;
+    }
+    setDeleteModalOpen(false);
+    setDeletePassword("");
+    setDeleteConfirmToken(null);
   }
 
   if (loading) {
@@ -692,6 +803,72 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
           </ul>
         ) : null}
       </section>
+      <section className="reasoning-probe" aria-label="Экспорт и удаление учётки">
+        <div className="page__row">
+          <h3 className="reasoning-probe__title">Экспорт данных</h3>
+          <div className="settings-form__row">
+            <button type="button" className="chat-action-button" onClick={handleStartExport} disabled={exportBusy}>
+              Скачать мои данные
+            </button>
+            <button
+              type="button"
+              className="chat-action-button"
+              onClick={handlePollExport}
+              disabled={exportBusy || !exportId}
+            >
+              Обновить статус
+            </button>
+            {exportDownloadUrl ? (
+              <a className="chat-action-button" href={exportDownloadUrl}>
+                Скачать архив
+              </a>
+            ) : null}
+          </div>
+        </div>
+        {exportStatus ? <p className="status-text">Статус экспорта: {exportStatus}</p> : null}
+        <h3 className="reasoning-probe__title">Удаление учётки</h3>
+        <p className="status-text status-text--error">
+          Действие необратимо. Все данные пользователя будут удалены.
+        </p>
+        <div className="settings-form__row">
+          <button type="button" className="chat-action-button" onClick={openDeleteModal}>
+            Открыть подтверждение удаления
+          </button>
+        </div>
+      </section>
+      {deleteModalOpen ? (
+        <div className="modal-overlay" role="presentation">
+          <section className="modal-card" role="dialog" aria-modal="true" aria-label="Удаление учётки">
+            <h3 className="reasoning-probe__title">Удаление учётки</h3>
+            <p className="status-text status-text--error">
+              Подтвердите пароль. После подтверждения действие необратимо.
+            </p>
+            <input
+              type="password"
+              className="settings-form__input"
+              value={deletePassword}
+              onChange={(event) => setDeletePassword(event.target.value)}
+              placeholder="Введите пароль"
+            />
+            <div className="settings-form__row">
+              <button type="button" className="chat-action-button" onClick={handlePrepareDelete} disabled={deleteBusy}>
+                Подтвердить пароль
+              </button>
+              <button
+                type="button"
+                className="chat-action-button"
+                onClick={handleConfirmDelete}
+                disabled={deleteBusy || !deleteConfirmToken}
+              >
+                Удалить учётку
+              </button>
+              <button type="button" className="chat-action-button" onClick={closeDeleteModal} disabled={deleteBusy}>
+                Отмена
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       {currentUserRole === "admin" ? <AdminAccessRequestsSection /> : null}
     </section>
   );
