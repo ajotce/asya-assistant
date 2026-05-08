@@ -27,6 +27,13 @@ class Settings(BaseSettings):
         ),
         alias="DEFAULT_SYSTEM_PROMPT",
     )
+    database_url: str = Field(default="", alias="DATABASE_URL")
+    postgres_host: str = Field(default="", alias="POSTGRES_HOST")
+    postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
+    postgres_db: str = Field(default="", alias="POSTGRES_DB")
+    postgres_user: str = Field(default="", alias="POSTGRES_USER")
+    postgres_password: str = Field(default="", alias="POSTGRES_PASSWORD")
+    postgres_sslmode: str = Field(default="prefer", alias="POSTGRES_SSLMODE")
     sqlite_path: str = Field(default="./data/asya.sqlite3", alias="SQLITE_PATH")
     asya_db_path: str = Field(default="./data/asya-0.2.sqlite3", alias="ASYA_DB_PATH")
     tmp_dir: str = Field(default="./tmp", alias="TMP_DIR")
@@ -34,6 +41,7 @@ class Settings(BaseSettings):
     max_file_size_mb: int = Field(default=256, alias="MAX_FILE_SIZE_MB")
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_format: str = Field(default="json", alias="LOG_FORMAT")
     serve_frontend: bool = Field(default=True, alias="SERVE_FRONTEND")
     frontend_dist_path: str = Field(default="../frontend/dist", alias="FRONTEND_DIST_PATH")
     auth_registration_mode: str = Field(default="open", alias="AUTH_REGISTRATION_MODE")
@@ -154,10 +162,48 @@ class Settings(BaseSettings):
 
     @property
     def asya_db_url(self) -> str:
-        db_path = Path(self.asya_db_path)
+        explicit_url = self.database_url.strip()
+        if explicit_url:
+            self._validate_db_url(explicit_url)
+            return explicit_url
+
+        if self._has_postgres_env():
+            return (
+                "postgresql+psycopg://"
+                f"{self.postgres_user}:{self.postgres_password}@"
+                f"{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+                f"?sslmode={self.postgres_sslmode}"
+            )
+
+        db_path = self._resolve_sqlite_path(self.asya_db_path)
+        if self.app_env.lower() == "production":
+            raise ValueError(
+                "Production environment requires DATABASE_URL or POSTGRES_* variables; "
+                "SQLite fallback is allowed only for local/dev."
+            )
+        return f"sqlite+pysqlite:///{db_path.as_posix()}"
+
+    @staticmethod
+    def _resolve_sqlite_path(path: str) -> Path:
+        db_path = Path(path)
         if not db_path.is_absolute():
             db_path = db_path.resolve()
-        return f"sqlite+pysqlite:///{db_path.as_posix()}"
+        return db_path
+
+    @staticmethod
+    def _validate_db_url(db_url: str) -> None:
+        lower = db_url.lower()
+        if lower.startswith("sqlite") and "mode=memory" in lower:
+            return
+
+    def _has_postgres_env(self) -> bool:
+        values = [
+            self.postgres_host.strip(),
+            self.postgres_db.strip(),
+            self.postgres_user.strip(),
+            self.postgres_password.strip(),
+        ]
+        return all(values)
 
 
 @lru_cache
