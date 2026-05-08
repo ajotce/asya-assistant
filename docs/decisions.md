@@ -131,3 +131,24 @@ Managed-варианты для оценки:
 - Для основного сценария 1.0 выбрать managed PostgreSQL у основного cloud-провайдера проекта.
 - Использовать `pgvector` как стандартный vector extension.
 - Миграцию SQLite → PostgreSQL проводить через отдельный проверяемый migration-script на тестовой БД перед production rollout.
+
+## ADR-016 (R6, 1.0.1 audit confirmation): PostgreSQL rollout target for cloud
+
+Решение (подтверждение по итогам cloud-readiness audit 2026-05-08):
+- Для фазы 1.0 production target — PostgreSQL (managed) + `pgvector`.
+- Приоритетный вариант для текущего контура проекта: **Yandex Managed PostgreSQL** (минимум операционной нагрузки, встроенные backup/failover, проще пройти 1.0 SLA).
+- Допустимые эквиваленты для того же архитектурного решения: AWS RDS PostgreSQL / Selectel Managed PostgreSQL.
+
+Где допустим self-managed PostgreSQL:
+- Только как исключение при жёстких ограничениях по бюджету/регуляторике/спецтопологии.
+- В этом случае обязательны: managed-like backup policy, мониторинг, failover runbook, тест восстановления.
+
+Почему:
+- SQLite + локальный FS не выдерживают target-модель горизонтального масштабирования (`N > 1`) и cloud native deployment.
+- `pgvector` покрывает потребность 1.0 в vector search без отдельного vector DB.
+- Managed PG снижает операционные риски и объём инфраструктурных задач в релизном окне 1.0.
+
+Последствия:
+- В 1.0.2 убирается SQLite как production-default, вводится cloud-first DB config.
+- В 1.0.3 выполняется миграция SQLite -> PostgreSQL с idempotent migration script и dry-run.
+- Все новые DB-изменения в 1.0 ветке должны быть совместимы с PostgreSQL как primary target.
