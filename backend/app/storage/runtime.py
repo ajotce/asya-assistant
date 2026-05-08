@@ -5,10 +5,9 @@ from app.storage.session_store import SessionStore
 from app.storage.usage_store import UsageStore
 from app.storage.vector_store import SessionVectorStore
 
-# In-memory runtime stores for local backend sessions.
+# Process-local runtime stores (ephemeral). Safe to lose on restart.
 session_store = SessionStore()
 file_store = SessionFileStore(base_tmp_dir=get_settings().tmp_dir)
 vector_store = SessionVectorStore()
 usage_store = UsageStore()
 reasoning_probe_cache = ReasoningProbeCache()
-pending_actions_store: dict = {}

@@ -13,7 +13,7 @@ from app.services.action_router import ActionRouter
 from app.services.settings_service import SettingsService
 from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient
-from app.storage.runtime import file_store, pending_actions_store, usage_store, vector_store
+from app.storage.runtime import file_store, usage_store, vector_store
 from sqlalchemy.orm import Session
 
 router = APIRouter(tags=["chat"])
@@ -39,7 +39,7 @@ def get_chat_service(current_user: User, db_session: Session) -> ChatService:
         ),
         usage_store=usage_store,
         settings_service=SettingsService(settings, db_session=db_session),
-        action_router=ActionRouter(db_session, pending_actions_store),
+        action_router=ActionRouter(db_session),
     )
 
 

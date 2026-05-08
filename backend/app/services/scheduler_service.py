@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore[import-untyped]
 
 from app.core.config import get_settings
@@ -7,6 +9,7 @@ from app.db.session import create_session
 from app.services.observer_service import ObserverService
 
 _scheduler: BackgroundScheduler | None = None
+logger = logging.getLogger(__name__)
 
 
 def start_scheduler() -> None:
@@ -16,6 +19,10 @@ def start_scheduler() -> None:
         return
     if _scheduler is not None and _scheduler.running:
         return
+    if settings.app_env.lower() == "production":
+        logger.warning(
+            "scheduler_process_local_enabled app_env=production note='run a single scheduler instance or move to a distributed worker'"
+        )
     scheduler = BackgroundScheduler(timezone="UTC")
     scheduler.add_job(_run_observer_job, "interval", minutes=settings.observer_interval_minutes, id="observer")
     scheduler.start()
