@@ -321,6 +321,30 @@ class AuthUserResponse(BaseModel):
     preferred_chat_id: Optional[str] = None
 
 
+class UserExportStartResponse(BaseModel):
+    export_id: str
+    status: str
+
+
+class UserExportStatusResponse(BaseModel):
+    export_id: str
+    status: str
+    download_url: Optional[str] = None
+    expires_at: Optional[str] = None
+    error: Optional[str] = None
+
+
+class UserDeleteConfirmResponse(BaseModel):
+    confirmation_token: str
+    expires_in_seconds: int
+
+
+class UserDeleteResponse(BaseModel):
+    status: str
+    export_id: str
+    export_download_url: Optional[str] = None
+
+
 class AuthRegisterResponse(BaseModel):
     status: str
     user: Optional[AuthUserResponse] = None

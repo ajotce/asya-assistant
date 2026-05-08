@@ -1,8 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import {
+  deleteMyAccount,
+  deleteUserExport,
   connectImap,
   disconnectImap,
+  getUserExportStatus,
   getImapMessage,
   getGitHubStatus,
   getIntegrations,
@@ -16,8 +19,10 @@ import {
   listGitHubRepos,
   markImapAsRead,
   probeReasoningModels,
+  requestDeleteConfirmation,
   readGitHubFile,
   searchImapMessages,
+  startUserExport,
   testImapConnection,
   updateSettings,
 } from "../api/client";
@@ -34,6 +39,7 @@ import type {
   ModelInfo,
   ReasoningProbeItem,
   SettingsResponse,
+  UserExportStatusResponse,
 } from "../types/api";
 
 interface SettingsPageProps {
@@ -123,6 +129,12 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
   const [imapQuery, setImapQuery] = useState("");
   const [imapFolder, setImapFolder] = useState("INBOX");
   const [imapSelectedMessage, setImapSelectedMessage] = useState<ImapMessageDetails | null>(null);
+  const [exportStatus, setExportStatus] = useState<UserExportStatusResponse | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteToken, setDeleteToken] = useState<string | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -423,6 +435,78 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
     }
   }
 
+  async function handleStartExport() {
+    setExportLoading(true);
+    setExportError(null);
+    try {
+      const start = await startUserExport();
+      setExportStatus(await getUserExportStatus(start.export_id));
+    } catch (loadError) {
+      setExportError(getErrorMessage(loadError));
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
+  async function handleRefreshExport() {
+    if (!exportStatus?.export_id) return;
+    setExportLoading(true);
+    setExportError(null);
+    try {
+      setExportStatus(await getUserExportStatus(exportStatus.export_id));
+    } catch (loadError) {
+      setExportError(getErrorMessage(loadError));
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
+  async function handleDeleteExport() {
+    if (!exportStatus?.export_id) return;
+    setExportLoading(true);
+    setExportError(null);
+    try {
+      await deleteUserExport(exportStatus.export_id);
+      setExportStatus(null);
+    } catch (loadError) {
+      setExportError(getErrorMessage(loadError));
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
+  async function handleRequestDeleteConfirmation() {
+    setExportLoading(true);
+    setExportError(null);
+    setDeleteMessage(null);
+    try {
+      const result = await requestDeleteConfirmation();
+      setDeleteToken(result.confirmation_token);
+      setDeleteMessage("Подтверждение получено. Введите пароль и удалите учётку.");
+    } catch (loadError) {
+      setExportError(getErrorMessage(loadError));
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (!deleteToken || !deletePassword.trim()) return;
+    setExportLoading(true);
+    setExportError(null);
+    setDeleteMessage(null);
+    try {
+      const result = await deleteMyAccount({ confirmation_token: deleteToken, password: deletePassword });
+      setDeleteMessage(
+        `Учётка удалена. Export: ${result.export_id}. Ссылка: ${result.export_download_url ?? "недоступна"}`,
+      );
+    } catch (loadError) {
+      setExportError(getErrorMessage(loadError));
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
   if (loading) {
     return (
       <section className="page" aria-label="Настройки Asya">
@@ -691,6 +775,65 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
             ))}
           </ul>
         ) : null}
+      </section>
+      <section className="reasoning-probe" aria-label="Экспорт и удаление">
+        <h3 className="reasoning-probe__title">Экспорт данных</h3>
+        <div className="settings-form__row">
+          <button type="button" className="chat-action-button" onClick={handleStartExport} disabled={exportLoading}>
+            Скачать мои данные
+          </button>
+          <button
+            type="button"
+            className="chat-action-button"
+            onClick={handleRefreshExport}
+            disabled={exportLoading || !exportStatus}
+          >
+            Обновить статус
+          </button>
+          <button
+            type="button"
+            className="chat-action-button"
+            onClick={handleDeleteExport}
+            disabled={exportLoading || !exportStatus}
+          >
+            Удалить архив
+          </button>
+        </div>
+        {exportStatus ? (
+          <p className="status-text">
+            Export {exportStatus.export_id}: {exportStatus.status}
+            {exportStatus.download_url ? `, ${exportStatus.download_url}` : ""}
+          </p>
+        ) : null}
+
+        <h3 className="reasoning-probe__title">Удаление учётки</h3>
+        <div className="settings-form__row">
+          <button
+            type="button"
+            className="chat-action-button"
+            onClick={handleRequestDeleteConfirmation}
+            disabled={exportLoading}
+          >
+            Запросить подтверждение
+          </button>
+          <input
+            className="settings-form__input"
+            type="password"
+            value={deletePassword}
+            onChange={(event) => setDeletePassword(event.target.value)}
+            placeholder="Пароль"
+          />
+          <button
+            type="button"
+            className="chat-action-button"
+            onClick={handleDeleteAccount}
+            disabled={exportLoading || !deleteToken}
+          >
+            Удалить учётку
+          </button>
+        </div>
+        {deleteMessage ? <p className="status-text status-text--ok">{deleteMessage}</p> : null}
+        {exportError ? <p className="status-text status-text--error">{exportError}</p> : null}
       </section>
       {currentUserRole === "admin" ? <AdminAccessRequestsSection /> : null}
     </section>
