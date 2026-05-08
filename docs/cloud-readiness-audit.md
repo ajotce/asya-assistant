@@ -98,3 +98,37 @@
 - `P1`: 10
 - `P2`: 4
 
+## Status after 1.0.2
+
+Легенда:
+- ✅ закрыто в 1.0.2
+- ⚠️ частично / временное решение в 1.0.2
+- ⏭️ перенесено в 1.0.3+ (за рамками текущего шага)
+
+P0:
+- #2 ✅
+- #4 ✅
+- #7 ✅ in-memory runtime `SessionStore` больше не используется как source of truth для API/runtime health.
+- #8 ✅ file storage работает через `BlobStorageProvider` abstraction; metadata/lookup user-scoped через БД.
+- #9 ✅
+- #10 ✅ upload pipeline сохраняет через provider API (storage key), а не прямой локальный FS path как источник истины.
+- #11 ✅ diary audio сохраняется через provider API (storage key), а не прямой user-local path.
+- #15 ✅ scheduler запускается только на leader instance (`SCHEDULER_INSTANCE_ROLE=leader`), что устраняет дубли в multi-instance.
+- #17 ✅
+
+P1:
+- #1 ✅
+- #3 ✅
+- #5 ✅
+- #6 ✅
+- #12 ✅
+- #13 ✅
+- #14 ✅
+- #18 ✅ (`TELEGRAM_WEBHOOK_URL` удалён из `.env.example` как неиспользуемый до внедрения webhook-mode)
+- #19 ✅
+- #22 ✅
+
+P2:
+- #16 ⚠️ явно помечен как process-local ephemeral (без Redis на этом этапе).
+- #20 ✅
+- #21 ✅

@@ -13,7 +13,7 @@ from app.services.chat_service_v2 import ChatServiceV2
 from app.services.file_service import FileService, FileValidationError
 from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient
-from app.storage.runtime import file_store, usage_store, vector_store
+from app.storage.runtime import blob_storage, file_store, usage_store, vector_store
 from sqlalchemy.orm import Session
 
 router = APIRouter(tags=["session"])
@@ -49,7 +49,7 @@ def get_session(
         session_id=chat.id,
         created_at=chat.created_at.isoformat(),
         message_count=MessageRepository(db_session).count_for_chat(chat.id),
-        file_ids=[item.file_id for item in file_store.get_session_files(chat.id)],
+        file_ids=[item.id for item in FileMetaRepository(db_session).list_for_chat_user(chat_id=chat.id, user_id=current_user.id)],
     )
 
 
@@ -65,7 +65,9 @@ def delete_session(
         raise HTTPException(status_code=404, detail="Сессия не найдена.")
     if chat.kind == ChatKind.BASE:
         raise HTTPException(status_code=400, detail="Нельзя удалить Base-chat.")
-    file_store.delete_session_files(session_id)
+    files = FileMetaRepository(db_session).list_for_chat_user(chat_id=session_id, user_id=current_user.id)
+    for file in files:
+        blob_storage.delete(file.storage_path)
     vector_store.delete_session(session_id)
     usage_store.delete_session(session_id)
     FileMetaRepository(db_session).delete_for_chat_user(chat_id=session_id, user_id=current_user.id)
@@ -87,6 +89,7 @@ def get_file_service(current_user: User, db_session: Session) -> FileService:
         current_user_id=current_user.id,
         file_meta_repository=FileMetaRepository(db_session),
         file_store=file_store,
+        blob_storage=blob_storage,
         vector_store=vector_store,
         vsellm_client=VseLLMClient(settings),
         usage_recorder=UsageRecorder(
@@ -119,5 +122,5 @@ async def upload_files_to_session(
     return SessionFilesUploadResponse(
         session_id=session_id,
         files=uploaded,
-        file_ids=[item.file_id for item in file_store.get_session_files(session_id)],
+        file_ids=[item.id for item in FileMetaRepository(db_session).list_for_chat_user(chat_id=session_id, user_id=current_user.id)],
     )

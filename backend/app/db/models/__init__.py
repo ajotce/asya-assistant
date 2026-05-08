@@ -17,6 +17,7 @@ from app.db.models.message import Message
 from app.db.models.oauth_state import OAuthState
 from app.db.models.observation import Observation
 from app.db.models.observation_rule import ObservationRule
+from app.db.models.pending_action import PendingAction
 from app.db.models.space import Space
 from app.db.models.space_memory_settings import SpaceMemorySettings
 from app.db.models.signup_token import SignupToken
@@ -48,6 +49,7 @@ __all__ = [
     "OAuthState",
     "Observation",
     "ObservationRule",
+    "PendingAction",
     "Space",
     "SpaceMemorySettings",
     "SignupToken",

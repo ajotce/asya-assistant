@@ -53,7 +53,13 @@ const IMAP_PRESETS = [
   { key: "yandex", label: "Yandex Mail", host: "imap.yandex.ru", port: 993, security: "ssl" as const },
   { key: "mailru", label: "Mail.ru", host: "imap.mail.ru", port: 993, security: "ssl" as const },
   { key: "outlook", label: "Outlook", host: "outlook.office365.com", port: 993, security: "ssl" as const },
-  { key: "proton", label: "ProtonMail Bridge", host: "127.0.0.1", port: 1143, security: "plain" as const },
+  {
+    key: "proton",
+    label: "ProtonMail Bridge (local-only)",
+    host: "127.0.0.1",
+    port: 1143,
+    security: "plain" as const,
+  },
   { key: "custom", label: "Custom", host: "", port: 993, security: "ssl" as const },
 ];
 

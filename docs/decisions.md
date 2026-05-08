@@ -152,3 +152,18 @@ Managed-варианты для оценки:
 - В 1.0.2 убирается SQLite как production-default, вводится cloud-first DB config.
 - В 1.0.3 выполняется миграция SQLite -> PostgreSQL с idempotent migration script и dry-run.
 - Все новые DB-изменения в 1.0 ветке должны быть совместимы с PostgreSQL как primary target.
+
+## ADR-017 (1.0.2): Scheduler и process-local runtime state в multi-instance
+
+Решение:
+- `pending actions` больше не process-local: хранятся в таблице `pending_actions` с TTL.
+- `ReasoningProbeCache`, runtime `SessionFileStore`, runtime vector/usage cache в 1.0.2 остаются process-local и считаются **ephemeral**.
+- `APScheduler` остаётся in-process только для local/dev. Для production multi-instance его нужно отключать (`SCHEDULER_ENABLED=false`) и выносить в отдельный single-instance worker/queue.
+
+Почему:
+- process-local state ломает консистентность при `N > 1` инстансах;
+- полный переход на Redis/Celery выходит за рамки 1.0.2 и не должен блокировать текущий cloud-readiness этап.
+
+Последствия:
+- подтверждения `/confirm` устойчивы к роутингу между инстансами;
+- для production rollout обязателен отдельный шаг по distributed scheduler (план 1.0.6/1.0.7+).

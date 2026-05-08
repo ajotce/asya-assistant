@@ -17,6 +17,7 @@ from app.models.schemas import ModelInfo
 from app.repositories.activity_log_repository import ActivityLogRepository
 from app.repositories.behavior_rule_repository import BehaviorRuleRepository
 from app.repositories.chat_repository import ChatRepository
+from app.repositories.file_meta_repository import FileMetaRepository
 from app.repositories.memory_episode_repository import MemoryEpisodeRepository
 from app.repositories.message_repository import MessageRepository
 from app.repositories.personality_profile_repository import PersonalityProfileRepository
@@ -29,6 +30,7 @@ from app.services.action_router import ActionRouter
 from app.services.settings_service import SettingsService
 from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient, VseLLMError
+from app.storage.blob_provider import BlobStorageProvider
 from app.storage.file_store import SessionFileStore, StoredSessionFile
 from app.storage.session_store import SessionStore
 from app.storage.usage_store import UsageStore
@@ -53,7 +55,9 @@ class ChatService:
         db_session: Optional[Session] = None,
         chat_repository: Optional[ChatRepository] = None,
         message_repository: Optional[MessageRepository] = None,
+        file_meta_repository: Optional[FileMetaRepository] = None,
         session_store: Optional[SessionStore] = None,
+        blob_storage: Optional[BlobStorageProvider] = None,
         settings_service: Optional[SettingsService] = None,
         memory_extraction_service: Optional[MemoryExtractionService] = None,
         usage_recorder: Optional[UsageRecorder] = None,
@@ -65,8 +69,10 @@ class ChatService:
         self._db_session = db_session
         self._chat_repository = chat_repository
         self._message_repository = message_repository
+        self._file_meta_repository = file_meta_repository
         self._session_store = session_store
         self._file_store = file_store
+        self._blob_storage = blob_storage
         self._vector_store = vector_store
         self._vsellm_client = vsellm_client
         self._settings_service = settings_service or SettingsService(settings)
@@ -259,7 +265,7 @@ class ChatService:
         if not self._get_runtime_settings().selected_model.strip():
             raise VseLLMError(status_code=503, user_message="Глобальная модель не настроена на backend.")
         for file_id in file_ids:
-            if self._file_store.get_session_file(session_id=session_id, file_id=file_id) is None:
+            if self._get_session_file(session_id=session_id, file_id=file_id) is None:
                 raise VseLLMError(status_code=400, user_message=f"Файл '{file_id}' не найден в текущей сессии.")
 
     def _build_retrieval_context(self, session_id: str, user_message: str) -> str:
@@ -268,7 +274,7 @@ class ChatService:
             if session is None or not session.file_ids:
                 return ""
         else:
-            session_files = self._file_store.get_session_files(session_id)
+            session_files = self._list_session_files(session_id)
             if not session_files:
                 return ""
         if not self._vector_store.has_session_chunks(session_id):
@@ -471,7 +477,7 @@ class ChatService:
             return []
         files: List[StoredSessionFile] = []
         for file_id in file_ids:
-            file = self._file_store.get_session_file(session_id=session_id, file_id=file_id)
+            file = self._get_session_file(session_id=session_id, file_id=file_id)
             if file is None:
                 raise VseLLMError(status_code=400, user_message=f"Файл '{file_id}' не найден в текущей сессии.")
             if not self._is_image_file(file):
@@ -495,24 +501,61 @@ class ChatService:
         guessed = mimetypes.guess_type(file.filename)[0] or ""
         return guessed.startswith("image/")
 
-    @staticmethod
-    def _build_user_content(user_message: str, image_files: List[StoredSessionFile]) -> Any:
+    def _build_user_content(self, user_message: str, image_files: List[StoredSessionFile]) -> Any:
         if not image_files:
             return user_message
         content: List[Dict[str, Any]] = [{"type": "text", "text": user_message}]
         for file in image_files:
-            data_url = ChatService._to_data_url(file)
+            data_url = self._to_data_url(file)
             content.append({"type": "image_url", "image_url": {"url": data_url}})
         return content
 
-    @staticmethod
-    def _to_data_url(file: StoredSessionFile) -> str:
-        path = Path(file.path)
-        if not path.exists():
-            raise VseLLMError(status_code=400, user_message=f"Временный файл '{file.filename}' не найден.")
+    def _to_data_url(self, file: StoredSessionFile) -> str:
         content_type = file.content_type or mimetypes.guess_type(file.filename)[0] or "image/png"
-        payload = b64encode(path.read_bytes()).decode("ascii")
+        if self._blob_storage is not None:
+            payload_bytes = self._blob_storage.get_bytes(file.path)
+        else:
+            path = Path(file.path)
+            if not path.exists():
+                raise VseLLMError(status_code=400, user_message=f"Файл '{file.filename}' не найден.")
+            payload_bytes = path.read_bytes()
+        payload = b64encode(payload_bytes).decode("ascii")
         return f"data:{content_type};base64,{payload}"
+
+    def _list_session_files(self, session_id: str) -> List[StoredSessionFile]:
+        if self._file_meta_repository is None:
+            return self._file_store.get_session_files(session_id)
+        items = self._file_meta_repository.list_for_chat_user(chat_id=session_id, user_id=self._current_user_id)
+        return [
+            StoredSessionFile(
+                file_id=item.id,
+                session_id=session_id,
+                filename=item.filename,
+                content_type=item.content_type,
+                size_bytes=item.size,
+                path=item.storage_path,
+            )
+            for item in items
+        ]
+
+    def _get_session_file(self, session_id: str, file_id: str) -> StoredSessionFile | None:
+        if self._file_meta_repository is None:
+            return self._file_store.get_session_file(session_id=session_id, file_id=file_id)
+        item = self._file_meta_repository.get_for_chat_user(
+            file_id=file_id,
+            chat_id=session_id,
+            user_id=self._current_user_id,
+        )
+        if item is None:
+            return None
+        return StoredSessionFile(
+            file_id=item.id,
+            session_id=session_id,
+            filename=item.filename,
+            content_type=item.content_type,
+            size_bytes=item.size,
+            path=item.storage_path,
+        )
 
     def _ensure_vision_supported(self, selected_model: str) -> None:
         models = self._vsellm_client.get_models()

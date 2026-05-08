@@ -18,7 +18,7 @@
 ### Технологии
 - Frontend: `React + Vite + TypeScript` (`frontend/`)
 - Backend: `FastAPI` (`backend/`)
-- DB: `SQLite + SQLAlchemy + Alembic`
+- DB: `SQLAlchemy + Alembic` (cloud-first config под PostgreSQL, SQLite как dev fallback)
 - LLM/Embeddings: VseLLM OpenAI-compatible API
 - Локальный запуск: `Docker Compose`
 
@@ -40,6 +40,13 @@
 - защита admin-only endpoint-ов;
 - reasoning не сохраняется как обычное сообщение;
 - retrieval chunks пока runtime-only (in-memory vector store).
+
+### Cloud-readiness update (1.0.2)
+- DB URL теперь env-driven (`DATABASE_URL` или `POSTGRES_*`), SQLite fallback разрешён только для local/dev.
+- Добавлены probe endpoints: `/healthz` (liveness), `/readyz` (readiness), legacy `/api/health` сохранён.
+- Логирование backend структурировано в JSON и всегда идёт в stdout/stderr с `request_id`.
+- `pending actions` перенесены в БД (`pending_actions`) с TTL, больше нет process-local dict как source of truth.
+- Runtime cache (`ReasoningProbeCache`) и часть runtime stores остаются process-local и explicitly ephemeral.
 
 ## 2. Foundation интеграций v0.4
 

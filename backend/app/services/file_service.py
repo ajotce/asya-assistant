@@ -12,6 +12,7 @@ from app.repositories.chat_repository import ChatRepository
 from app.repositories.file_meta_repository import FileMetaRepository
 from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient, VseLLMError
+from app.storage.blob_provider import BlobStorageProvider
 from app.storage.file_store import SessionFileStore, StoredSessionFile
 from app.storage.usage_store import UsageStore
 from app.storage.vector_store import SessionVectorStore, StoredChunkVector
@@ -50,6 +51,7 @@ class FileService:
         current_user_id: str,
         file_meta_repository: FileMetaRepository,
         file_store: SessionFileStore,
+        blob_storage: BlobStorageProvider,
         vector_store: SessionVectorStore,
         vsellm_client: VseLLMClient,
         usage_recorder: UsageRecorder | None = None,
@@ -60,6 +62,7 @@ class FileService:
         self._current_user_id = current_user_id
         self._file_meta_repository = file_meta_repository
         self._file_store = file_store
+        self._blob_storage = blob_storage
         self._vector_store = vector_store
         self._vsellm_client = vsellm_client
         self._usage_recorder = usage_recorder
@@ -160,13 +163,17 @@ class FileService:
             target_path.unlink(missing_ok=True)
             raise
 
+        object_key = f"sessions/{session_id}/{file_id}_{filename}"
+        self._blob_storage.put_bytes(object_key, target_path.read_bytes())
+        target_path.unlink(missing_ok=True)
+
         return StoredSessionFile(
             file_id=file_id,
             session_id=session_id,
             filename=filename,
             content_type=content_type,
             size_bytes=total_size,
-            path=str(target_path),
+            path=object_key,
             extracted_text=extracted_text,
         )
 
@@ -208,7 +215,7 @@ class FileService:
 
     def _cleanup_pending_files(self, session_id: str, files: List[StoredSessionFile]) -> None:
         for file in files:
-            Path(file.path).unlink(missing_ok=True)
+            self._blob_storage.delete(file.path)
             self._vector_store.delete_file_chunks(session_id=session_id, file_id=file.file_id)
 
     @staticmethod

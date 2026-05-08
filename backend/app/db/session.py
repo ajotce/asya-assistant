@@ -1,5 +1,5 @@
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -8,9 +8,9 @@ from app.core.config import get_settings
 
 
 def _ensure_parent_dir(db_url: str) -> None:
-    prefix = "sqlite+pysqlite:///"
-    if db_url.startswith(prefix):
-        db_path = Path(db_url[len(prefix) :])
+    sqlite_prefixes = ("sqlite+pysqlite:///", "sqlite:///")
+    if any(db_url.startswith(prefix) for prefix in sqlite_prefixes):
+        db_path = Path(db_url.split("///", maxsplit=1)[1])
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
 
