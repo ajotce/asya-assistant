@@ -89,3 +89,45 @@
 - токен одноразовый и с TTL;
 - raw-токен не хранится, хранится только hash;
 - approve/reject уведомления отправляются через email transport abstraction (mock/smtp).
+
+## ADR-014 (R1, этап 0): Голос real-time — список вариантов и критерии выбора
+
+Решение (этап 0): финальный выбор не принят, зафиксирован shortlist провайдеров и критерии оценки. Окончательное решение принимает агент на этапе 5B.
+
+Варианты для оценки:
+
+- Picovoice Porcupine (wake-word engine)
+- OpenWakeWord (open-source wake-word)
+- Yandex SpeechKit (STT/TTS)
+- GigaChat (speech/LLM ecosystem)
+
+Критерии выбора:
+
+- Точность wake-word на русском языке (false positive / false negative)
+- Задержка (latency) в режиме активной вкладки
+- Стабильность в браузерном окружении (PWA)
+- Стоимость на пользователя и при росте нагрузки
+- Доступность SDK/API и простота интеграции в текущую архитектуру
+- Privacy и требования к передаче аудио-данных
+- Операционные риски: vendor lock-in, лимиты, региональная доступность
+
+## ADR-015 (R6, этап 0): БД и масштабирование — предварительная рекомендация
+
+Решение (этап 0): рекомендован целевой переход на PostgreSQL + pgvector. Финальное решение по rollout фиксируется на этапе 3A.
+
+Контекст:
+
+- SQLite хорошо закрывает ранние фазы, но ограничивает масштабирование по concurrency, migration workflow и операционному сопровождению в облаке.
+- Для семантического поиска в 1.0 нужен production-grade аналог `sqlite-vec` — `pgvector`.
+
+Managed-варианты для оценки:
+
+- Yandex Managed PostgreSQL
+- AWS RDS PostgreSQL
+- Neon
+
+Предварительная рекомендация:
+
+- Для основного сценария 1.0 выбрать managed PostgreSQL у основного cloud-провайдера проекта.
+- Использовать `pgvector` как стандартный vector extension.
+- Миграцию SQLite → PostgreSQL проводить через отдельный проверяемый migration-script на тестовой БД перед production rollout.
