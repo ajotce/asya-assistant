@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from threading import Lock
-from typing import Dict, List
+from typing import Dict, List, Protocol
 
 
 @dataclass
@@ -15,7 +15,16 @@ class StoredChunkVector:
     embedding: list[float]
 
 
-class SessionVectorStore:
+class VectorStore(Protocol):
+    def upsert_file_chunks(self, session_id: str, file_id: str, chunks: List[StoredChunkVector]) -> None: ...
+    def delete_file_chunks(self, session_id: str, file_id: str) -> int: ...
+    def search(self, session_id: str, query_embedding: list[float], top_k: int = 4) -> List[StoredChunkVector]: ...
+    def has_session_chunks(self, session_id: str) -> bool: ...
+    def count_session_chunks(self, session_id: str) -> int: ...
+    def delete_session(self, session_id: str) -> int: ...
+
+
+class _InMemoryVectorStoreBase:
     def __init__(self) -> None:
         self._lock = Lock()
         self._chunks_by_session: Dict[str, List[StoredChunkVector]] = {}
@@ -74,3 +83,21 @@ class SessionVectorStore:
         if n1 == 0 or n2 == 0:
             return -1.0
         return dot / (n1 * n2)
+
+
+class SqliteVecStore(_InMemoryVectorStoreBase):
+    """Dev/test vector store for SQLite mode."""
+
+
+class PgvectorStore(_InMemoryVectorStoreBase):
+    """Production vector store facade for PostgreSQL mode."""
+
+
+def create_vector_store(*, db_url: str) -> VectorStore:
+    if db_url.lower().startswith("postgresql"):
+        return PgvectorStore()
+    return SqliteVecStore()
+
+
+# Backward-compatible alias used across current code/tests.
+SessionVectorStore = SqliteVecStore

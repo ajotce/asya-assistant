@@ -167,3 +167,25 @@ Managed-варианты для оценки:
 Последствия:
 - подтверждения `/confirm` устойчивы к роутингу между инстансами;
 - для production rollout обязателен отдельный шаг по distributed scheduler (план 1.0.6/1.0.7+).
+
+## ADR-018 (1.0.3): PostgreSQL как production-primary, SQLite как dev/test fallback
+
+Решение:
+- Production БД для фазы 1.0: `PostgreSQL + pgvector`.
+- Local dev/test fallback: `SQLite` остаётся поддерживаемым и дефолтным для локальной разработки.
+- Конфигурация БД принимается через `ASYA_DATABASE_URL` (или legacy-алиас `DATABASE_URL`) с поддержкой:
+  - `sqlite:///...`
+  - `postgresql+psycopg://...`
+
+Детали:
+- Alembic миграции выполняются в conditional-режиме по `dialect` (`op.get_bind().dialect.name`).
+- Для PostgreSQL применяется `CREATE EXTENSION IF NOT EXISTS vector` и миграция `memory_chunks.embedding` к `vector(N)`.
+- Для SQLite ветка pgvector-миграции остаётся no-op без поломки dev окружения.
+
+Рекомендация managed-варианта (финал R6):
+- Для РФ-юзеров и текущего 1.0 окна рекомендуется **Yandex Managed PostgreSQL** как baseline.
+- Допустимые альтернативы: AWS RDS PostgreSQL / Selectel Managed PostgreSQL.
+
+Последствия:
+- `docker compose` получает профиль `postgres` для локального smoke прогона PostgreSQL-режима.
+- Добавляется CLI-утилита `python -m backend.cli db migrate-to-postgres --source ... --dest ... --dry-run` для тестовой/предпрод миграции данных.

@@ -22,6 +22,14 @@
 - LLM/Embeddings: VseLLM OpenAI-compatible API
 - Локальный запуск: `Docker Compose`
 
+### DB режимы (1.0.3)
+- `ASYA_DATABASE_URL` определяет backend по схеме URL.
+- `sqlite:///...` — local-dev/test режим (по умолчанию в локальной разработке).
+- `postgresql+psycopg://...` — production/staging режим.
+- Vector extension:
+  - SQLite: совместимый dev fallback.
+  - PostgreSQL: `pgvector` (`CREATE EXTENSION vector` + Alembic conditional migration).
+
 ### Базовые домены
 - `users`, `auth_sessions`
 - `chats`, `messages` (`Base-chat` обязателен)
@@ -79,6 +87,21 @@
 - Запрет cross-user data leakage обязателен для chat/memory/spaces/activity/integrations.
 - `Asya-dev` — только admin-only пространство.
 - Activity log хранит только safe metadata (без тел писем, аудио, содержимого файлов и секретов).
+
+## 4.1 Object storage (1.0.4)
+
+- Введена единая абстракция `ObjectStorage` (`backend/app/storage/object_storage.py`) с методами:
+  `put/get/delete/exists/presigned_url`.
+- Поддерживаются два backend-а:
+  - `LocalObjectStorage` — dev fallback на локальный диск;
+  - `S3ObjectStorage` — S3-compatible storage (MinIO/Yandex Object Storage/AWS S3/Selectel S3).
+- Переключение выполняется через env:
+  - `OBJECT_STORAGE_BACKEND=local|s3`;
+  - `OBJECT_STORAGE_LOCAL_DIR`;
+  - `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`.
+- Основные файлы Asya (аудио дневника, пользовательские архивы экспорта, временные template-файлы) хранятся
+  по object-key, а не как machine-local absolute paths.
+- Для пользовательского скачивания используется `presigned_url` с TTL 24 часа (86400 секунд).
 
 ## 10. Action routing (v0.4 finalization)
 
