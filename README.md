@@ -4,16 +4,20 @@ Asya Local — локальная PWA-версия персонального И
 
 Репозиторий: `ajotce/asya-assistant`
 
-Текущий релизный статус: подготовка PR `v0.5` из `0.5-extended` в `main`.
+Текущий релизный статус: подготовка релиза v1.0 в ветке `1.0-public`.
 
-Входит в фактический scope v0.5:
+Текущая фаза: `1.0 — Voice & Public Release`.
+
+На текущем этапе регистрации работают в режиме invite-only (этап A), а cloud-deploy (инфраструктура, CI/CD, Terraform) находится в подготовке.
+
+Закрытый scope предыдущей фазы v0.5:
 - GitHub read-only integration;
 - Bitrix24 read-only integration;
 - IMAP-readonly integration;
 - file-storage providers foundation (`yandex_disk` / `onedrive` / `icloud_drive`);
 - security hardening логов (без утечек setup-token и raw email-body).
 
-Deferred на v1.0+:
+Перенесённый продуктовый scope в работу фазы 1.0:
 - полный product scope document templates (end-to-end DOCX/PDF pipeline);
 - полный product scope briefings/workflows.
 

@@ -1,6 +1,6 @@
 # Deployment
 
-Документ описывает развёртывание Asya на VPS с публичным доменом (v0.4+).
+Документ описывает развёртывание Asya на VPS/облако с учётом cloud-readiness фиксов 1.0.2.
 
 ## 1. Требования к серверу
 
@@ -31,11 +31,21 @@ docker compose -f docker-compose.prod.yml up --build -d
 - `PUBLIC_BASE_URL=https://<ваш-домен>`
 - `PUBLIC_DOMAIN=<ваш-домен>`
 - `AUTH_COOKIE_SECURE=true`
+- `LOG_FORMAT=json` (structured logs в stdout/stderr)
 - `MASTER_ENCRYPTION_KEY=<fernet-key>`
 - `AUTH_SESSION_HASH_SECRET=<случайная строка>`
+- `DATABASE_URL=postgresql+psycopg://...` (рекомендуемый primary способ)
+- или полный блок `POSTGRES_*` (`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_SSLMODE`)
+- `FILE_STORAGE_BACKEND=local|s3` (в 1.0.2 реализована provider abstraction, по умолчанию local)
+- `FILE_STORAGE_LOCAL_DIR=/app/data/blob` (для local backend)
 - OAuth redirect URI-переменные (`*_OAUTH_REDIRECT_URI`)
 - SMTP-переменные (`EMAIL_TRANSPORT=smtp`, `SMTP_*`)
-- Telegram webhook URL (`TELEGRAM_WEBHOOK_URL`)
+- `SCHEDULER_ENABLED=false` для multi-instance production (локальный in-process scheduler не должен стартовать на каждом pod).
+- `SCHEDULER_INSTANCE_ROLE=leader` для выделенного scheduler-инстанса (остальные `follower`).
+
+Примечания:
+- SQLite fallback (`ASYA_DB_PATH`) допустим только для local/dev.
+- В `APP_ENV=production` backend работает в fail-fast режиме: без `DATABASE_URL`/`POSTGRES_*` запуск считается некорректным.
 
 ## 4. Security checklist
 
@@ -51,5 +61,8 @@ docker compose -f docker-compose.prod.yml up --build -d
 
 ## 5. Наблюдаемость
 
-- `GET /api/health` для liveness/readiness.
+- `GET /healthz` — liveness probe (процесс жив).
+- `GET /readyz` — readiness probe (DB + writable tmp готовы).
+- `GET /api/health` — legacy подробный health endpoint (оставлен для обратной совместимости).
 - `docker compose logs -f backend caddy` для runtime-диагностики.
+- Все backend-логи пишутся в stdout/stderr в JSON-формате с полями `ts`, `level`, `logger`, `event`, `request_id`.

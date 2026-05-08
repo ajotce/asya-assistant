@@ -9,6 +9,10 @@ import type {
   AuthRegisterRequest,
   AuthRegisterResponse,
   AuthSetupPasswordRequest,
+  UserDeleteConfirmResponse,
+  UserDeleteResponse,
+  UserExportStartResponse,
+  UserExportStatusResponse,
   AuthUser,
   ChatCreateRequest,
   ChatListItem,
@@ -66,8 +70,30 @@ import type {
   VoiceSTTResponse,
 } from "../types/api";
 
+declare global {
+  interface Window {
+    __ASYA_CONFIG__?: {
+      apiBaseUrl?: string;
+    };
+  }
+}
+
+function getApiBaseUrl(): string {
+  const runtimeBase = window.__ASYA_CONFIG__?.apiBaseUrl?.trim();
+  const envBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  return runtimeBase || envBase || "";
+}
+
+function toApiUrl(path: string): string {
+  const base = getApiBaseUrl();
+  if (!base) {
+    return path;
+  }
+  return `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetch(toApiUrl(path), {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -210,7 +236,7 @@ export function createSession(): Promise<SessionCreateResponse> {
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  const response = await fetch(`/api/session/${encodeURIComponent(sessionId)}`, {
+  const response = await fetch(toApiUrl(`/api/session/${encodeURIComponent(sessionId)}`), {
     method: "DELETE",
     credentials: "include",
   });
@@ -224,7 +250,7 @@ export async function uploadSessionFiles(sessionId: string, files: File[]): Prom
   for (const file of files) {
     formData.append("files", file);
   }
-  const response = await fetch(`/api/session/${encodeURIComponent(sessionId)}/files`, {
+  const response = await fetch(toApiUrl(`/api/session/${encodeURIComponent(sessionId)}/files`), {
     method: "POST",
     credentials: "include",
     body: formData,
@@ -243,7 +269,7 @@ interface StreamHandlers {
 }
 
 export async function streamChat(request: ChatStreamRequest, handlers: StreamHandlers): Promise<void> {
-  const response = await fetch("/api/chat/stream", {
+  const response = await fetch(toApiUrl("/api/chat/stream"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -300,7 +326,7 @@ export function archiveChat(chatId: string): Promise<ChatListItem> {
 }
 
 export async function deleteChat(chatId: string): Promise<void> {
-  const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+  const response = await fetch(toApiUrl(`/api/chats/${encodeURIComponent(chatId)}`), {
     method: "DELETE",
     credentials: "include",
   });
@@ -499,6 +525,38 @@ export function authSetupPassword(body: AuthSetupPasswordRequest): Promise<AuthU
   });
 }
 
+export function startUserExport(): Promise<UserExportStartResponse> {
+  return apiFetch<UserExportStartResponse>("/api/me/export", {
+    method: "POST",
+  });
+}
+
+export function getUserExportStatus(exportId: string): Promise<UserExportStatusResponse> {
+  return apiFetch<UserExportStatusResponse>(`/api/me/export/${encodeURIComponent(exportId)}`);
+}
+
+export function deleteUserExport(exportId: string): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/api/me/export/${encodeURIComponent(exportId)}`, {
+    method: "DELETE",
+  });
+}
+
+export function requestDeleteConfirmation(): Promise<UserDeleteConfirmResponse> {
+  return apiFetch<UserDeleteConfirmResponse>("/api/me", {
+    method: "DELETE",
+  });
+}
+
+export function deleteMyAccount(params: {
+  confirmation_token: string;
+  password: string;
+}): Promise<UserDeleteResponse> {
+  const search = new URLSearchParams(params).toString();
+  return apiFetch<UserDeleteResponse>(`/api/me?${search}`, {
+    method: "DELETE",
+  });
+}
+
 export function submitAccessRequest(body: AccessRequestSubmitRequest): Promise<AccessRequestSubmitResponse> {
   return apiFetch<AccessRequestSubmitResponse>("/api/access-requests", {
     method: "POST",
@@ -549,7 +607,7 @@ export function updateVoiceSettings(body: VoiceSettingsUpdateRequest): Promise<V
 }
 
 export async function sendVoiceSTT(audioBlob: Blob): Promise<VoiceSTTResponse> {
-  const response = await fetch("/api/voice/stt", {
+  const response = await fetch(toApiUrl("/api/voice/stt"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "audio/webm" },
@@ -562,7 +620,7 @@ export async function sendVoiceSTT(audioBlob: Blob): Promise<VoiceSTTResponse> {
 }
 
 export async function synthesizeVoiceText(body: { text: string }): Promise<ArrayBuffer> {
-  const response = await fetch("/api/voice/tts", {
+  const response = await fetch(toApiUrl("/api/voice/tts"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -679,7 +737,7 @@ export async function createDiaryEntryAudio(
   formData.append("audio", audio, "entry.webm");
   formData.append("title", title || "Голосовая запись");
   formData.append("content", content || "");
-  const response = await fetch("/api/diary/entries/audio", {
+  const response = await fetch(toApiUrl("/api/diary/entries/audio"), {
     method: "POST",
     credentials: "include",
     body: formData,

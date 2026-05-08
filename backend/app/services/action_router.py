@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import re
 import secrets
 from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
+from app.db.models.pending_action import PendingAction
 from app.db.models.common import ActivityEntityType, ActivityEventType
 from app.integrations.github import GitHubAccessDeniedError, GitHubNotConnectedError, GitHubService
 from app.repositories.user_repository import UserRepository
@@ -21,17 +22,6 @@ try:
 except ModuleNotFoundError:
     Bitrix24ConfigurationError = RuntimeError
     Bitrix24Service = None  # type: ignore[assignment]
-
-
-@dataclass
-class PendingAction:
-    id: str
-    user_id: str
-    session_id: str
-    tool: str
-    operation: str
-    args: dict[str, Any]
-    created_at: datetime
 
 
 @dataclass
@@ -53,11 +43,12 @@ class ActionRouter:
     def __init__(
         self,
         session: Session,
-        pending_store: dict[str, PendingAction],
         tool_handlers: dict[tuple[str, str], Callable[..., Any]] | None = None,
+        pending_action_ttl_minutes: int = 30,
+        pending_store: dict[str, Any] | None = None,
     ) -> None:
         self._session = session
-        self._pending_store = pending_store
+        self._pending_action_ttl_minutes = pending_action_ttl_minutes
         self._activity = ActivityLogRepository(session)
         self._tool_handlers = tool_handlers or {}
         self._users = UserRepository(session)
@@ -103,7 +94,7 @@ class ActionRouter:
             return ActionResult(handled=True, message=execution)
 
         action_id = secrets.token_hex(8)
-        self._pending_store[action_id] = PendingAction(
+        pending = PendingAction(
             id=action_id,
             user_id=user_id,
             session_id=session_id,
@@ -111,7 +102,11 @@ class ActionRouter:
             operation=route.operation,
             args=route.args,
             created_at=self._now(),
+            updated_at=self._now(),
+            expires_at=self._now() + timedelta(minutes=self._pending_action_ttl_minutes),
         )
+        self._session.add(pending)
+        self._session.commit()
         summary = f"{route.tool}.{route.operation}"
         return ActionResult(
             handled=True,
@@ -123,9 +118,16 @@ class ActionRouter:
         )
 
     def _confirm_action(self, *, user_id: str, action_id: str) -> ActionResult:
-        pending = self._pending_store.get(action_id)
+        pending = self._session.get(PendingAction, action_id)
         if pending is None or pending.user_id != user_id:
             return ActionResult(handled=True, message="Pending action не найдена или уже выполнена.")
+        expires_at = pending.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < self._now():
+            self._session.delete(pending)
+            self._session.commit()
+            return ActionResult(handled=True, message="Pending action истекла. Повторите команду.")
 
         execution = self._execute(
             tool=pending.tool,
@@ -133,7 +135,7 @@ class ActionRouter:
             args=pending.args,
             user_id=user_id,
         )
-        del self._pending_store[action_id]
+        self._session.delete(pending)
         self._activity.create(
             user_id=user_id,
             event_type=ActivityEventType.INTEGRATION_ACTION_EXECUTED,

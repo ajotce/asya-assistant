@@ -23,11 +23,9 @@ class SessionFileStore:
         self._root = Path(base_tmp_dir).resolve() / "session-files"
         self._lock = Lock()
         self._files_by_session: Dict[str, List[StoredSessionFile]] = {}
-        self._reset_root_dir()
+        self._ensure_root_dir()
 
-    def _reset_root_dir(self) -> None:
-        if self._root.exists():
-            shutil.rmtree(self._root, ignore_errors=True)
+    def _ensure_root_dir(self) -> None:
         self._root.mkdir(parents=True, exist_ok=True)
 
     def session_dir(self, session_id: str) -> Path:

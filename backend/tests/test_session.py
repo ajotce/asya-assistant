@@ -1,4 +1,3 @@
-from pathlib import Path
 import io
 
 from fastapi.testclient import TestClient
@@ -9,7 +8,7 @@ from app.api.deps_auth import get_db_session
 from app.db.models.common import MessageRole
 from app.main import app
 from app.repositories.message_repository import MessageRepository
-from app.storage.runtime import file_store, vector_store
+from app.storage.runtime import blob_storage, file_store, vector_store
 from tests.auth_helpers import override_db_session, setup_test_db
 
 
@@ -73,12 +72,16 @@ def test_upload_file_to_session_and_cleanup_on_delete(tmp_path, monkeypatch) -> 
 
     stored = file_store.get_session_files(session_id)
     assert len(stored) == 1
-    saved_path = Path(stored[0].path)
-    assert saved_path.exists()
+    stored_key = stored[0].path
+    assert blob_storage.get_bytes(stored_key)
 
     delete_resp = client.delete(f"/api/session/{session_id}")
     assert delete_resp.status_code == 204
-    assert not saved_path.exists()
+    try:
+        blob_storage.get_bytes(stored_key)
+        assert False, "blob must be deleted"
+    except FileNotFoundError:
+        pass
     assert vector_store.search(session_id=session_id, query_embedding=[1.0, 0.0]) == []
     app.dependency_overrides.clear()
 

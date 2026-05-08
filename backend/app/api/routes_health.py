@@ -3,10 +3,13 @@ import time
 from pathlib import Path
 from typing import Optional, Tuple
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
 import httpx
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
+from app.db.session import create_session
 from app.models.schemas import (
     HealthEmbeddingsInfo,
     HealthFilesInfo,
@@ -17,7 +20,6 @@ from app.models.schemas import (
     VseLLMHealth,
 )
 from app.services.settings_service import SettingsService
-from app.storage.runtime import session_store
 
 router = APIRouter(tags=["health"])
 _START_TIME_MONOTONIC = time.monotonic()
@@ -94,6 +96,16 @@ def get_health() -> HealthResponse:
     )
     storage_status = get_storage_status(settings.tmp_dir)
 
+    active_sessions = 0
+    try:
+        db = create_session()
+        try:
+            active_sessions = int(db.execute(text("SELECT COUNT(*) FROM chats WHERE is_deleted = 0")).scalar() or 0)
+        finally:
+            db.close()
+    except SQLAlchemyError:
+        active_sessions = 0
+
     return HealthResponse(
         status="ok",
         version=settings.app_version,
@@ -113,6 +125,39 @@ def get_health() -> HealthResponse:
             last_error=embeddings_error,
         ),
         storage=storage_status,
-        session=HealthSessionInfo(enabled=True, active_sessions=session_store.active_sessions_count()),
+        session=HealthSessionInfo(enabled=True, active_sessions=active_sessions),
         last_error=vsellm_error,
     )
+
+
+@router.get("/healthz")
+def healthz() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@router.get("/readyz")
+def readyz(response: Response) -> dict[str, object]:
+    settings = get_settings()
+    checks: dict[str, object] = {"db": False, "tmp_writable": False}
+
+    try:
+        session = create_session()
+        try:
+            session.execute(text("SELECT 1"))
+            checks["db"] = True
+        finally:
+            session.close()
+    except SQLAlchemyError:
+        checks["db"] = False
+
+    tmp_path = Path(settings.tmp_dir).resolve()
+    try:
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        checks["tmp_writable"] = os.access(tmp_path, os.W_OK)
+    except OSError:
+        checks["tmp_writable"] = False
+
+    ready = bool(checks["db"]) and bool(checks["tmp_writable"])
+    if not ready:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return {"status": "ok" if ready else "degraded", "checks": checks}

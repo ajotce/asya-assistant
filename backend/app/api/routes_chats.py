@@ -16,7 +16,7 @@ from app.repositories.message_repository import MessageRepository
 from app.repositories.usage_record_repository import UsageRecordRepository
 from app.services.chat_service_v2 import ChatNotFoundError, ChatServiceV2, ProtectedBaseChatError
 from app.services.space_service import SpaceNotFoundError
-from app.storage.runtime import file_store, usage_store, vector_store
+from app.storage.runtime import blob_storage, usage_store, vector_store
 
 router = APIRouter(tags=["chats"])
 
@@ -138,7 +138,9 @@ def delete_chat(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if chat.kind != ChatKind.BASE:
-        file_store.delete_session_files(chat_id)
+        files = FileMetaRepository(db_session).list_for_chat_user(chat_id=chat_id, user_id=current_user.id)
+        for file in files:
+            blob_storage.delete(file.storage_path)
         vector_store.delete_session(chat_id)
         usage_store.delete_session(chat_id)
         FileMetaRepository(db_session).delete_for_chat_user(chat_id=chat_id, user_id=current_user.id)

@@ -26,10 +26,11 @@ def _get_alembic_revision(conn: sqlite3.Connection) -> str | None:
 
 
 def _extract_sqlite_path(db_url: str) -> Path | None:
-    prefix = "sqlite+pysqlite:///"
-    if not db_url.startswith(prefix):
+    if not db_url.startswith("sqlite"):
         return None
-    return Path(db_url.removeprefix(prefix))
+    if "///" not in db_url:
+        return None
+    return Path(db_url.split("///", maxsplit=1)[1])
 
 
 def _run_alembic(*args: str) -> None:
@@ -38,7 +39,8 @@ def _run_alembic(*args: str) -> None:
 
 def main() -> None:
     settings = get_settings()
-    db_path = _extract_sqlite_path(settings.asya_db_url)
+    db_url = settings.asya_db_url
+    db_path = _extract_sqlite_path(db_url)
     if db_path is not None and db_path.exists():
         with sqlite3.connect(db_path) as conn:
             has_users = _table_exists(conn, "users")

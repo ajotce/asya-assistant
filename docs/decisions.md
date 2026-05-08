@@ -89,3 +89,81 @@
 - токен одноразовый и с TTL;
 - raw-токен не хранится, хранится только hash;
 - approve/reject уведомления отправляются через email transport abstraction (mock/smtp).
+
+## ADR-014 (R1, этап 0): Голос real-time — список вариантов и критерии выбора
+
+Решение (этап 0): финальный выбор не принят, зафиксирован shortlist провайдеров и критерии оценки. Окончательное решение принимает агент на этапе 5B.
+
+Варианты для оценки:
+
+- Picovoice Porcupine (wake-word engine)
+- OpenWakeWord (open-source wake-word)
+- Yandex SpeechKit (STT/TTS)
+- GigaChat (speech/LLM ecosystem)
+
+Критерии выбора:
+
+- Точность wake-word на русском языке (false positive / false negative)
+- Задержка (latency) в режиме активной вкладки
+- Стабильность в браузерном окружении (PWA)
+- Стоимость на пользователя и при росте нагрузки
+- Доступность SDK/API и простота интеграции в текущую архитектуру
+- Privacy и требования к передаче аудио-данных
+- Операционные риски: vendor lock-in, лимиты, региональная доступность
+
+## ADR-015 (R6, этап 0): БД и масштабирование — предварительная рекомендация
+
+Решение (этап 0): рекомендован целевой переход на PostgreSQL + pgvector. Финальное решение по rollout фиксируется на этапе 3A.
+
+Контекст:
+
+- SQLite хорошо закрывает ранние фазы, но ограничивает масштабирование по concurrency, migration workflow и операционному сопровождению в облаке.
+- Для семантического поиска в 1.0 нужен production-grade аналог `sqlite-vec` — `pgvector`.
+
+Managed-варианты для оценки:
+
+- Yandex Managed PostgreSQL
+- AWS RDS PostgreSQL
+- Neon
+
+Предварительная рекомендация:
+
+- Для основного сценария 1.0 выбрать managed PostgreSQL у основного cloud-провайдера проекта.
+- Использовать `pgvector` как стандартный vector extension.
+- Миграцию SQLite → PostgreSQL проводить через отдельный проверяемый migration-script на тестовой БД перед production rollout.
+
+## ADR-016 (R6, 1.0.1 audit confirmation): PostgreSQL rollout target for cloud
+
+Решение (подтверждение по итогам cloud-readiness audit 2026-05-08):
+- Для фазы 1.0 production target — PostgreSQL (managed) + `pgvector`.
+- Приоритетный вариант для текущего контура проекта: **Yandex Managed PostgreSQL** (минимум операционной нагрузки, встроенные backup/failover, проще пройти 1.0 SLA).
+- Допустимые эквиваленты для того же архитектурного решения: AWS RDS PostgreSQL / Selectel Managed PostgreSQL.
+
+Где допустим self-managed PostgreSQL:
+- Только как исключение при жёстких ограничениях по бюджету/регуляторике/спецтопологии.
+- В этом случае обязательны: managed-like backup policy, мониторинг, failover runbook, тест восстановления.
+
+Почему:
+- SQLite + локальный FS не выдерживают target-модель горизонтального масштабирования (`N > 1`) и cloud native deployment.
+- `pgvector` покрывает потребность 1.0 в vector search без отдельного vector DB.
+- Managed PG снижает операционные риски и объём инфраструктурных задач в релизном окне 1.0.
+
+Последствия:
+- В 1.0.2 убирается SQLite как production-default, вводится cloud-first DB config.
+- В 1.0.3 выполняется миграция SQLite -> PostgreSQL с idempotent migration script и dry-run.
+- Все новые DB-изменения в 1.0 ветке должны быть совместимы с PostgreSQL как primary target.
+
+## ADR-017 (1.0.2): Scheduler и process-local runtime state в multi-instance
+
+Решение:
+- `pending actions` больше не process-local: хранятся в таблице `pending_actions` с TTL.
+- `ReasoningProbeCache`, runtime `SessionFileStore`, runtime vector/usage cache в 1.0.2 остаются process-local и считаются **ephemeral**.
+- `APScheduler` остаётся in-process только для local/dev. Для production multi-instance его нужно отключать (`SCHEDULER_ENABLED=false`) и выносить в отдельный single-instance worker/queue.
+
+Почему:
+- process-local state ломает консистентность при `N > 1` инстансах;
+- полный переход на Redis/Celery выходит за рамки 1.0.2 и не должен блокировать текущий cloud-readiness этап.
+
+Последствия:
+- подтверждения `/confirm` устойчивы к роутингу между инстансами;
+- для production rollout обязателен отдельный шаг по distributed scheduler (план 1.0.6/1.0.7+).

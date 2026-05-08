@@ -6,6 +6,7 @@ from app.db.models.behavior_rule import BehaviorRule
 from app.db.models.chat import Chat
 from app.db.models.diary_entry import DiaryEntry
 from app.db.models.diary_settings import DiarySettings
+from app.db.models.deleted_user_audit import DeletedUserAudit
 from app.db.models.encrypted_secret import EncryptedSecret
 from app.db.models.file_meta import FileMeta
 from app.db.models.integration_connection import IntegrationConnection
@@ -17,6 +18,7 @@ from app.db.models.message import Message
 from app.db.models.oauth_state import OAuthState
 from app.db.models.observation import Observation
 from app.db.models.observation_rule import ObservationRule
+from app.db.models.pending_action import PendingAction
 from app.db.models.space import Space
 from app.db.models.space_memory_settings import SpaceMemorySettings
 from app.db.models.signup_token import SignupToken
@@ -27,6 +29,7 @@ from app.db.models.user_settings import UserSettings
 from app.db.models.user_voice_settings import UserVoiceSettings
 from app.db.models.usage_record import UsageRecord
 from app.db.models.user import User
+from app.db.models.user_export import UserExport
 
 __all__ = [
     "AccessRequest",
@@ -37,6 +40,7 @@ __all__ = [
     "Chat",
     "DiaryEntry",
     "DiarySettings",
+    "DeletedUserAudit",
     "EncryptedSecret",
     "FileMeta",
     "IntegrationConnection",
@@ -48,6 +52,7 @@ __all__ = [
     "OAuthState",
     "Observation",
     "ObservationRule",
+    "PendingAction",
     "Space",
     "SpaceMemorySettings",
     "SignupToken",
@@ -58,4 +63,5 @@ __all__ = [
     "UserVoiceSettings",
     "UsageRecord",
     "User",
+    "UserExport",
 ]
