@@ -16,6 +16,7 @@ from app.db.models.user import User
 from app.repositories.activity_log_repository import ActivityLogRepository
 from app.repositories.diary_entry_repository import DiaryEntryRepository
 from app.repositories.diary_settings_repository import DiarySettingsRepository
+from app.storage.runtime import blob_storage
 
 
 class DiaryNotFoundError(ValueError):
@@ -132,14 +133,11 @@ class DiaryService:
             return item
 
     def _store_audio_file(self, *, user_id: str, original_filename: str, payload: bytes) -> str:
-        root = Path(self._settings.diary_audio_dir).resolve()
-        user_dir = root / user_id
-        user_dir.mkdir(parents=True, exist_ok=True)
         suffix = Path(original_filename).suffix or ".webm"
         filename = f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{hashlib.sha1(payload).hexdigest()[:10]}{suffix}"
-        out = user_dir / filename
-        out.write_bytes(payload)
-        return out.as_posix()
+        object_key = f"diary/{user_id}/{filename}"
+        blob_storage.put_bytes(object_key, payload)
+        return object_key
 
     def _transcribe_entry(self, item: DiaryEntry) -> str:
         if item.transcript.strip():

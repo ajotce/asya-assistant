@@ -17,6 +17,9 @@ def start_scheduler() -> None:
     settings = get_settings()
     if not settings.scheduler_enabled:
         return
+    if settings.scheduler_instance_role.lower() != "leader":
+        logger.info("scheduler_skipped_non_leader role=%s", settings.scheduler_instance_role)
+        return
     if _scheduler is not None and _scheduler.running:
         return
     if settings.app_env.lower() == "production":

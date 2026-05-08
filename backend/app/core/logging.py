@@ -45,3 +45,11 @@ def configure_logging(log_level: str = "INFO", log_format: str = "json") -> None
             logging.Formatter("%(asctime)s %(levelname)s %(name)s [request_id=%(request_id)s] %(message)s")
         )
     root.addHandler(handler)
+
+    # Force uvicorn/error/access logs through the same formatter (JSON in cloud mode).
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access", "uvicorn.asgi"):
+        logger = logging.getLogger(logger_name)
+        logger.handlers.clear()
+        logger.setLevel(level)
+        logger.propagate = False
+        logger.addHandler(handler)

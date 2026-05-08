@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     sqlite_path: str = Field(default="./data/asya.sqlite3", alias="SQLITE_PATH")
     asya_db_path: str = Field(default="./data/asya-0.2.sqlite3", alias="ASYA_DB_PATH")
     tmp_dir: str = Field(default="./tmp", alias="TMP_DIR")
+    file_storage_backend: str = Field(default="local", alias="FILE_STORAGE_BACKEND")
+    file_storage_local_dir: str = Field(default="./data/blob", alias="FILE_STORAGE_LOCAL_DIR")
     max_files_per_message: int = Field(default=10, alias="MAX_FILES_PER_MESSAGE")
     max_file_size_mb: int = Field(default=256, alias="MAX_FILE_SIZE_MB")
 
@@ -85,6 +87,7 @@ class Settings(BaseSettings):
     voice_tts_enabled_default: bool = Field(default=False, alias="VOICE_TTS_ENABLED_DEFAULT")
     diary_audio_dir: str = Field(default="./data/diary_audio", alias="DIARY_AUDIO_DIR")
     scheduler_enabled: bool = Field(default=True, alias="SCHEDULER_ENABLED")
+    scheduler_instance_role: str = Field(default="leader", alias="SCHEDULER_INSTANCE_ROLE")
     observer_interval_minutes: int = Field(default=15, alias="OBSERVER_INTERVAL_MINUTES")
     observer_snapshot_retention_days: int = Field(default=30, alias="OBSERVER_SNAPSHOT_RETENTION_DAYS")
 

@@ -36,9 +36,12 @@ docker compose -f docker-compose.prod.yml up --build -d
 - `AUTH_SESSION_HASH_SECRET=<случайная строка>`
 - `DATABASE_URL=postgresql+psycopg://...` (рекомендуемый primary способ)
 - или полный блок `POSTGRES_*` (`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_SSLMODE`)
+- `FILE_STORAGE_BACKEND=local|s3` (в 1.0.2 реализована provider abstraction, по умолчанию local)
+- `FILE_STORAGE_LOCAL_DIR=/app/data/blob` (для local backend)
 - OAuth redirect URI-переменные (`*_OAUTH_REDIRECT_URI`)
 - SMTP-переменные (`EMAIL_TRANSPORT=smtp`, `SMTP_*`)
 - `SCHEDULER_ENABLED=false` для multi-instance production (локальный in-process scheduler не должен стартовать на каждом pod).
+- `SCHEDULER_INSTANCE_ROLE=leader` для выделенного scheduler-инстанса (остальные `follower`).
 
 Примечания:
 - SQLite fallback (`ASYA_DB_PATH`) допустим только для local/dev.

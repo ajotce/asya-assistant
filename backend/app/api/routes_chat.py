@@ -6,6 +6,7 @@ from app.core.config import get_settings
 from app.db.models.user import User
 from app.models.schemas import ChatStreamRequest
 from app.repositories.chat_repository import ChatRepository
+from app.repositories.file_meta_repository import FileMetaRepository
 from app.repositories.message_repository import MessageRepository
 from app.repositories.usage_record_repository import UsageRecordRepository
 from app.services.chat_service import ChatService
@@ -13,7 +14,7 @@ from app.services.action_router import ActionRouter
 from app.services.settings_service import SettingsService
 from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient
-from app.storage.runtime import file_store, usage_store, vector_store
+from app.storage.runtime import blob_storage, file_store, usage_store, vector_store
 from sqlalchemy.orm import Session
 
 router = APIRouter(tags=["chat"])
@@ -28,7 +29,9 @@ def get_chat_service(current_user: User, db_session: Session) -> ChatService:
         db_session=db_session,
         chat_repository=chat_repo,
         message_repository=MessageRepository(db_session),
+        file_meta_repository=FileMetaRepository(db_session),
         file_store=file_store,
+        blob_storage=blob_storage,
         vector_store=vector_store,
         vsellm_client=VseLLMClient(settings),
         usage_recorder=UsageRecorder(

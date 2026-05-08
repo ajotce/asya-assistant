@@ -20,7 +20,6 @@ from app.models.schemas import (
     VseLLMHealth,
 )
 from app.services.settings_service import SettingsService
-from app.storage.runtime import session_store
 
 router = APIRouter(tags=["health"])
 _START_TIME_MONOTONIC = time.monotonic()
@@ -97,6 +96,16 @@ def get_health() -> HealthResponse:
     )
     storage_status = get_storage_status(settings.tmp_dir)
 
+    active_sessions = 0
+    try:
+        db = create_session()
+        try:
+            active_sessions = int(db.execute(text("SELECT COUNT(*) FROM chats WHERE is_deleted = 0")).scalar() or 0)
+        finally:
+            db.close()
+    except SQLAlchemyError:
+        active_sessions = 0
+
     return HealthResponse(
         status="ok",
         version=settings.app_version,
@@ -116,7 +125,7 @@ def get_health() -> HealthResponse:
             last_error=embeddings_error,
         ),
         storage=storage_status,
-        session=HealthSessionInfo(enabled=True, active_sessions=session_store.active_sessions_count()),
+        session=HealthSessionInfo(enabled=True, active_sessions=active_sessions),
         last_error=vsellm_error,
     )
 

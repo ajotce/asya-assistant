@@ -108,12 +108,12 @@
 P0:
 - #2 ✅
 - #4 ✅
-- #7 ⚠️ process-local runtime session store помечен как ephemeral; source of truth для chat state уже в БД.
-- #8 ⏭️ (S3/provider abstraction планируется в 1.0.4, сейчас local/dev fallback)
+- #7 ✅ in-memory runtime `SessionStore` больше не используется как source of truth для API/runtime health.
+- #8 ✅ file storage работает через `BlobStorageProvider` abstraction; metadata/lookup user-scoped через БД.
 - #9 ✅
-- #10 ⏭️ (полный storage provider migration в 1.0.4)
-- #11 ⏭️ (полный diary audio S3 migration в 1.0.4)
-- #15 ⚠️ добавлен explicit production warning + policy (`SCHEDULER_ENABLED=false`), но distributed scheduler ещё не внедрён.
+- #10 ✅ upload pipeline сохраняет через provider API (storage key), а не прямой локальный FS path как источник истины.
+- #11 ✅ diary audio сохраняется через provider API (storage key), а не прямой user-local path.
+- #15 ✅ scheduler запускается только на leader instance (`SCHEDULER_INSTANCE_ROLE=leader`), что устраняет дубли в multi-instance.
 - #17 ✅
 
 P1:
