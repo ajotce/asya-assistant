@@ -144,6 +144,73 @@ class ChatMessageItemResponse(BaseModel):
     created_at: str
 
 
+class DocumentTemplateFieldSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=120)
+    label: str = Field(min_length=1, max_length=255)
+    type: str = Field(min_length=1, max_length=32)
+    required: bool = True
+    validation: Optional[str] = Field(default=None, max_length=1000)
+
+
+class DocumentTemplateOutputSettingsSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    format: str = Field(min_length=1, max_length=16)
+    filename: str = Field(min_length=1, max_length=255)
+
+
+class DocumentTemplateCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    provider: str = Field(min_length=1, max_length=64)
+    file_id: str = Field(min_length=1, max_length=512)
+    fields: list[DocumentTemplateFieldSchema] = Field(default_factory=list)
+    output_settings: DocumentTemplateOutputSettingsSchema
+
+
+class DocumentTemplatePatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    provider: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    file_id: Optional[str] = Field(default=None, min_length=1, max_length=512)
+    fields: Optional[list[DocumentTemplateFieldSchema]] = None
+    output_settings: Optional[DocumentTemplateOutputSettingsSchema] = None
+
+
+class DocumentTemplateResponse(BaseModel):
+    id: str
+    user_id: str
+    name: str
+    description: Optional[str] = None
+    provider: str
+    file_id: str
+    fields: list[DocumentTemplateFieldSchema]
+    output_settings: DocumentTemplateOutputSettingsSchema
+    created_at: str
+
+
+class DocumentTemplateFillRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    values: dict[str, str] = Field(default_factory=dict)
+
+
+class GeneratedDocumentFileSchema(BaseModel):
+    filename: str
+    content_type: str
+    content_base64: str
+
+
+class DocumentTemplateFillResponse(BaseModel):
+    files: list[GeneratedDocumentFileSchema]
+
+
 class DiarySettingsResponse(BaseModel):
     briefing_enabled: bool
     search_enabled: bool

@@ -6,6 +6,7 @@ from app.db.models.behavior_rule import BehaviorRule
 from app.db.models.chat import Chat
 from app.db.models.diary_entry import DiaryEntry
 from app.db.models.diary_settings import DiarySettings
+from app.db.models.document_template import DocumentTemplate
 from app.db.models.deleted_user_audit import DeletedUserAudit
 from app.db.models.encrypted_secret import EncryptedSecret
 from app.db.models.file_meta import FileMeta
@@ -40,6 +41,7 @@ __all__ = [
     "Chat",
     "DiaryEntry",
     "DiarySettings",
+    "DocumentTemplate",
     "DeletedUserAudit",
     "EncryptedSecret",
     "FileMeta",

@@ -3,6 +3,7 @@ from app.repositories.activity_log_repository import ActivityLogRepository
 from app.repositories.auth_session_repository import AuthSessionRepository
 from app.repositories.behavior_rule_repository import BehaviorRuleRepository
 from app.repositories.chat_repository import ChatRepository
+from app.repositories.document_template_repository import DocumentTemplateRepository
 from app.repositories.encrypted_secret_repository import EncryptedSecretRepository
 from app.repositories.file_meta_repository import FileMetaRepository
 from app.repositories.integration_connection_repository import IntegrationConnectionRepository
@@ -24,6 +25,7 @@ __all__ = [
     "AuthSessionRepository",
     "BehaviorRuleRepository",
     "ChatRepository",
+    "DocumentTemplateRepository",
     "EncryptedSecretRepository",
     "FileMetaRepository",
     "IntegrationConnectionRepository",

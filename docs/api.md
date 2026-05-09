@@ -33,8 +33,19 @@
 - `/integrations`
 - `/integrations/telegram`
 - `/voice`
+- `/document-templates`
 
 Все user-data endpoint-ы должны работать только в рамках `current user`.
+
+## Document templates (H1-H5)
+
+- `GET /api/document-templates` — список шаблонов пользователя.
+- `POST /api/document-templates` — создание карточки шаблона.
+- `PATCH /api/document-templates/{id}` — обновление карточки.
+- `DELETE /api/document-templates/{id}` — удаление карточки.
+- `POST /api/document-templates/{id}/fill` — заполнение шаблона и возврат generated files:
+  - `files[]` с `filename`, `content_type`, `content_base64`;
+  - форматы зависят от `output_settings.format` (`docx|pdf|both`).
 
 ## User Export / Account Deletion (v1.0.8)
 

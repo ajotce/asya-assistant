@@ -174,6 +174,27 @@ class IntegrationProvider(str, Enum):
     ICLOUD_DRIVE = "icloud_drive"
 
 
+class DocumentTemplateProvider(str, Enum):
+    GOOGLE_DRIVE = "google_drive"
+    YANDEX_DISK = "yandex_disk"
+    ONEDRIVE = "onedrive"
+
+
+class DocumentTemplateFieldType(str, Enum):
+    TEXT = "text"
+    VIN = "vin"
+    PASSPORT_NUMBER = "passport_number"
+    DATE = "date"
+    PHONE = "phone"
+    EMAIL = "email"
+
+
+class DocumentTemplateOutputFormat(str, Enum):
+    DOCX = "docx"
+    PDF = "pdf"
+    BOTH = "both"
+
+
 class IntegrationConnectionStatus(str, Enum):
     NOT_CONNECTED = "not_connected"
     CONNECTED = "connected"
