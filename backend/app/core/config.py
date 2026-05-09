@@ -15,6 +15,8 @@ class Settings(BaseSettings):
 
     vsellm_api_key: str = Field(default="", alias="VSELLM_API_KEY")
     vsellm_base_url: str = Field(default="https://api.vsellm.ru/v1", alias="VSELLM_BASE_URL")
+    vsellm_vision_model: str = Field(default="", alias="VSELLM_VISION_MODEL")
+    vsellm_vision_timeout_seconds: int = Field(default=45, alias="VSELLM_VISION_TIMEOUT_SECONDS")
     default_chat_model: str = Field(default="openai/gpt-5", alias="DEFAULT_CHAT_MODEL")
     default_embedding_model: str = Field(default="", alias="DEFAULT_EMBEDDING_MODEL")
     default_assistant_name: str = Field(default="Asya", alias="DEFAULT_ASSISTANT_NAME")
@@ -41,6 +43,9 @@ class Settings(BaseSettings):
     file_storage_local_dir: str = Field(default="./data/blob", alias="FILE_STORAGE_LOCAL_DIR")
     max_files_per_message: int = Field(default=10, alias="MAX_FILES_PER_MESSAGE")
     max_file_size_mb: int = Field(default=256, alias="MAX_FILE_SIZE_MB")
+    documents_converter_enabled: bool = Field(default=False, alias="DOCUMENTS_CONVERTER_ENABLED")
+    documents_converter_url: str = Field(default="http://libreoffice:3000", alias="DOCUMENTS_CONVERTER_URL")
+    documents_converter_timeout_seconds: int = Field(default=60, alias="DOCUMENTS_CONVERTER_TIMEOUT_SECONDS")
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_format: str = Field(default="json", alias="LOG_FORMAT")

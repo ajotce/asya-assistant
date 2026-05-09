@@ -10,6 +10,7 @@ from app.api.routes_access_requests import public_router as access_requests_rout
 from app.api.routes_auth import router as auth_router
 from app.api.routes_chats import router as chats_router
 from app.api.routes_diary import router as diary_router
+from app.api.routes_document_templates import router as document_templates_router
 from app.api.routes_chat import router as chat_router
 from app.api.routes_health import router as health_router
 from app.api.routes_integrations import router as integrations_router
@@ -77,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(session_router, prefix="/api")
     app.include_router(chats_router, prefix="/api")
     app.include_router(diary_router, prefix="/api")
+    app.include_router(document_templates_router, prefix="/api")
     app.include_router(spaces_router, prefix="/api")
     app.include_router(memory_router, prefix="/api")
     app.include_router(me_router, prefix="/api")

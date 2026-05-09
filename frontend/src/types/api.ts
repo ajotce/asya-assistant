@@ -127,6 +127,50 @@ export interface ChatMessageItem {
   created_at: string;
 }
 
+export interface DocumentTemplateField {
+  key: string;
+  label: string;
+  type: "text" | "vin" | "passport_number" | "date" | "phone" | "email";
+  required: boolean;
+  validation?: string | null;
+}
+
+export interface DocumentTemplateOutputSettings {
+  format: "docx" | "pdf" | "both";
+  filename: string;
+}
+
+export interface DocumentTemplate {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string | null;
+  provider: "google_drive" | "yandex_disk" | "onedrive";
+  file_id: string;
+  fields: DocumentTemplateField[];
+  output_settings: DocumentTemplateOutputSettings;
+  created_at: string;
+}
+
+export interface DocumentTemplateCreateRequest {
+  name: string;
+  description?: string | null;
+  provider: "google_drive" | "yandex_disk" | "onedrive";
+  file_id: string;
+  fields: DocumentTemplateField[];
+  output_settings: DocumentTemplateOutputSettings;
+}
+
+export interface GeneratedDocumentFile {
+  filename: string;
+  content_type: string;
+  content_base64: string;
+}
+
+export interface DocumentTemplateFillResponse {
+  files: GeneratedDocumentFile[];
+}
+
 export type ChatStreamEvent =
   | { event: "token"; data: { text: string } }
   | { event: "error"; data: { message: string } }

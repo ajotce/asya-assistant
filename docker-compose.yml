@@ -25,6 +25,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+  libreoffice:
+    image: linuxserver/libreoffice:latest
+    profiles:
+      - documents
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Moscow
+    ports:
+      - "8080:3000"
 
 volumes:
   asya_data:

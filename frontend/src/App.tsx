@@ -12,6 +12,7 @@ import MemoryPage from "./pages/MemoryPage";
 import ObserverPage from "./pages/ObserverPage";
 import SettingsPage from "./pages/SettingsPage";
 import StatusPage from "./pages/StatusPage";
+import TemplatesPage from "./pages/TemplatesPage";
 import type { AuthUser } from "./types/api";
 import "./styles/app.css";
 
@@ -170,6 +171,11 @@ export default function App() {
                 <MemoryPage />
               </section>
             ) : null}
+            {mountedTabs.templates ? (
+              <section className="tab-panel" hidden={activeTab !== "templates"}>
+                <TemplatesPage />
+              </section>
+            ) : null}
             {mountedTabs.activity ? (
               <section className="tab-panel" hidden={activeTab !== "activity"}>
                 <ActivityPage />
@@ -209,6 +215,7 @@ function buildInitialMountedTabs(initialTab: AppTab): Record<AppTab, boolean> {
     diary: initialTab === "diary",
     observer: initialTab === "observer",
     memory: initialTab === "memory",
+    templates: initialTab === "templates",
     activity: initialTab === "activity",
     settings: initialTab === "settings",
     status: initialTab === "status",
@@ -235,6 +242,9 @@ function getTabFromPath(pathname: string): AppTab {
   if (pathname.startsWith("/memory")) {
     return "memory";
   }
+  if (pathname.startsWith("/templates")) {
+    return "templates";
+  }
   if (pathname.startsWith("/status")) {
     return "status";
   }
@@ -256,6 +266,9 @@ function getPathForTab(tab: AppTab): string {
   }
   if (tab === "memory") {
     return "/memory";
+  }
+  if (tab === "templates") {
+    return "/templates";
   }
   if (tab === "activity") {
     return "/activity";

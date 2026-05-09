@@ -17,6 +17,9 @@ import type {
   ChatListItem,
   ChatMessageItem,
   ChatRenameRequest,
+  DocumentTemplate,
+  DocumentTemplateCreateRequest,
+  DocumentTemplateFillResponse,
   ChatStreamRequest,
   DiaryEntryItem,
   DiaryEntryCreateRequest,
@@ -338,6 +341,37 @@ export async function deleteChat(chatId: string): Promise<void> {
 
 export function getChatMessages(chatId: string): Promise<ChatMessageItem[]> {
   return apiFetch<ChatMessageItem[]>(`/api/chats/${encodeURIComponent(chatId)}/messages`);
+}
+
+export function listDocumentTemplates(): Promise<DocumentTemplate[]> {
+  return apiFetch<DocumentTemplate[]>("/api/document-templates");
+}
+
+export function createDocumentTemplate(body: DocumentTemplateCreateRequest): Promise<DocumentTemplate> {
+  return apiFetch<DocumentTemplate>("/api/document-templates", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteDocumentTemplate(templateId: string): Promise<void> {
+  const response = await fetch(toApiUrl(`/api/document-templates/${encodeURIComponent(templateId)}`), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, `Ошибка удаления шаблона (${response.status})`));
+  }
+}
+
+export function fillDocumentTemplate(
+  templateId: string,
+  values: Record<string, string>
+): Promise<DocumentTemplateFillResponse> {
+  return apiFetch<DocumentTemplateFillResponse>(`/api/document-templates/${encodeURIComponent(templateId)}/fill`, {
+    method: "POST",
+    body: JSON.stringify({ values }),
+  });
 }
 
 export function listSpaces(): Promise<SpaceListItem[]> {

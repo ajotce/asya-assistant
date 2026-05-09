@@ -4,6 +4,7 @@ import {
   archiveSpace,
   archiveChat,
   createSpace,
+  fillDocumentTemplate,
   createChat,
   deleteChat,
   getSpaceSettings,
@@ -21,6 +22,7 @@ import {
   uploadSessionFiles,
 } from "../api/client";
 import type { ChatListItem, SpaceListItem, SpaceMemorySettingsResponse, VoiceSettings } from "../types/api";
+import type { GeneratedDocumentFile } from "../types/api";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import WakeWordListener from "../components/WakeWordListener";
 
@@ -28,6 +30,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   text: string;
+  attachments?: GeneratedDocumentFile[];
   thinking?: string;
   streaming?: boolean;
 }
@@ -567,6 +570,44 @@ export default function ChatPage({
       { id: assistantId, role: "assistant", text: "", thinking: "", streaming: true },
     ]);
 
+    const templateCommand = parseTemplateFillCommand(text);
+    if (templateCommand) {
+      try {
+        const result = await fillDocumentTemplate(templateCommand.templateId, templateCommand.values);
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistantId
+              ? {
+                  ...item,
+                  text: "Готово. Файлы шаблона сформированы.",
+                  attachments: result.files,
+                  streaming: false,
+                }
+              : item
+          )
+        );
+      } catch (commandError) {
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistantId
+              ? {
+                  ...item,
+                  text: getErrorMessage(commandError),
+                  streaming: false,
+                }
+              : item
+          )
+        );
+        setError(getErrorMessage(commandError));
+      } finally {
+        if (filesToUpload.length > 0) {
+          setSelectedFiles([]);
+        }
+        setIsGenerating(false);
+      }
+      return;
+    }
+
     let streamFailed = false;
 
     try {
@@ -606,9 +647,18 @@ export default function ChatPage({
           },
           onDone: () => {
             setMessages((prev) => {
-              const updated = prev.map((item) =>
-                item.id === assistantId ? { ...item, streaming: false } : item
-              );
+              const updated = prev.map((item) => {
+                if (item.id !== assistantId) {
+                  return item;
+                }
+                const parsed = parseAttachmentsFromText(item.text);
+                return {
+                  ...item,
+                  text: parsed.cleanText,
+                  attachments: item.attachments ?? parsed.attachments,
+                  streaming: false,
+                };
+              });
               const assistantMsg = updated.find((m) => m.id === assistantId);
               if (voiceSettings?.tts_enabled && assistantMsg?.text.trim()) {
                 void playTTS(assistantMsg.text);
@@ -854,6 +904,20 @@ export default function ChatPage({
                   </details>
                 ) : null}
                 <p className="chat-bubble__text">{message.text}</p>
+                {message.attachments?.length ? (
+                  <div className="chat-edit-panel__actions">
+                    {message.attachments.map((file) => (
+                      <button
+                        key={`${message.id}:${file.filename}`}
+                        type="button"
+                        className="chat-action-button"
+                        onClick={() => downloadGeneratedFile(file)}
+                      >
+                        Скачать {file.filename}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {message.streaming ? <p className="chat-bubble__streaming">Печатает...</p> : null}
               </article>
             ))}
@@ -971,6 +1035,53 @@ function filterSpacesForUser(spaces: SpaceListItem[], role: string): SpaceListIt
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function parseTemplateFillCommand(
+  text: string
+): { templateId: string; values: Record<string, string> } | null {
+  const match = text.trim().match(/^\/template-fill\s+(\S+)\s+(.+)$/s);
+  if (!match) {
+    return null;
+  }
+  const templateId = match[1];
+  try {
+    const parsed = JSON.parse(match[2]) as Record<string, string>;
+    return { templateId, values: parsed };
+  } catch {
+    return { templateId, values: {} };
+  }
+}
+
+function downloadGeneratedFile(file: GeneratedDocumentFile) {
+  const binary = Uint8Array.from(atob(file.content_base64), (c) => c.charCodeAt(0));
+  const blob = new Blob([binary], { type: file.content_type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function parseAttachmentsFromText(text: string): { cleanText: string; attachments: GeneratedDocumentFile[] } {
+  const attachments: GeneratedDocumentFile[] = [];
+  const markerRegex = /\[\[ATTACHMENT:(.+?)\]\]/gs;
+  let cleanText = text;
+  let match = markerRegex.exec(text);
+  while (match) {
+    try {
+      const parsed = JSON.parse(match[1]) as GeneratedDocumentFile;
+      if (parsed.filename && parsed.content_type && parsed.content_base64) {
+        attachments.push(parsed);
+      }
+    } catch {
+      // Ignore malformed attachment markers.
+    }
+    match = markerRegex.exec(text);
+  }
+  cleanText = cleanText.replace(markerRegex, "").trim();
+  return { cleanText, attachments };
 }
 
 function makeFileKey(file: File): string {
