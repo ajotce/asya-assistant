@@ -27,12 +27,12 @@ def test_convert_to_pdf_uses_http_converter(monkeypatch) -> None:
 
     settings = Settings(
         DOCUMENTS_CONVERTER_ENABLED=True,
-        DOCUMENTS_CONVERTER_URL="http://libreoffice:8080",
+        DOCUMENTS_CONVERTER_URL="http://libreoffice:3000",
     )
     service = DocxToPdfConverter(settings)
 
     pdf = service.convert_to_pdf(b"docx-content")
 
     assert pdf.startswith(b"%PDF")
-    assert called["url"] == "http://libreoffice:8080/convert"
+    assert called["url"] == "http://libreoffice:3000/convert"
     assert called["files"]["file"][0] == "document.docx"

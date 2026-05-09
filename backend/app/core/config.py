@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     max_files_per_message: int = Field(default=10, alias="MAX_FILES_PER_MESSAGE")
     max_file_size_mb: int = Field(default=256, alias="MAX_FILE_SIZE_MB")
     documents_converter_enabled: bool = Field(default=False, alias="DOCUMENTS_CONVERTER_ENABLED")
-    documents_converter_url: str = Field(default="http://libreoffice:8080", alias="DOCUMENTS_CONVERTER_URL")
+    documents_converter_url: str = Field(default="http://libreoffice:3000", alias="DOCUMENTS_CONVERTER_URL")
     documents_converter_timeout_seconds: int = Field(default=60, alias="DOCUMENTS_CONVERTER_TIMEOUT_SECONDS")
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")

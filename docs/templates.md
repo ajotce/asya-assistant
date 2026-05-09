@@ -63,7 +63,7 @@
 Backend вызывает HTTP endpoint converter-сервиса `POST /convert`.
 Конфиг через env:
 - `DOCUMENTS_CONVERTER_ENABLED`
-- `DOCUMENTS_CONVERTER_URL`
+- `DOCUMENTS_CONVERTER_URL` (по умолчанию `http://libreoffice:3000` внутри docker-сети)
 - `DOCUMENTS_CONVERTER_TIMEOUT_SECONDS`
 
 ## 4. API
@@ -97,6 +97,16 @@ Response:
 
 Команда для быстрого шаблонного fill в чате:
 - `/template-fill <template_id> {"field":"value"}`
+
+## 5.1 Chat flow (NLU + slot filling)
+
+Backend `ChatService` поддерживает flow:
+- интент вида «заполни шаблон ...»;
+- извлечение начальных значений полей через LLM;
+- запрос недостающих required полей по одному;
+- для `vin`/`passport_number` можно прислать фото;
+- при `confidence < 0.85` обязательный шаг подтверждения (`Верно?`) перед записью в шаблон;
+- после заполнения в ответ ассистента возвращаются attachment markers с DOCX/PDF, которые frontend рендерит как кнопки скачивания.
 
 ## 6. Ограничения и безопасность
 

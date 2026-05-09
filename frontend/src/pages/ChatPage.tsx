@@ -647,9 +647,18 @@ export default function ChatPage({
           },
           onDone: () => {
             setMessages((prev) => {
-              const updated = prev.map((item) =>
-                item.id === assistantId ? { ...item, streaming: false } : item
-              );
+              const updated = prev.map((item) => {
+                if (item.id !== assistantId) {
+                  return item;
+                }
+                const parsed = parseAttachmentsFromText(item.text);
+                return {
+                  ...item,
+                  text: parsed.cleanText,
+                  attachments: item.attachments ?? parsed.attachments,
+                  streaming: false,
+                };
+              });
               const assistantMsg = updated.find((m) => m.id === assistantId);
               if (voiceSettings?.tts_enabled && assistantMsg?.text.trim()) {
                 void playTTS(assistantMsg.text);
@@ -1053,6 +1062,26 @@ function downloadGeneratedFile(file: GeneratedDocumentFile) {
   a.download = file.filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function parseAttachmentsFromText(text: string): { cleanText: string; attachments: GeneratedDocumentFile[] } {
+  const attachments: GeneratedDocumentFile[] = [];
+  const markerRegex = /\[\[ATTACHMENT:(.+?)\]\]/gs;
+  let cleanText = text;
+  let match = markerRegex.exec(text);
+  while (match) {
+    try {
+      const parsed = JSON.parse(match[1]) as GeneratedDocumentFile;
+      if (parsed.filename && parsed.content_type && parsed.content_base64) {
+        attachments.push(parsed);
+      }
+    } catch {
+      // Ignore malformed attachment markers.
+    }
+    match = markerRegex.exec(text);
+  }
+  cleanText = cleanText.replace(markerRegex, "").trim();
+  return { cleanText, attachments };
 }
 
 function makeFileKey(file: File): string {

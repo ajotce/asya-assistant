@@ -30,7 +30,7 @@ def _make_docx_template() -> bytes:
 
 def test_document_templates_crud_and_fill_both_files(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DOCUMENTS_CONVERTER_ENABLED", "true")
-    monkeypatch.setenv("DOCUMENTS_CONVERTER_URL", "http://libreoffice:8080")
+    monkeypatch.setenv("DOCUMENTS_CONVERTER_URL", "http://libreoffice:3000")
 
     def _post(url: str, *args: Any, **kwargs: Any) -> _FakeResponse:
         assert url.endswith("/convert")

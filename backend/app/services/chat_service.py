@@ -5,6 +5,7 @@ import mimetypes
 import re
 from base64 import b64encode
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
@@ -13,6 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.db.models.common import ActivityEntityType, ActivityEventType, ChatKind, MemoryStatus, MessageRole
+from app.db.models.document_template import DocumentTemplate
+from app.db.models.pending_action import PendingAction
 from app.models.schemas import ModelInfo
 from app.repositories.activity_log_repository import ActivityLogRepository
 from app.repositories.behavior_rule_repository import BehaviorRuleRepository
@@ -27,8 +30,11 @@ from app.services.memory_extraction_service import MemoryExtractionService
 from app.services.memory_service import MemoryService
 from app.services.private_chat_crypto import decrypt_private_message, encrypt_private_message
 from app.services.action_router import ActionRouter
+from app.services.docx_to_pdf_converter import DocxToPdfConverter
+from app.services.document_fill_service import DocumentFillService
 from app.services.settings_service import SettingsService
 from app.services.usage_recorder import UsageRecorder
+from app.services.vision_service import VisionService
 from app.services.vsellm_client import VseLLMClient, VseLLMError
 from app.storage.blob_provider import BlobStorageProvider
 from app.storage.file_store import SessionFileStore, StoredSessionFile
@@ -104,6 +110,27 @@ class ChatService:
     def stream_chat(self, session_id: str, user_message: str, file_ids: Optional[List[str]] = None) -> Generator[bytes, None, None]:
         try:
             self._validate_request(session_id=session_id, user_message=user_message, file_ids=file_ids or [])
+            template_flow_result = self._handle_document_template_flow(
+                session_id=session_id,
+                user_message=user_message,
+                file_ids=file_ids or [],
+            )
+            if template_flow_result is not None:
+                self._append_message(
+                    chat_id=session_id,
+                    role=MessageRole.USER.value,
+                    content=user_message,
+                    user_id=self._current_user_id,
+                )
+                self._append_message(
+                    chat_id=session_id,
+                    role=MessageRole.ASSISTANT.value,
+                    content=template_flow_result,
+                    user_id=None,
+                )
+                yield self._sse_event("token", {"text": template_flow_result})
+                yield self._sse_event("done", {"usage": None})
+                return
             if self._action_router is not None:
                 action_result = self._action_router.handle(
                     user_id=self._current_user_id,
@@ -252,6 +279,257 @@ class ChatService:
         except Exception:
             yield self._sse_event("error", {"message": "Произошла внутренняя ошибка при генерации ответа."})
             yield self._sse_event("done", {"usage": None})
+
+    def _handle_document_template_flow(self, session_id: str, user_message: str, file_ids: list[str]) -> str | None:
+        if self._db_session is None or not self._current_user_id:
+            return None
+
+        active = self._get_active_template_pending_action(session_id)
+        if active is not None:
+            return self._continue_document_template_flow(active, session_id, user_message, file_ids)
+
+        template = self._detect_template_intent(user_message)
+        if template is None:
+            return None
+
+        extracted = self._extract_template_fields_with_llm(template=template, message=user_message)
+        pending = self._upsert_template_pending_action(
+            session_id=session_id,
+            template_id=template.id,
+            values=extracted,
+        )
+        return self._continue_document_template_flow(pending, session_id, user_message="", file_ids=file_ids)
+
+    def _get_active_template_pending_action(self, session_id: str) -> PendingAction | None:
+        if self._db_session is None:
+            return None
+        return (
+            self._db_session.query(PendingAction)
+            .filter(
+                PendingAction.user_id == self._current_user_id,
+                PendingAction.session_id == session_id,
+                PendingAction.tool == "document",
+                PendingAction.operation == "template_fill_flow",
+            )
+            .order_by(PendingAction.created_at.desc())
+            .first()
+        )
+
+    def _detect_template_intent(self, message: str) -> DocumentTemplate | None:
+        if self._db_session is None:
+            return None
+        lowered = message.lower()
+        if "заполни шаблон" not in lowered and "заполнить шаблон" not in lowered:
+            return None
+        templates = (
+            self._db_session.query(DocumentTemplate)
+            .filter(DocumentTemplate.user_id == self._current_user_id)
+            .order_by(DocumentTemplate.created_at.desc())
+            .all()
+        )
+        for item in templates:
+            if item.name.lower() in lowered:
+                return item
+        return templates[0] if templates else None
+
+    def _extract_template_fields_with_llm(self, template: DocumentTemplate, message: str) -> dict[str, str]:
+        fields = template.fields or []
+        keys = [str(field.get("key", "")).strip() for field in fields if str(field.get("key", "")).strip()]
+        if not keys or not self._settings.vsellm_api_key.strip():
+            return {}
+
+        system_prompt = (
+            "Extract only explicit values for requested fields from user message. "
+            "Return strict JSON object with requested keys only. Unknown -> empty string."
+        )
+        user_prompt = json.dumps(
+            {"fields": keys, "message": message},
+            ensure_ascii=False,
+        )
+        payload = {
+            "model": self._get_runtime_settings().selected_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "stream": False,
+            "temperature": 0,
+        }
+        headers = {"Authorization": f"Bearer {self._settings.vsellm_api_key.strip()}"}
+        try:
+            response = httpx.post(
+                f"{self._settings.vsellm_base_url.rstrip('/')}/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=httpx.Timeout(timeout=30.0, connect=10.0),
+            )
+            response.raise_for_status()
+            data = response.json()
+            text = (
+                data.get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", "{}")
+            )
+            parsed = json.loads(text) if isinstance(text, str) else {}
+            if not isinstance(parsed, dict):
+                return {}
+            return {
+                key: str(parsed.get(key, "")).strip()
+                for key in keys
+                if str(parsed.get(key, "")).strip()
+            }
+        except Exception:
+            return {}
+
+    def _upsert_template_pending_action(self, session_id: str, template_id: str, values: dict[str, str]) -> PendingAction:
+        assert self._db_session is not None
+        pending = self._get_active_template_pending_action(session_id)
+        if pending is None:
+            pending = PendingAction(
+                id=f"tmpl-{session_id}-{self._current_user_id}",
+                user_id=self._current_user_id,
+                session_id=session_id,
+                tool="document",
+                operation="template_fill_flow",
+                args={},
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+            )
+            self._db_session.add(pending)
+        pending.args = {"template_id": template_id, "values": values}
+        self._db_session.flush()
+        return pending
+
+    def _continue_document_template_flow(
+        self,
+        pending: PendingAction,
+        session_id: str,
+        user_message: str,
+        file_ids: list[str],
+    ) -> str:
+        assert self._db_session is not None
+        template = (
+            self._db_session.query(DocumentTemplate)
+            .filter(
+                DocumentTemplate.id == str(pending.args.get("template_id", "")),
+                DocumentTemplate.user_id == self._current_user_id,
+            )
+            .first()
+        )
+        if template is None:
+            self._db_session.delete(pending)
+            self._db_session.commit()
+            return "Шаблон не найден."
+
+        values = dict(pending.args.get("values", {}))
+        fields = list(template.fields or [])
+        confirm_state = pending.args.get("confirm")
+        if isinstance(confirm_state, dict):
+            answer = user_message.strip().lower()
+            yes = {"да", "верно", "подтверждаю", "ok", "yes"}
+            no = {"нет", "неверно", "исправить", "no"}
+            key = str(confirm_state.get("key", ""))
+            suggested = str(confirm_state.get("value", ""))
+            if answer in yes:
+                values[key] = suggested
+                pending.args = {"template_id": template.id, "values": values}
+            elif answer in no:
+                pending.args = {
+                    "template_id": template.id,
+                    "values": values,
+                    "awaiting_key": key,
+                }
+                self._db_session.flush()
+                self._db_session.commit()
+                return f"Введите корректное значение для поля '{key}'."
+            else:
+                return f"Подтвердите значение '{suggested}' для поля '{key}': ответьте 'да' или 'нет'."
+
+        awaiting_key = str(pending.args.get("awaiting_key", "")).strip()
+        if awaiting_key:
+            field = next((f for f in fields if str(f.get("key", "")) == awaiting_key), None)
+            if field is not None:
+                field_type = str(field.get("type", "text"))
+                value = user_message.strip()
+                if field_type in {"vin", "passport_number"} and file_ids:
+                    extracted = self._extract_from_image(session_id=session_id, file_ids=file_ids, field_type=field_type)
+                    if extracted is not None:
+                        if extracted["needs_confirmation"]:
+                            pending.args = {
+                                "template_id": template.id,
+                                "values": values,
+                                "confirm": {"key": awaiting_key, "value": extracted["value"]},
+                            }
+                            self._db_session.flush()
+                            self._db_session.commit()
+                            return f"Распознано '{extracted['value']}'. Верно?"
+                        value = extracted["value"]
+                if value:
+                    values[awaiting_key] = value
+                    pending.args = {"template_id": template.id, "values": values}
+
+        missing = []
+        for field in fields:
+            if not bool(field.get("required", True)):
+                continue
+            key = str(field.get("key", "")).strip()
+            if key and not str(values.get(key, "")).strip():
+                missing.append(field)
+
+        if missing:
+            next_field = missing[0]
+            key = str(next_field.get("key", "")).strip()
+            pending.args = {"template_id": template.id, "values": values, "awaiting_key": key}
+            self._db_session.flush()
+            self._db_session.commit()
+            return f"Укажите значение для поля '{key}'."
+
+        files_payload = self._generate_template_files_payload(template=template, values=values)
+        self._db_session.delete(pending)
+        self._db_session.flush()
+        self._db_session.commit()
+        return "Шаблон заполнен.\n" + "\n".join(files_payload)
+
+    def _extract_from_image(self, session_id: str, file_ids: list[str], field_type: str) -> dict[str, Any] | None:
+        if self._blob_storage is None:
+            return None
+        vision = VisionService(self._settings)
+        for file_id in file_ids:
+            meta = self._get_session_file(session_id=session_id, file_id=file_id)
+            if meta is None:
+                continue
+            if not meta.content_type.lower().startswith("image/"):
+                continue
+            image_bytes = self._blob_storage.get_bytes(meta.path)
+            result = vision.extract_vin(image_bytes) if field_type == "vin" else vision.extract_passport_number(image_bytes)
+            if not result.valid:
+                continue
+            return {
+                "value": result.value,
+                "needs_confirmation": bool(result.needs_confirmation),
+            }
+        return None
+
+    def _generate_template_files_payload(self, template: DocumentTemplate, values: dict[str, str]) -> list[str]:
+        if self._blob_storage is None:
+            return []
+        output_settings = dict(template.output_settings or {})
+        output_format = str(output_settings.get("format", "both"))
+        output_filename = str(output_settings.get("filename", template.name)).strip() or template.name
+        template_bytes = self._blob_storage.get_bytes(template.file_id)
+        docx_bytes = DocumentFillService().fill_template(template_bytes, values)
+        lines: list[str] = []
+        if output_format in {"docx", "both"}:
+            lines.append(
+                f"[[ATTACHMENT:{json.dumps({'filename': f'{output_filename}.docx', 'content_type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'content_base64': b64encode(docx_bytes).decode('ascii')}, ensure_ascii=False)}]]"
+            )
+        if output_format in {"pdf", "both"}:
+            pdf_bytes = DocxToPdfConverter(self._settings).convert_to_pdf(docx_bytes)
+            lines.append(
+                f"[[ATTACHMENT:{json.dumps({'filename': f'{output_filename}.pdf', 'content_type': 'application/pdf', 'content_base64': b64encode(pdf_bytes).decode('ascii')}, ensure_ascii=False)}]]"
+            )
+        return lines
 
     def _validate_request(self, session_id: str, user_message: str, file_ids: List[str]) -> None:
         if not session_id.strip():
