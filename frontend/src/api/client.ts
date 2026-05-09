@@ -54,6 +54,7 @@ import type {
   SpaceMemorySettingsUpdateRequest,
   SpaceRenameRequest,
   UsageOverviewResponse,
+  UserPreferences,
   IntegrationConnectionResponse,
   ImapConnectRequest,
   ImapConnectionTestResponse,
@@ -221,6 +222,10 @@ export function probeReasoningModels(body: ReasoningProbeRequest = {}): Promise<
 
 export function getSettings(): Promise<SettingsResponse> {
   return apiFetch<SettingsResponse>("/api/settings");
+}
+
+export function getMePreferences(): Promise<UserPreferences> {
+  return apiFetch<UserPreferences>("/api/me/preferences");
 }
 
 export function updateSettings(body: SettingsUpdateRequest): Promise<SettingsResponse> {

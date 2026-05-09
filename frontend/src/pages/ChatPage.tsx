@@ -8,7 +8,7 @@ import {
   deleteChat,
   getSpaceSettings,
   getChatMessages,
-  getSettings,
+  getMePreferences,
   getVoiceSettings,
   listSpaces,
   listChats,
@@ -220,7 +220,7 @@ export default function ChatPage({
     let active = true;
     async function loadVoice() {
       try {
-        const [data, appSettings] = await Promise.all([getVoiceSettings(), getSettings()]);
+        const [data, appSettings] = await Promise.all([getVoiceSettings(), getMePreferences()]);
         if (!active) return;
         setVoiceSettings(data);
         setWakewordEnabled(appSettings.wakeword_enabled);
@@ -836,6 +836,12 @@ export default function ChatPage({
             />
             <span className="status-text">Режим: {wakewordState === "listening" ? "Слушаю" : "Ожидание"}</span>
           </div>
+          {wakewordEnabled ? (
+            <p className="status-text">
+              Для wake-word Asya запрашивает доступ к микрофону только для распознавания голосовой команды в
+              активной вкладке.
+            </p>
+          ) : null}
 
           <div className="chat-list">
             {!hasMessages && !messagesLoading ? <p className="status-text">Сообщений пока нет. Напишите первый запрос.</p> : null}

@@ -5,17 +5,65 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps_auth import get_current_user, get_db_session
+from app.core.config import get_settings
 from app.db.models.user import User
 from app.models.schemas import (
     DeleteMeConfirmResponse,
     DeleteMePrepareResponse,
     DeleteMeRequest,
+    SettingsUpdateRequest,
+    UserPreferencesResponse,
+    UserPreferencesUpdateRequest,
     UserExportStartResponse,
     UserExportStatusResponse,
 )
+from app.services.settings_service import SettingsService, SettingsValidationError
 from app.services.user_export import UserExportError, UserExportService
 
 router = APIRouter(tags=["me"])
+
+
+@router.get("/me/preferences", response_model=UserPreferencesResponse)
+def get_me_preferences(
+    current_user: User = Depends(get_current_user),
+    db_session: Session = Depends(get_db_session),
+) -> UserPreferencesResponse:
+    service = SettingsService(get_settings(), db_session=db_session)
+    settings = service.get_settings(user_id=current_user.id)
+    return UserPreferencesResponse(
+        wakeword_enabled=settings.wakeword_enabled,
+        wakeword_phrase=settings.wakeword_phrase,
+        wakeword_sensitivity=settings.wakeword_sensitivity,
+    )
+
+
+@router.patch("/me/preferences", response_model=UserPreferencesResponse)
+def patch_me_preferences(
+    payload: UserPreferencesUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db_session: Session = Depends(get_db_session),
+) -> UserPreferencesResponse:
+    service = SettingsService(get_settings(), db_session=db_session)
+    current = service.get_settings(user_id=current_user.id)
+    try:
+        updated = service.update_settings(
+            request=SettingsUpdateRequest(
+                assistant_name=current.assistant_name,
+                system_prompt=current.system_prompt,
+                selected_model=current.selected_model,
+                wakeword_enabled=payload.wakeword_enabled,
+                wakeword_phrase=payload.wakeword_phrase,
+                wakeword_sensitivity=payload.wakeword_sensitivity,
+            ),
+            user_id=current_user.id,
+        )
+    except SettingsValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
+    return UserPreferencesResponse(
+        wakeword_enabled=updated.wakeword_enabled,
+        wakeword_phrase=updated.wakeword_phrase,
+        wakeword_sensitivity=updated.wakeword_sensitivity,
+    )
 
 
 @router.post("/me/export", response_model=UserExportStartResponse)

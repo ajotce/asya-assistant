@@ -53,6 +53,12 @@ export interface SettingsUpdateRequest {
   wakeword_sensitivity: number;
 }
 
+export interface UserPreferences {
+  wakeword_enabled: boolean;
+  wakeword_phrase: string;
+  wakeword_sensitivity: number;
+}
+
 export interface ReasoningProbeItem {
   id: string;
   streams_reasoning: boolean;

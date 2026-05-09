@@ -158,7 +158,7 @@ Inline-клавиатура с кнопками:
 
 - Работает только в активной вкладке (`document.visibilityState === "visible"`).
 - Без barge-in и interrupt: только последовательный цикл «wake-word -> команда -> ответ Asya -> ожидание следующего wake-word».
-- Wake-word настройки хранятся в `UserSettings`:
+- Wake-word настройки хранятся в `User.preferences` (`/api/me/preferences`):
   - `wakeword_enabled` (bool, default `false`)
   - `wakeword_phrase` (фиксированный набор: `ася|асья|asya`)
   - `wakeword_sensitivity` (float `0.0..1.0`)

@@ -291,7 +291,9 @@ Spaces API во frontend (используется в `ChatPage`):
 ### 10.1 Дополнения v1.0.10
 
 - `POST /api/voice/listen` — STT для режима «Слушаю» (multipart/form-data, поле `audio`).
-- `GET/PUT /api/settings` теперь включают поля:
+- `GET /api/me/preferences` — получить пользовательские voice preferences.
+- `PATCH /api/me/preferences` — обновить пользовательские voice preferences.
+- В preferences добавлены поля:
   - `wakeword_enabled: bool`
   - `wakeword_phrase: string` (`ася|асья|asya`)
   - `wakeword_sensitivity: float (0.0..1.0)`

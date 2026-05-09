@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   getChatMessages,
+  getMePreferences,
   getSpaceSettings,
+  getVoiceSettings,
   listChats,
   listSpaces,
   streamChat,
@@ -16,6 +18,8 @@ vi.mock("../api/client", () => ({
   listChats: vi.fn(),
   listSpaces: vi.fn(),
   getSpaceSettings: vi.fn(),
+  getMePreferences: vi.fn(),
+  getVoiceSettings: vi.fn(),
   updateSpaceSettings: vi.fn(),
   createSpace: vi.fn(),
   renameSpace: vi.fn(),
@@ -34,6 +38,8 @@ describe("ChatPage", () => {
     vi.mocked(listChats).mockReset();
     vi.mocked(listSpaces).mockReset();
     vi.mocked(getSpaceSettings).mockReset();
+    vi.mocked(getMePreferences).mockReset();
+    vi.mocked(getVoiceSettings).mockReset();
     vi.mocked(updateSpaceSettings).mockReset();
     vi.mocked(getChatMessages).mockReset();
     vi.mocked(streamChat).mockReset();
@@ -72,6 +78,18 @@ describe("ChatPage", () => {
       updated_at: "2026-05-02T00:00:00Z",
     });
     vi.mocked(getChatMessages).mockResolvedValue([]);
+    vi.mocked(getMePreferences).mockResolvedValue({
+      wakeword_enabled: false,
+      wakeword_phrase: "ася",
+      wakeword_sensitivity: 0.5,
+    });
+    vi.mocked(getVoiceSettings).mockResolvedValue({
+      assistant_name: "Asya",
+      voice_gender: "female",
+      stt_provider: "mock",
+      tts_provider: "mock",
+      tts_enabled: false,
+    });
     vi.mocked(uploadSessionFiles).mockResolvedValue({ session_id: "session-12345678", files: [], file_ids: [] });
   });
 

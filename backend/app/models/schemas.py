@@ -720,3 +720,17 @@ class DeleteMeConfirmResponse(BaseModel):
     export_id: str
     download_url: Optional[str] = None
     expires_at: Optional[str] = None
+
+
+class UserPreferencesResponse(BaseModel):
+    wakeword_enabled: bool
+    wakeword_phrase: str
+    wakeword_sensitivity: float
+
+
+class UserPreferencesUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    wakeword_enabled: bool
+    wakeword_phrase: str = Field(min_length=1, max_length=32)
+    wakeword_sensitivity: float = Field(ge=0.0, le=1.0)
