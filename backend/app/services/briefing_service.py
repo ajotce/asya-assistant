@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from importlib import import_module
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -108,6 +109,14 @@ class BriefingService:
                 summary=f"Новый {kind.value} briefing",
                 meta={"deeplink": f"/briefings/{item.id}"},
             )
+            self._activity.create(
+                user_id=user_id,
+                event_type=ActivityEventType.BRIEFING_DELIVERED,
+                entity_type=ActivityEntityType.BRIEFING,
+                entity_id=item.id,
+                summary="Briefing доставлен in-app",
+                meta={"channel": "in_app"},
+            )
 
         self._session.commit()
         self._session.refresh(item)
@@ -153,12 +162,26 @@ class BriefingService:
                 )
             ).scalars()
         )
-        connected = [item.provider.value for item in connections]
-        return (
-            f"kind={kind.value}\n"
-            f"connected_integrations={', '.join(connected) if connected else 'none'}\n"
-            "notes=Используй только безопасную сводку без секретов."
-        )
+        lines = [f"kind={kind.value}"]
+        if not connections:
+            lines.append("connected_integrations=none")
+            lines.append("notes=Интеграции не подключены")
+            return "\n".join(lines)
+
+        lines.append("connected_integrations=" + ", ".join(item.provider.value for item in connections))
+        for item in connections:
+            sync_at = item.last_sync_at.isoformat() if item.last_sync_at else "unknown"
+            refresh_at = item.last_refresh_at.isoformat() if item.last_refresh_at else "unknown"
+            scopes = ",".join(item.scopes or [])
+            lines.append(
+                f"provider={item.provider.value};last_sync_at={sync_at};last_refresh_at={refresh_at};scopes={scopes}"
+            )
+            if item.safe_error_metadata:
+                lines.append(f"provider={item.provider.value};safe_error={item.safe_error_metadata}")
+
+        lines.extend(self._collect_imap_summary(user_id=user_id))
+        lines.append("notes=Используй только безопасную сводку без секретов.")
+        return "\n".join(lines)
 
     def _generate_markdown(self, *, kind: BriefingKind, context_text: str) -> str:
         prompt = (
@@ -208,8 +231,36 @@ class BriefingService:
         sent = sender.send_notification(user_id=user_id, text=content, parse_mode="Markdown")
         if not sent:
             return []
+        self._activity.create(
+            user_id=user_id,
+            event_type=ActivityEventType.BRIEFING_DELIVERED,
+            entity_type=ActivityEntityType.BRIEFING,
+            entity_id=f"briefing-delivery-{int(datetime.now(timezone.utc).timestamp())}",
+            summary="Briefing доставлен в Telegram",
+            meta={"channel": "telegram"},
+        )
         return ["telegram"]
 
     @staticmethod
     def _validate_time(value: str) -> None:
         datetime.strptime(value, "%H:%M")
+
+    def _collect_imap_summary(self, *, user_id: str) -> list[str]:
+        try:
+            imap_module = import_module("app.integrations.imap")
+        except ModuleNotFoundError:
+            return ["imap_summary=module_unavailable"]
+
+        service_cls = getattr(imap_module, "ImapService", None)
+        if service_cls is None:
+            return ["imap_summary=service_unavailable"]
+        try:
+            service = service_cls(self._session)
+            items = service.list_messages(user_id=user_id, folder="INBOX", limit=5)
+        except Exception:
+            return ["imap_summary=unavailable"]
+
+        unread = sum(1 for item in items if getattr(item, "is_unread", False))
+        subjects = [str(getattr(item, "subject", "")).strip() for item in items if getattr(item, "subject", None)]
+        compact_subjects = "; ".join(subjects[:3]) if subjects else "none"
+        return [f"imap_summary=messages:{len(items)};unread:{unread};subjects:{compact_subjects}"]

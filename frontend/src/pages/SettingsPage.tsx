@@ -4,6 +4,7 @@ import {
   connectImap,
   disconnectImap,
   getImapMessage,
+  getBriefingSettings,
   getGitHubStatus,
   getIntegrations,
   getModels,
@@ -21,6 +22,7 @@ import {
   startUserExport,
   searchImapMessages,
   testImapConnection,
+  patchBriefingSettings,
   prepareDeleteMe,
   confirmDeleteMe,
   updateSettings,
@@ -37,6 +39,7 @@ import type {
   ImapMessageSummary,
   ModelInfo,
   ReasoningProbeItem,
+  BriefingSettingsPatchRequest,
   SettingsResponse,
 } from "../types/api";
 
@@ -141,6 +144,15 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
   const [deleteConfirmToken, setDeleteConfirmToken] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [briefingSettings, setBriefingSettings] = useState<BriefingSettingsPatchRequest>({
+    timezone: "Europe/Moscow",
+    morning_enabled: true,
+    evening_enabled: true,
+    morning_time: "08:00",
+    evening_time: "19:00",
+    channel_in_app: true,
+    channel_telegram: false,
+  });
 
   useEffect(() => {
     let active = true;
@@ -152,12 +164,24 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
         const data = await getSettings();
         const integrations = await getIntegrations();
         const ghStatus = await getGitHubStatus().catch(() => null);
+        const briefing = await getBriefingSettings().catch(() => null);
         if (!active) {
           return;
         }
         applySettings(data);
         setIntegrationStates(integrations);
         setGithubStatus(ghStatus);
+        if (briefing) {
+          setBriefingSettings({
+            timezone: briefing.timezone,
+            morning_enabled: briefing.morning_enabled,
+            evening_enabled: briefing.evening_enabled,
+            morning_time: briefing.morning_time,
+            evening_time: briefing.evening_time,
+            channel_in_app: briefing.channel_in_app,
+            channel_telegram: briefing.channel_telegram,
+          });
+        }
         await loadModels(data.selected_model, active);
       } catch (loadError) {
         if (!active) {
@@ -543,6 +567,20 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
     setDeleteConfirmToken(null);
   }
 
+  async function handleSaveBriefingSettings() {
+    setSaving(true);
+    setError(null);
+    setSavedMessage(null);
+    try {
+      await patchBriefingSettings(briefingSettings);
+      setSavedMessage("Настройки брифингов сохранены.");
+    } catch (saveError) {
+      setError(getErrorMessage(saveError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <section className="page" aria-label="Настройки Asya">
@@ -690,6 +728,71 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
           {saving ? "Сохранение..." : "Сохранить"}
         </button>
       </form>
+
+      <section className="reasoning-probe" aria-label="Брифинги">
+        <div className="page__row">
+          <h3 className="reasoning-probe__title">Брифинги</h3>
+        </div>
+        <div className="settings-form__row">
+          <input
+            className="settings-form__input"
+            value={briefingSettings.timezone}
+            onChange={(event) => setBriefingSettings({ ...briefingSettings, timezone: event.target.value })}
+            placeholder="Timezone"
+          />
+          <input
+            className="settings-form__input"
+            value={briefingSettings.morning_time}
+            onChange={(event) => setBriefingSettings({ ...briefingSettings, morning_time: event.target.value })}
+            placeholder="Morning HH:MM"
+          />
+          <input
+            className="settings-form__input"
+            value={briefingSettings.evening_time}
+            onChange={(event) => setBriefingSettings({ ...briefingSettings, evening_time: event.target.value })}
+            placeholder="Evening HH:MM"
+          />
+        </div>
+        <div className="settings-form__row">
+          <label className="settings-form__label">
+            <input
+              type="checkbox"
+              checked={briefingSettings.morning_enabled}
+              onChange={(event) => setBriefingSettings({ ...briefingSettings, morning_enabled: event.target.checked })}
+            />{" "}
+            Утренний briefing
+          </label>
+          <label className="settings-form__label">
+            <input
+              type="checkbox"
+              checked={briefingSettings.evening_enabled}
+              onChange={(event) => setBriefingSettings({ ...briefingSettings, evening_enabled: event.target.checked })}
+            />{" "}
+            Вечерний briefing
+          </label>
+          <label className="settings-form__label">
+            <input
+              type="checkbox"
+              checked={briefingSettings.channel_in_app}
+              onChange={(event) => setBriefingSettings({ ...briefingSettings, channel_in_app: event.target.checked })}
+            />{" "}
+            In-app
+          </label>
+          <label className="settings-form__label">
+            <input
+              type="checkbox"
+              checked={briefingSettings.channel_telegram}
+              onChange={(event) =>
+                setBriefingSettings({ ...briefingSettings, channel_telegram: event.target.checked })
+              }
+            />{" "}
+            Telegram
+          </label>
+        </div>
+        <button type="button" className="chat-action-button" onClick={handleSaveBriefingSettings} disabled={saving}>
+          {saving ? "Сохранение..." : "Сохранить настройки брифингов"}
+        </button>
+      </section>
 
       <section className="reasoning-probe" aria-label="IMAP mail">
         <div className="page__row">
