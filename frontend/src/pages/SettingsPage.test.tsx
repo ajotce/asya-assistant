@@ -103,6 +103,9 @@ describe("SettingsPage", () => {
       assistant_name: "Asya",
       selected_model: "gpt-4o",
       system_prompt: "Базовый промт",
+      wakeword_enabled: false,
+      wakeword_phrase: "ася",
+      wakeword_sensitivity: 0.5,
       api_key_configured: true,
     });
     vi.mocked(getModels).mockResolvedValue([{ id: "gpt-4o" }, { id: "openai/gpt-5" }]);
@@ -177,6 +180,9 @@ describe("SettingsPage", () => {
         assistant_name: "Asya",
         selected_model: "openai/gpt-5",
         system_prompt: "Новый системный промт",
+        wakeword_enabled: false,
+        wakeword_phrase: "ася",
+        wakeword_sensitivity: 0.5,
       });
     });
     expect(await screen.findByText("Настройки сохранены.")).toBeInTheDocument();
@@ -236,6 +242,9 @@ describe("SettingsPage", () => {
       assistant_name: "Asya",
       selected_model: "embed-only",
       system_prompt: "Базовый промт",
+      wakeword_enabled: false,
+      wakeword_phrase: "ася",
+      wakeword_sensitivity: 0.5,
       api_key_configured: true,
     });
     vi.mocked(getModels).mockResolvedValue([

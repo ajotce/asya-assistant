@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -85,6 +85,27 @@ async def voice_stt(
 
     mime_type = re.sub(r";.*", "", content_type).strip() or "audio/webm"
 
+    voice_settings = UserVoiceSettingsService(db_session, settings)
+    voice_service = VoiceService(settings, voice_settings)
+    try:
+        result = voice_service.transcribe(user=current_user, audio_bytes=body, mime_type=mime_type)
+    except VoiceValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return VoiceSTTResponse(text=result.text, provider=result.provider)
+
+
+@router.post("/voice/listen", response_model=VoiceSTTResponse)
+async def voice_listen(
+    audio: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db_session: Session = Depends(get_db_session),
+) -> VoiceSTTResponse:
+    settings = get_settings()
+    body = await audio.read()
+    if len(body) > settings.voice_max_audio_bytes:
+        raise HTTPException(status_code=400, detail="Размер аудио превышает допустимый лимит.")
+
+    mime_type = audio.content_type or "audio/webm"
     voice_settings = UserVoiceSettingsService(db_session, settings)
     voice_service = VoiceService(settings, voice_settings)
     try:

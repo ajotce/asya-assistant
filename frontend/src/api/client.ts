@@ -609,6 +609,20 @@ export async function sendVoiceSTT(audioBlob: Blob): Promise<VoiceSTTResponse> {
   return (await response.json()) as VoiceSTTResponse;
 }
 
+export async function sendVoiceListen(audioBlob: Blob): Promise<VoiceSTTResponse> {
+  const formData = new FormData();
+  formData.append("audio", audioBlob, "listen.webm");
+  const response = await fetch(toApiUrl("/api/voice/listen"), {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, "Ошибка распознавания речи"));
+  }
+  return (await response.json()) as VoiceSTTResponse;
+}
+
 export async function synthesizeVoiceText(body: { text: string }): Promise<ArrayBuffer> {
   const response = await fetch(toApiUrl("/api/voice/tts"), {
     method: "POST",

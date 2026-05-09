@@ -38,6 +38,9 @@ export interface SettingsResponse {
   assistant_name: string;
   system_prompt: string;
   selected_model: string;
+  wakeword_enabled: boolean;
+  wakeword_phrase: string;
+  wakeword_sensitivity: number;
   api_key_configured: boolean;
 }
 
@@ -45,6 +48,9 @@ export interface SettingsUpdateRequest {
   assistant_name: string;
   system_prompt: string;
   selected_model: string;
+  wakeword_enabled: boolean;
+  wakeword_phrase: string;
+  wakeword_sensitivity: number;
 }
 
 export interface ReasoningProbeItem {
