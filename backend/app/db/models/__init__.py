@@ -30,6 +30,7 @@ from app.db.models.user_export import UserExport
 from app.db.models.user_voice_settings import UserVoiceSettings
 from app.db.models.usage_record import UsageRecord
 from app.db.models.user import User
+from app.db.models.user_export import UserExport
 
 __all__ = [
     "AccessRequest",
@@ -64,4 +65,5 @@ __all__ = [
     "UserVoiceSettings",
     "UsageRecord",
     "User",
+    "UserExport",
 ]

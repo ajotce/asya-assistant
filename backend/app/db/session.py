@@ -17,7 +17,10 @@ def _ensure_parent_dir(db_url: str) -> None:
 @lru_cache
 def get_engine(db_url: str):
     _ensure_parent_dir(db_url)
-    return create_engine(db_url, echo=False, future=True)
+    connect_args = {}
+    if db_url.startswith("sqlite"):
+        connect_args["check_same_thread"] = False
+    return create_engine(db_url, echo=False, future=True, connect_args=connect_args)
 
 
 def get_sessionmaker():

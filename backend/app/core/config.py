@@ -27,6 +27,7 @@ class Settings(BaseSettings):
         ),
         alias="DEFAULT_SYSTEM_PROMPT",
     )
+    asya_database_url: str = Field(default="", alias="ASYA_DATABASE_URL")
     database_url: str = Field(default="", alias="DATABASE_URL")
     postgres_host: str = Field(default="", alias="POSTGRES_HOST")
     postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
@@ -37,8 +38,13 @@ class Settings(BaseSettings):
     sqlite_path: str = Field(default="./data/asya.sqlite3", alias="SQLITE_PATH")
     asya_db_path: str = Field(default="./data/asya-0.2.sqlite3", alias="ASYA_DB_PATH")
     tmp_dir: str = Field(default="./tmp", alias="TMP_DIR")
-    file_storage_backend: str = Field(default="local", alias="FILE_STORAGE_BACKEND")
-    file_storage_local_dir: str = Field(default="./data/blob", alias="FILE_STORAGE_LOCAL_DIR")
+    object_storage_backend: str = Field(default="local", alias="OBJECT_STORAGE_BACKEND")
+    object_storage_local_dir: str = Field(default="./data/blob", alias="OBJECT_STORAGE_LOCAL_DIR")
+    s3_endpoint: str = Field(default="", alias="S3_ENDPOINT")
+    s3_bucket: str = Field(default="", alias="S3_BUCKET")
+    s3_access_key: str = Field(default="", alias="S3_ACCESS_KEY")
+    s3_secret_key: str = Field(default="", alias="S3_SECRET_KEY")
+    s3_region: str = Field(default="us-east-1", alias="S3_REGION")
     max_files_per_message: int = Field(default=10, alias="MAX_FILES_PER_MESSAGE")
     max_file_size_mb: int = Field(default=256, alias="MAX_FILE_SIZE_MB")
 
@@ -166,7 +172,7 @@ class Settings(BaseSettings):
 
     @property
     def asya_db_url(self) -> str:
-        explicit_url = self.database_url.strip()
+        explicit_url = self.asya_database_url.strip() or self.database_url.strip()
         if explicit_url:
             self._validate_db_url(explicit_url)
             return explicit_url
@@ -187,6 +193,10 @@ class Settings(BaseSettings):
             )
         return f"sqlite+pysqlite:///{db_path.as_posix()}"
 
+    @property
+    def db_backend(self) -> str:
+        return self._db_backend_for_url(self.asya_db_url)
+
     @staticmethod
     def _resolve_sqlite_path(path: str) -> Path:
         db_path = Path(path)
@@ -199,6 +209,18 @@ class Settings(BaseSettings):
         lower = db_url.lower()
         if lower.startswith("sqlite") and "mode=memory" in lower:
             return
+        if lower.startswith("sqlite") or lower.startswith("postgresql"):
+            return
+        raise ValueError("Unsupported database URL. Use sqlite:///... or postgresql+psycopg://...")
+
+    @staticmethod
+    def _db_backend_for_url(db_url: str) -> str:
+        lower = db_url.lower()
+        if lower.startswith("sqlite"):
+            return "sqlite"
+        if lower.startswith("postgresql"):
+            return "postgresql"
+        raise ValueError("Unsupported database URL backend.")
 
     def _has_postgres_env(self) -> bool:
         values = [

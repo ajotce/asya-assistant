@@ -30,11 +30,11 @@ from app.services.action_router import ActionRouter
 from app.services.settings_service import SettingsService
 from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient, VseLLMError
-from app.storage.blob_provider import BlobStorageProvider
 from app.storage.file_store import SessionFileStore, StoredSessionFile
+from app.storage.object_storage import ObjectStorage
 from app.storage.session_store import SessionStore
 from app.storage.usage_store import UsageStore
-from app.storage.vector_store import SessionVectorStore, StoredChunkVector
+from app.storage.vector_store import StoredChunkVector, VectorStore
 
 
 @dataclass
@@ -49,7 +49,7 @@ class ChatService:
         self,
         settings: Settings,
         file_store: SessionFileStore,
-        vector_store: SessionVectorStore,
+        vector_store: VectorStore,
         vsellm_client: VseLLMClient,
         current_user_id: str = "",
         db_session: Optional[Session] = None,
@@ -57,7 +57,7 @@ class ChatService:
         message_repository: Optional[MessageRepository] = None,
         file_meta_repository: Optional[FileMetaRepository] = None,
         session_store: Optional[SessionStore] = None,
-        blob_storage: Optional[BlobStorageProvider] = None,
+        blob_storage: Optional[ObjectStorage] = None,
         settings_service: Optional[SettingsService] = None,
         memory_extraction_service: Optional[MemoryExtractionService] = None,
         usage_recorder: Optional[UsageRecorder] = None,
@@ -513,7 +513,7 @@ class ChatService:
     def _to_data_url(self, file: StoredSessionFile) -> str:
         content_type = file.content_type or mimetypes.guess_type(file.filename)[0] or "image/png"
         if self._blob_storage is not None:
-            payload_bytes = self._blob_storage.get_bytes(file.path)
+            payload_bytes = self._blob_storage.get(file.path)
         else:
             path = Path(file.path)
             if not path.exists():

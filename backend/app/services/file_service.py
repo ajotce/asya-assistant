@@ -12,10 +12,10 @@ from app.repositories.chat_repository import ChatRepository
 from app.repositories.file_meta_repository import FileMetaRepository
 from app.services.usage_recorder import UsageRecorder
 from app.services.vsellm_client import VseLLMClient, VseLLMError
-from app.storage.blob_provider import BlobStorageProvider
 from app.storage.file_store import SessionFileStore, StoredSessionFile
+from app.storage.object_storage import ObjectStorage
 from app.storage.usage_store import UsageStore
-from app.storage.vector_store import SessionVectorStore, StoredChunkVector
+from app.storage.vector_store import StoredChunkVector, VectorStore
 
 _ALLOWED_DOC_EXTENSIONS = {".pdf", ".docx", ".xlsx"}
 _ALLOWED_IMAGE_EXTENSIONS = {
@@ -51,8 +51,8 @@ class FileService:
         current_user_id: str,
         file_meta_repository: FileMetaRepository,
         file_store: SessionFileStore,
-        blob_storage: BlobStorageProvider,
-        vector_store: SessionVectorStore,
+        blob_storage: ObjectStorage,
+        vector_store: VectorStore,
         vsellm_client: VseLLMClient,
         usage_recorder: UsageRecorder | None = None,
         usage_store: UsageStore | None = None,
@@ -164,7 +164,7 @@ class FileService:
             raise
 
         object_key = f"sessions/{session_id}/{file_id}_{filename}"
-        self._blob_storage.put_bytes(object_key, target_path.read_bytes())
+        self._blob_storage.put(object_key, target_path.read_bytes(), content_type=content_type)
         target_path.unlink(missing_ok=True)
 
         return StoredSessionFile(
