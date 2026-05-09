@@ -15,6 +15,16 @@ interface WakeWordListenerProps {
 }
 
 declare global {
+  interface WakeWordRecognitionEngine {
+    lang: string;
+    continuous: boolean;
+    interimResults: boolean;
+    onresult: ((event: WakeWordRecognitionEvent) => void) | null;
+    onerror: (() => void) | null;
+    onend: (() => void) | null;
+    start: () => void;
+    stop: () => void;
+  }
   interface WakeWordRecognitionResult {
     0?: { transcript?: string };
   }
@@ -23,26 +33,8 @@ declare global {
     results: WakeWordRecognitionResult[];
   }
   interface Window {
-    SpeechRecognition?: new () => {
-      lang: string;
-      continuous: boolean;
-      interimResults: boolean;
-      onresult: ((event: WakeWordRecognitionEvent) => void) | null;
-      onerror: (() => void) | null;
-      onend: (() => void) | null;
-      start: () => void;
-      stop: () => void;
-    };
-    webkitSpeechRecognition?: new () => {
-      lang: string;
-      continuous: boolean;
-      interimResults: boolean;
-      onresult: ((event: WakeWordRecognitionEvent) => void) | null;
-      onerror: (() => void) | null;
-      onend: (() => void) | null;
-      start: () => void;
-      stop: () => void;
-    };
+    SpeechRecognition?: new () => WakeWordRecognitionEngine;
+    webkitSpeechRecognition?: new () => WakeWordRecognitionEngine;
   }
 }
 
@@ -60,7 +52,7 @@ export default function WakeWordListener({
   onStopped,
 }: WakeWordListenerProps) {
   const [state, setState] = useState<WakeWordState>("idle");
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<WakeWordRecognitionEngine | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const runningRef = useRef(false);

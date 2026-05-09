@@ -577,4 +577,4 @@ class ObserverService:
     @staticmethod
     def _build_dedup_key(result: DetectorResult) -> str:
         raw = f"{result.detector}:{result.dedup_hint}:{result.title}:{result.details}"
-        return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()

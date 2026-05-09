@@ -1,83 +1,42 @@
-# Asya Local
+# Asya v1.0
 
-Asya Local — локальная PWA-версия персонального ИИ-ассистента Asya с backend на FastAPI.
+Asya — персональный AI-ассистент с multi-user архитектурой, памятью, интеграциями, голосовым режимом и публичным release-контуром.
 
-Репозиторий: `ajotce/asya-assistant`
+Репозиторий: `ajotce/asya-assistant`  
+Актуальная релизная линия: `v1.0.0` (готовность к тегу)
 
-Текущий релизный статус: подготовка релиза v1.0 в ветке `1.0-public`.
+## Быстрый старт
 
-Текущая фаза: `1.0 — Voice & Public Release`.
-
-На текущем этапе регистрации работают в режиме invite-only (этап A), а cloud-deploy (инфраструктура, CI/CD, Terraform) находится в подготовке.
-
-Закрытый scope предыдущей фазы v0.5:
-- GitHub read-only integration;
-- Bitrix24 read-only integration;
-- IMAP-readonly integration;
-- file-storage providers foundation (`yandex_disk` / `onedrive` / `icloud_drive`);
-- security hardening логов (без утечек setup-token и raw email-body).
-
-Перенесённый продуктовый scope в работу фазы 1.0:
-- полный product scope document templates (end-to-end DOCX/PDF pipeline);
-- полный product scope briefings/workflows.
-
-## Один сценарий запуска с нуля
-
-### 1. Подготовка окружения
-Нужны:
-- Docker + Docker Compose
-- `python3` (локально, если запускаете backend тесты без контейнера)
-
-### 2. Подготовка переменных
+1. Подготовьте окружение:
 ```bash
 cp .env.example .env
 ```
 
-По умолчанию приложение доступно на `http://localhost:8000`.
-Если вы измените `ASYA_PORT` в `.env`, используйте свой порт.
-
-### 3. Сборка frontend
+2. Соберите frontend:
 ```bash
 make build-frontend
 ```
 
-### 4. Запуск backend + раздача frontend
+3. Поднимите backend:
 ```bash
 docker compose up --build
 ```
 
-При старте backend автоматически запускает Alembic bootstrap:
-- для чистой БД применяется `upgrade head`;
-- для legacy БД 0.2 без `alembic_version` выполняется безопасный `stamp` до `20260502_03` и затем `upgrade` до актуальной схемы v0.3.
-
-### 5. Проверка, что всё поднялось
-В новом терминале:
+4. Проверьте health:
 ```bash
-PORT=$(grep '^ASYA_PORT=' .env | cut -d= -f2)
-curl "http://localhost:${PORT}/api/health"
-curl "http://localhost:${PORT}/" | head -n 2
-curl "http://localhost:${PORT}/manifest.webmanifest" | head -n 2
+curl http://localhost:8000/healthz
+curl http://localhost:8000/api/health
 ```
 
-Ожидаемо:
-- `/api/health` возвращает `200` и JSON со `status: "ok"`;
-- `/` возвращает HTML (начинается с `<!doctype html>`);
-- `/manifest.webmanifest` возвращает JSON манифеста.
+## Основные команды
 
-### 6. Остановка
 ```bash
-docker compose down
+make test
+make lint
+make build-frontend
 ```
 
-## Основные команды разработки
-```bash
-make lint            # frontend ESLint
-make build-frontend  # сборка frontend
-make test            # backend pytest
-```
-
-Backend требует Python `>=3.12`. Если локально версия ниже (например, 3.9), используйте контейнерные команды:
-
+Если локальный Python < 3.12, используйте контейнерные backend-проверки:
 ```bash
 make backend-py312-pytest
 make backend-py312-ruff
@@ -85,32 +44,24 @@ make backend-py312-mypy
 make backend-py312-all
 ```
 
-Frontend unit-тесты:
-```bash
-docker run --rm -v "$PWD/frontend:/work" -w /work node:20-alpine sh -lc "npm ci && npm test"
-```
+## Документация
 
-## Alpha/Beta onboarding (v0.4)
+- [Roadmap](docs/roadmap.md)
+- [Acceptance v1.0](docs/acceptance/v1.0.md)
+- [API](docs/api.md)
+- [Architecture](docs/architecture.md)
+- [Security](docs/security.md)
+- [Security Audit v1.0](docs/security-audit-v1.0.md)
+- [Load Test v1.0](docs/load-test-v1.0.md)
+- [Deployment](docs/deployment.md)
+- [Development](docs/development.md)
+- [Testing](docs/testing.md)
+- [User Guide](docs/user-guide.md)
+- [FAQ](docs/faq.md)
+- [Development Log](docs/development-log.md)
 
-- Публичная форма: `POST /api/access-requests`.
-- Admin approve/reject: `/api/admin/access-requests/*`.
-- При approve создаётся one-time setup link (`/setup-password?token=...`) для задания пароля.
-- Это не passwordless login: после setup пользователь входит через обычный email+password.
+## Release
 
-## Production запуск (Caddy)
+- Текущий release artifact: `CHANGELOG.md`
+- Черновик анонса: `docs/release-v1.0-announcement.md` (не публиковать)
 
-- Локальный сценарий остаётся через `docker-compose.yml`.
-- Production: `docker compose -f docker-compose.prod.yml up --build -d`.
-
-## Документы проекта
-- `AGENTS.md`
-- `CLAUDE.md`
-- `docs/api.md`
-- `docs/architecture.md`
-- `docs/development.md`
-- `docs/testing.md`
-- `docs/development-log.md`
-- `docs/decisions.md`
-- `docs/archive/mvp/asya-mvp-tech-spec.md`
-- `docs/archive/mvp/asya-mvp-development-plan.md`
-- `docs/archive/mvp/codex-mvp-completion-prompts.md`

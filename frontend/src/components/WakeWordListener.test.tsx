@@ -13,7 +13,7 @@ describe("WakeWordListener", () => {
       lang = "ru-RU";
       continuous = true;
       interimResults = true;
-      onresult: ((event: SpeechRecognitionEvent) => void) | null = null;
+      onresult: ((event: WakeWordRecognitionEvent) => void) | null = null;
       onerror: (() => void) | null = null;
       onend: (() => void) | null = null;
       start = start;
