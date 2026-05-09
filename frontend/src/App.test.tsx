@@ -266,6 +266,9 @@ describe("App routing", () => {
       assistant_name: "Asya",
       selected_model: "openai/gpt-5",
       system_prompt: "System prompt",
+      wakeword_enabled: false,
+      wakeword_phrase: "ася",
+      wakeword_sensitivity: 0.5,
       api_key_configured: true,
     });
     vi.mocked(getModels).mockResolvedValue([{ id: "openai/gpt-5" }]);

@@ -287,3 +287,11 @@ Spaces API во frontend (используется в `ChatPage`):
 - `POST /api/integrations/telegram/notify-test` — отправить тестовое уведомление
 
 Привязка: пользователь получает `one_time_token`, переходит по ссылке `https://t.me/<bot>?start=<token>` в Telegram — бот обрабатывает `/start <token>` и связывает аккаунты.
+
+### 10.1 Дополнения v1.0.10
+
+- `POST /api/voice/listen` — STT для режима «Слушаю» (multipart/form-data, поле `audio`).
+- `GET/PUT /api/settings` теперь включают поля:
+  - `wakeword_enabled: bool`
+  - `wakeword_phrase: string` (`ася|асья|asya`)
+  - `wakeword_sensitivity: float (0.0..1.0)`

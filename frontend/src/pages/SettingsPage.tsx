@@ -76,12 +76,18 @@ interface SettingsFormState {
   assistant_name: string;
   selected_model: string;
   system_prompt: string;
+  wakeword_enabled: boolean;
+  wakeword_phrase: string;
+  wakeword_sensitivity: number;
 }
 
 const emptyState: SettingsFormState = {
   assistant_name: "",
   selected_model: "",
   system_prompt: "",
+  wakeword_enabled: false,
+  wakeword_phrase: "ася",
+  wakeword_sensitivity: 0.5,
 };
 
 export default function SettingsPage({ themePreference, onThemePreferenceChange, currentUserRole }: SettingsPageProps) {
@@ -263,6 +269,9 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
       assistant_name: settings.assistant_name,
       selected_model: settings.selected_model,
       system_prompt: settings.system_prompt,
+      wakeword_enabled: settings.wakeword_enabled,
+      wakeword_phrase: settings.wakeword_phrase,
+      wakeword_sensitivity: settings.wakeword_sensitivity,
     });
     setApiKeyConfigured(settings.api_key_configured);
   }
@@ -641,6 +650,40 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
           value={form.system_prompt}
           onChange={(event) => updateField("system_prompt", event.target.value)}
           rows={6}
+        />
+        <label className="settings-form__label">
+          <input
+            type="checkbox"
+            checked={form.wakeword_enabled}
+            onChange={(event) => updateField("wakeword_enabled", event.target.checked)}
+          />{" "}
+          Wake-word в активной вкладке
+        </label>
+        <label className="settings-form__label" htmlFor="wakeword-phrase">
+          Wake-word фраза
+        </label>
+        <select
+          id="wakeword-phrase"
+          className="settings-form__input"
+          value={form.wakeword_phrase}
+          onChange={(event) => updateField("wakeword_phrase", event.target.value)}
+        >
+          <option value="ася">ася</option>
+          <option value="асья">асья</option>
+          <option value="asya">asya</option>
+        </select>
+        <label className="settings-form__label" htmlFor="wakeword-sensitivity">
+          Wake-word sensitivity: {form.wakeword_sensitivity.toFixed(2)}
+        </label>
+        <input
+          id="wakeword-sensitivity"
+          className="settings-form__input"
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={form.wakeword_sensitivity}
+          onChange={(event) => updateField("wakeword_sensitivity", Number(event.target.value))}
         />
 
         <button type="submit" className="settings-form__submit" disabled={saving || selectedModelIsChatUnsupported}>

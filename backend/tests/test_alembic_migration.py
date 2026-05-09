@@ -35,8 +35,12 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path, monkeypatch) -> None:
     assert "telegram_link_tokens" in inspector.get_table_names()
     assert "user_voice_settings" in inspector.get_table_names()
     assert "signup_tokens" in inspector.get_table_names()
+    user_settings_columns = {column["name"] for column in inspector.get_columns("user_settings")}
+    assert "wakeword_enabled" in user_settings_columns
+    assert "wakeword_phrase" in user_settings_columns
+    assert "wakeword_sensitivity" in user_settings_columns
 
     with engine.connect() as conn:
         revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert revision == "20260508_02"
+    assert revision == "20260509_01"
     get_settings.cache_clear()
