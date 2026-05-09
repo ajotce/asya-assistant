@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { authLogout, authMe } from "./api/client";
+import PublicFooter from "./components/PublicFooter";
 import AppHeader from "./components/AppHeader";
 import NavTabs, { type AppTab } from "./components/NavTabs";
 import { useTheme } from "./hooks/useTheme";
+import { applySeo } from "./seo";
 import AuthPage from "./pages/AuthPage";
 import ActivityPage from "./pages/ActivityPage";
 import ChatPage from "./pages/ChatPage";
@@ -12,11 +14,17 @@ import MemoryPage from "./pages/MemoryPage";
 import ObserverPage from "./pages/ObserverPage";
 import SettingsPage from "./pages/SettingsPage";
 import StatusPage from "./pages/StatusPage";
+import LandingPage from "./pages/public/LandingPage";
+import LegalPage from "./pages/public/LegalPage";
+import RequestAccessPage from "./pages/public/RequestAccessPage";
 import type { AuthUser } from "./types/api";
 import "./styles/app.css";
 
+const PUBLIC_PATHS = new Set(["/", "/request-access", "/privacy", "/terms", "/data-policy"]);
+
 export default function App() {
   const { preference: themePreference, setPreference: setThemePreference } = useTheme();
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [activeTab, setActiveTab] = useState<AppTab>(() => getTabFromPath(window.location.pathname));
   const [mountedTabs, setMountedTabs] = useState<Record<AppTab, boolean>>(() =>
     buildInitialMountedTabs(getTabFromPath(window.location.pathname))
@@ -27,6 +35,9 @@ export default function App() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [preferredChatId, setPreferredChatId] = useState<string | null>(null);
   const [observerDiscussDraft, setObserverDiscussDraft] = useState<string | null>(null);
+
+  const isPublicPath = useMemo(() => PUBLIC_PATHS.has(currentPath), [currentPath]);
+  const isSetupPath = useMemo(() => currentPath.startsWith("/setup-password"), [currentPath]);
 
   useEffect(() => {
     let active = true;
@@ -67,7 +78,9 @@ export default function App() {
 
   useEffect(() => {
     function handlePopState() {
-      const tab = getTabFromPath(window.location.pathname);
+      const nextPath = window.location.pathname;
+      setCurrentPath(nextPath);
+      const tab = getTabFromPath(nextPath);
       setActiveTab(tab);
       setMountedTabs((prev) => markTabMounted(prev, tab));
     }
@@ -76,13 +89,41 @@ export default function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  function handleTabChange(tab: AppTab) {
-    setActiveTab(tab);
-    setMountedTabs((prev) => markTabMounted(prev, tab));
-    const nextPath = getPathForTab(tab);
-    if (window.location.pathname !== nextPath) {
-      window.history.pushState(null, "", nextPath);
+  useEffect(() => {
+    if (!currentUser) {
+      return;
     }
+    if (isPublicPath) {
+      window.history.replaceState(null, "", "/chat");
+      setCurrentPath("/chat");
+      setActiveTab("chat");
+      setMountedTabs((prev) => markTabMounted(prev, "chat"));
+    }
+  }, [currentUser, isPublicPath]);
+
+  useEffect(() => {
+    if (currentUser) {
+      applySeo({
+        title: "Asya App",
+        description: "Рабочее пространство Asya.",
+        path: currentPath,
+      });
+    }
+  }, [currentUser, currentPath]);
+
+  function navigate(path: string, tab?: AppTab) {
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, "", path);
+    }
+    setCurrentPath(path);
+    if (tab) {
+      setActiveTab(tab);
+      setMountedTabs((prev) => markTabMounted(prev, tab));
+    }
+  }
+
+  function handleTabChange(tab: AppTab) {
+    navigate(getPathForTab(tab), tab);
   }
 
   async function handleLogout() {
@@ -94,9 +135,7 @@ export default function App() {
       setPreferredChatId(null);
       setMountedTabs(buildInitialMountedTabs("chat"));
       setActiveTab("chat");
-      if (window.location.pathname !== "/") {
-        window.history.pushState(null, "", "/");
-      }
+      navigate("/");
     } catch (error) {
       setAuthError(getErrorMessage(error));
     } finally {
@@ -110,10 +149,10 @@ export default function App() {
     setAuthError(null);
     setMountedTabs((prev) => markTabMounted(prev, "chat"));
     setActiveTab("chat");
-    if (window.location.pathname !== "/") {
-      window.history.pushState(null, "", "/");
-    }
+    navigate("/chat", "chat");
   }
+
+  const publicPage = renderPublicPage(currentPath);
 
   return (
     <div className="app-shell">
@@ -128,13 +167,21 @@ export default function App() {
                 {logoutLoading ? "Выход..." : "Выйти"}
               </button>
             </div>
-          ) : null
+          ) : (
+            <a className="chat-action-button" href="/request-access">
+              Запросить инвайт
+            </a>
+          )
         }
       />
       {authLoading ? <p className="status-text">Проверка авторизации...</p> : null}
       {authError ? <p className="status-text status-text--error">{authError}</p> : null}
       {!authLoading && !currentUser ? (
-        <AuthPage onAuthenticated={handleAuthenticated} />
+        isPublicPath ? (
+          publicPage
+        ) : (
+          <AuthPage onAuthenticated={handleAuthenticated} forceSetupMode={isSetupPath} />
+        )
       ) : null}
       {!authLoading && currentUser ? (
         <>
@@ -192,8 +239,25 @@ export default function App() {
           </div>
         </>
       ) : null}
+      <PublicFooter />
     </div>
   );
+}
+
+function renderPublicPage(pathname: string) {
+  if (pathname === "/request-access") {
+    return <RequestAccessPage />;
+  }
+  if (pathname === "/privacy") {
+    return <LegalPage variant="privacy" />;
+  }
+  if (pathname === "/terms") {
+    return <LegalPage variant="terms" />;
+  }
+  if (pathname === "/data-policy") {
+    return <LegalPage variant="data-policy" />;
+  }
+  return <LandingPage />;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -263,5 +327,5 @@ function getPathForTab(tab: AppTab): string {
   if (tab === "status") {
     return "/status";
   }
-  return "/";
+  return "/chat";
 }
