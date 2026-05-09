@@ -27,6 +27,10 @@ class RegistrationClosedError(ValueError):
     pass
 
 
+class RegistrationModeError(ValueError):
+    pass
+
+
 class AuthService:
     PASSWORD_SCHEME = "pbkdf2_sha256"
     PASSWORD_ITERATIONS = 210_000
@@ -41,7 +45,10 @@ class AuthService:
         self._chat_service = ChatServiceV2(session)
 
     def register(self, *, email: str, display_name: str, password: str) -> User:
-        if self._settings.auth_registration_mode.lower() != "open":
+        mode = self._settings.effective_registration_mode
+        if mode == "open_with_oauth_only":
+            raise RegistrationModeError("Регистрация по email+паролю отключена. Используйте OAuth вход.")
+        if mode != "open":
             self._access_requests.submit_request(
                 email=email,
                 display_name=display_name,
@@ -59,6 +66,43 @@ class AuthService:
             )
         except UserAlreadyExistsError as exc:
             raise AuthError(str(exc)) from exc
+
+    def oauth_login_or_register(
+        self, *, email: str, display_name: str, provider: str
+    ) -> tuple[User, str, str]:
+        user = self._users.get_by_email(email)
+        if user is None:
+            mode = self._settings.effective_registration_mode
+            if mode == "invite_only":
+                raise RegistrationClosedError("Регистрация через OAuth требует invite на этапе invite-only.")
+            if mode not in {"open_with_oauth_only", "open"}:
+                raise RegistrationModeError("Регистрация отключена текущими настройками.")
+            try:
+                user = self._user_service.create_user(
+                    email=email,
+                    display_name=display_name or f"{provider.capitalize()} user",
+                    password_hash=None,
+                    status=UserStatus.ACTIVE,
+                )
+            except UserAlreadyExistsError as exc:
+                raise AuthError(str(exc)) from exc
+        elif user.status != UserStatus.ACTIVE:
+            raise AuthError("Пользователь не активен.")
+
+        preferred_chat = self._chat_service.get_preferred_chat(user.id)
+        raw_token = self._generate_session_token()
+        token_hash = self._hash_session_token(raw_token)
+        expires_at = self._now() + timedelta(hours=self._settings.auth_session_ttl_hours)
+        self._auth_sessions.create(user_id=user.id, session_token_hash=token_hash, expires_at=expires_at)
+        self._session.commit()
+        return user, raw_token, preferred_chat.id
+
+    def mark_onboarding_completed(self, user: User) -> User:
+        user.onboarding_completed = True
+        self._users.save(user)
+        self._session.commit()
+        self._session.refresh(user)
+        return user
 
     def login(self, *, email: str, password: str) -> tuple[User, str, str]:
         user = self._users.get_by_email(email)

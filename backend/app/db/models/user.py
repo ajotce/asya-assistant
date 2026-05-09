@@ -4,6 +4,7 @@ from typing import Optional
 
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import String
+from sqlalchemy import Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -26,3 +27,4 @@ class User(Base, IdMixin, TimestampMixin):
         nullable=False,
         default=UserStatus.PENDING,
     )
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

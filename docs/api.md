@@ -150,7 +150,10 @@ PKCE и state:
 
 Дополнение v0.4 finalization:
 - `POST /api/auth/setup-password` — установка пароля по одноразовому signup token;
+- `POST /api/auth/signup` — регистрация email+password (поведение зависит от `REGISTRATION_MODE`);
 - `POST /api/admin/access-requests/{id}/approve` теперь возвращает `setup_link`;
+- `GET /api/auth/oauth/{provider}/callback` (`provider=google|yandex`) — OAuth login/signup callback;
+- `POST /api/auth/onboarding/complete` — завершение/пропуск onboarding;
 - в `POST /api/chat/stream` добавлен command-routing для tools:
   - `/tool calendar list|create ...`
   - `/tool todoist list|create ...`

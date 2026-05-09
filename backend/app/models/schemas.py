@@ -325,6 +325,7 @@ class AuthUserResponse(BaseModel):
     role: str
     status: str
     preferred_chat_id: Optional[str] = None
+    onboarding_completed: bool = False
 
 
 class AuthRegisterResponse(BaseModel):

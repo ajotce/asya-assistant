@@ -1,5 +1,6 @@
 from app.api.deps_auth import get_db_session
 from app.core.config import get_settings
+from app.core.rate_limit import limiter
 from app.db.base import Base
 from app.db.models.auth_session import AuthSession
 from app.db.models.chat import Chat
@@ -20,6 +21,7 @@ from app.db.models.common import UserStatus
 def _setup_test_db(tmp_path, monkeypatch):
     db_path = tmp_path / "auth.sqlite3"
     monkeypatch.setenv("ASYA_DB_PATH", db_path.as_posix())
+    monkeypatch.setenv("REGISTRATION_MODE", "open")
     monkeypatch.setenv("AUTH_REGISTRATION_MODE", "open")
     monkeypatch.setenv("AUTH_SESSION_HASH_SECRET", "test-secret")
     monkeypatch.setenv("AUTH_COOKIE_NAME", "asya_session")
@@ -29,6 +31,7 @@ def _setup_test_db(tmp_path, monkeypatch):
     settings = get_settings()
     engine = get_engine(settings.asya_db_url)
     Base.metadata.create_all(engine)
+    limiter._storage.reset()  # noqa: SLF001
     return settings, engine
 
 
@@ -59,6 +62,7 @@ def test_auth_register_login_me_logout_flow(tmp_path, monkeypatch) -> None:
     assert register.status_code == 200
     assert register.json()["status"] == "registered"
     assert register.json()["user"]["email"] == "user@example.com"
+    assert register.json()["user"]["onboarding_completed"] is False
 
     login = client.post("/api/auth/login", json={"email": "user@example.com", "password": "strong-pass-123"})
     assert login.status_code == 200
@@ -136,6 +140,7 @@ def test_registration_closed_saves_access_request(tmp_path, monkeypatch) -> None
     settings = get_settings()
     engine = get_engine(settings.asya_db_url)
     Base.metadata.create_all(engine)
+    limiter._storage.reset()  # noqa: SLF001
     app.dependency_overrides[get_db_session] = _override_db_session(engine)
 
     client = TestClient(app)
@@ -160,6 +165,7 @@ def test_approved_access_request_requires_setup_password_then_allows_login(tmp_p
     settings = get_settings()
     engine = get_engine(settings.asya_db_url)
     Base.metadata.create_all(engine)
+    limiter._storage.reset()  # noqa: SLF001
     app.dependency_overrides[get_db_session] = _override_db_session(engine)
 
     admin_client = TestClient(app)
@@ -243,6 +249,7 @@ def test_session_token_expired_is_rejected(tmp_path, monkeypatch) -> None:
     settings = get_settings()
     engine = get_engine(settings.asya_db_url)
     Base.metadata.create_all(engine)
+    limiter._storage.reset()  # noqa: SLF001
     app.dependency_overrides[get_db_session] = _override_db_session(engine)
 
     client = TestClient(app)
@@ -255,6 +262,116 @@ def test_session_token_expired_is_rejected(tmp_path, monkeypatch) -> None:
 
     me = client.get("/api/auth/me")
     assert me.status_code == 401
+    app.dependency_overrides.clear()
+
+
+def test_registration_mode_open_with_oauth_only_blocks_signup(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "auth-oauth-only.sqlite3"
+    monkeypatch.setenv("ASYA_DB_PATH", db_path.as_posix())
+    monkeypatch.setenv("REGISTRATION_MODE", "open_with_oauth_only")
+    monkeypatch.setenv("AUTH_SESSION_HASH_SECRET", "test-secret")
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    settings = get_settings()
+    engine = get_engine(settings.asya_db_url)
+    Base.metadata.create_all(engine)
+    app.dependency_overrides[get_db_session] = _override_db_session(engine)
+    client = TestClient(app)
+    response = client.post(
+        "/api/auth/signup",
+        json={"email": "blocked@example.com", "display_name": "Blocked", "password": "strong-pass-123"},
+    )
+    assert response.status_code == 403
+    app.dependency_overrides.clear()
+
+
+def test_registration_mode_invite_only_oauth_denies_new_user(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "auth-invite-only.sqlite3"
+    monkeypatch.setenv("ASYA_DB_PATH", db_path.as_posix())
+    monkeypatch.setenv("REGISTRATION_MODE", "invite_only")
+    monkeypatch.setenv("AUTH_SESSION_HASH_SECRET", "test-secret")
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    settings = get_settings()
+    engine = get_engine(settings.asya_db_url)
+    Base.metadata.create_all(engine)
+    app.dependency_overrides[get_db_session] = _override_db_session(engine)
+    client = TestClient(app)
+    response = client.get("/api/auth/oauth/google/callback?email=new@example.com&display_name=New")
+    assert response.status_code == 403
+    app.dependency_overrides.clear()
+
+
+def test_registration_mode_open_with_oauth_only_allows_oauth_signup(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "auth-oauth-open.sqlite3"
+    monkeypatch.setenv("ASYA_DB_PATH", db_path.as_posix())
+    monkeypatch.setenv("REGISTRATION_MODE", "open_with_oauth_only")
+    monkeypatch.setenv("AUTH_SESSION_HASH_SECRET", "test-secret")
+    monkeypatch.setenv("AUTH_COOKIE_NAME", "asya_session")
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    settings = get_settings()
+    engine = get_engine(settings.asya_db_url)
+    Base.metadata.create_all(engine)
+    app.dependency_overrides[get_db_session] = _override_db_session(engine)
+    client = TestClient(app)
+    response = client.get("/api/auth/oauth/yandex/callback?email=oauth@example.com&display_name=OAuth")
+    assert response.status_code == 200
+    assert response.cookies.get(settings.auth_cookie_name)
+    app.dependency_overrides.clear()
+
+
+def test_signup_rate_limit_10_per_minute(tmp_path, monkeypatch) -> None:
+    settings, engine = _setup_test_db(tmp_path, monkeypatch)
+    app.dependency_overrides[get_db_session] = _override_db_session(engine)
+    client = TestClient(app)
+    for i in range(10):
+        email = f"rate-{i}@example.com"
+        response = client.post(
+            "/api/auth/signup",
+            json={"email": email, "display_name": f"User{i}", "password": "strong-pass-123"},
+        )
+        assert response.status_code == 200
+    limited = client.post(
+        "/api/auth/signup",
+        json={"email": "rate-final@example.com", "display_name": "Final", "password": "strong-pass-123"},
+    )
+    assert limited.status_code == 429
+    app.dependency_overrides.clear()
+
+
+def test_oauth_callback_rate_limit_10_per_minute(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "auth-oauth-rate.sqlite3"
+    monkeypatch.setenv("ASYA_DB_PATH", db_path.as_posix())
+    monkeypatch.setenv("REGISTRATION_MODE", "open_with_oauth_only")
+    monkeypatch.setenv("AUTH_SESSION_HASH_SECRET", "test-secret")
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    settings = get_settings()
+    engine = get_engine(settings.asya_db_url)
+    Base.metadata.create_all(engine)
+    app.dependency_overrides[get_db_session] = _override_db_session(engine)
+    client = TestClient(app)
+    for i in range(10):
+        response = client.get(f"/api/auth/oauth/google/callback?email=cb-{i}@example.com&display_name=User{i}")
+        assert response.status_code == 200
+    limited = client.get("/api/auth/oauth/google/callback?email=cb-final@example.com&display_name=Final")
+    assert limited.status_code == 429
+    app.dependency_overrides.clear()
+
+
+def test_onboarding_complete_sets_flag(tmp_path, monkeypatch) -> None:
+    settings, engine = _setup_test_db(tmp_path, monkeypatch)
+    app.dependency_overrides[get_db_session] = _override_db_session(engine)
+    client = TestClient(app)
+    client.post(
+        "/api/auth/signup",
+        json={"email": "onboarding@example.com", "display_name": "Onboarding", "password": "strong-pass-123"},
+    )
+    client.post("/api/auth/login", json={"email": "onboarding@example.com", "password": "strong-pass-123"})
+    response = client.post("/api/auth/onboarding/complete")
+    assert response.status_code == 200
+    assert response.json()["onboarding_completed"] is True
     app.dependency_overrides.clear()
 
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { authLogout, authMe } from "./api/client";
+import { authLogout, authMe, completeOnboarding } from "./api/client";
 import AppHeader from "./components/AppHeader";
 import NavTabs, { type AppTab } from "./components/NavTabs";
 import { useTheme } from "./hooks/useTheme";
@@ -27,6 +27,7 @@ export default function App() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [preferredChatId, setPreferredChatId] = useState<string | null>(null);
   const [observerDiscussDraft, setObserverDiscussDraft] = useState<string | null>(null);
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -115,6 +116,19 @@ export default function App() {
     }
   }
 
+  async function handleOnboardingComplete() {
+    setOnboardingSaving(true);
+    try {
+      const user = await completeOnboarding();
+      setCurrentUser(user);
+      setPreferredChatId(user.preferred_chat_id ?? null);
+    } catch (error) {
+      setAuthError(getErrorMessage(error));
+    } finally {
+      setOnboardingSaving(false);
+    }
+  }
+
   return (
     <div className="app-shell">
       <AppHeader
@@ -136,7 +150,10 @@ export default function App() {
       {!authLoading && !currentUser ? (
         <AuthPage onAuthenticated={handleAuthenticated} />
       ) : null}
-      {!authLoading && currentUser ? (
+      {!authLoading && currentUser && !currentUser.onboarding_completed ? (
+        <OnboardingFlow onComplete={handleOnboardingComplete} saving={onboardingSaving} />
+      ) : null}
+      {!authLoading && currentUser && currentUser.onboarding_completed ? (
         <>
           <NavTabs activeTab={activeTab} onChange={handleTabChange} />
           <div className="tab-panels">
@@ -193,6 +210,39 @@ export default function App() {
         </>
       ) : null}
     </div>
+  );
+}
+
+function OnboardingFlow({ onComplete, saving }: { onComplete: () => Promise<void>; saving: boolean }) {
+  const [step, setStep] = useState(0);
+
+  return (
+    <section className="page auth-page" aria-label="Онбординг Asya">
+      <h2 className="page__title">Добро пожаловать в Asya</h2>
+      <p className="status-text">Шаг {step + 1} из 5</p>
+      {step === 0 ? <p className="status-text">Asya — личный ассистент для задач, чатов и памяти.</p> : null}
+      {step === 1 ? <p className="status-text">Вы можете вести Base-chat, дневник и ленту активности.</p> : null}
+      {step === 2 ? <p className="status-text">Подключите первую интеграцию в Settings для полезного контекста.</p> : null}
+      {step === 3 ? <p className="status-text">Настройте имя и голос ассистента в Settings.</p> : null}
+      {step === 4 ? <p className="status-text">Готово. После завершения откроется Base-chat.</p> : null}
+      <div className="auth-switcher" role="group" aria-label="Управление онбордингом">
+        <button type="button" className="chat-action-button" onClick={() => void onComplete()} disabled={saving}>
+          Пропустить
+        </button>
+        <button type="button" className="chat-action-button" onClick={() => setStep((prev) => Math.max(0, prev - 1))} disabled={saving || step === 0}>
+          Назад
+        </button>
+        {step < 4 ? (
+          <button type="button" className="chat-action-button" onClick={() => setStep((prev) => Math.min(4, prev + 1))} disabled={saving}>
+            Далее
+          </button>
+        ) : (
+          <button type="button" className="settings-form__submit" onClick={() => void onComplete()} disabled={saving}>
+            {saving ? "Сохранение..." : "Перейти в чат"}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 

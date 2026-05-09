@@ -41,6 +41,7 @@ import {
   streamChat,
   updateSettings,
   uploadSessionFiles,
+  completeOnboarding,
 } from "./api/client";
 
 vi.mock("./api/client", () => ({
@@ -84,6 +85,7 @@ vi.mock("./api/client", () => ({
   getSettings: vi.fn(),
   getModels: vi.fn(),
   updateSettings: vi.fn(),
+  completeOnboarding: vi.fn(),
   getHealth: vi.fn(),
   getUsage: vi.fn(),
 }));
@@ -128,6 +130,7 @@ describe("App routing", () => {
     vi.mocked(getSettings).mockReset();
     vi.mocked(getModels).mockReset();
     vi.mocked(updateSettings).mockReset();
+    vi.mocked(completeOnboarding).mockReset();
     vi.mocked(getHealth).mockReset();
     vi.mocked(getUsage).mockReset();
 
@@ -138,6 +141,7 @@ describe("App routing", () => {
       role: "user",
       status: "active",
       preferred_chat_id: "base-chat-1",
+      onboarding_completed: true,
     });
     vi.mocked(authLogin).mockResolvedValue({
       id: "user-1",
@@ -146,6 +150,7 @@ describe("App routing", () => {
       role: "user",
       status: "active",
       preferred_chat_id: "base-chat-1",
+      onboarding_completed: true,
     });
     vi.mocked(authRegister).mockResolvedValue({ status: "registered" });
     vi.mocked(authLogout).mockResolvedValue({ status: "ok" });
@@ -183,6 +188,7 @@ describe("App routing", () => {
         role: "user",
         status: "active",
         preferred_chat_id: "base-chat-2",
+        onboarding_completed: true,
       },
     });
     vi.mocked(rejectAdminAccessRequest).mockResolvedValue({
@@ -276,6 +282,15 @@ describe("App routing", () => {
       ...payload,
       api_key_configured: true,
     }));
+    vi.mocked(completeOnboarding).mockResolvedValue({
+      id: "user-1",
+      email: "user@example.com",
+      display_name: "User",
+      role: "user",
+      status: "active",
+      preferred_chat_id: "base-chat-1",
+      onboarding_completed: true,
+    });
     vi.mocked(getHealth).mockResolvedValue({
       status: "ok",
       version: "0.1.0",
@@ -375,6 +390,7 @@ describe("App routing", () => {
       role: "admin",
       status: "active",
       preferred_chat_id: "base-chat-1",
+      onboarding_completed: true,
     });
     vi.mocked(listAdminAccessRequests).mockResolvedValue([
       {
@@ -393,5 +409,22 @@ describe("App routing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Настройки" }));
     expect(await screen.findByText("Admin: Заявки на доступ")).toBeInTheDocument();
     expect(await screen.findByText("beta@example.com")).toBeInTheDocument();
+  });
+  it("показывает onboarding и позволяет пропустить", async () => {
+    vi.mocked(authMe).mockResolvedValueOnce({
+      id: "user-1",
+      email: "user@example.com",
+      display_name: "User",
+      role: "user",
+      status: "active",
+      preferred_chat_id: "base-chat-1",
+      onboarding_completed: false,
+    });
+
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Добро пожаловать в Asya" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Пропустить" }));
+    await screen.findByRole("heading", { name: "Чат" });
+    expect(completeOnboarding).toHaveBeenCalledTimes(1);
   });
 });

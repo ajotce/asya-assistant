@@ -513,10 +513,14 @@ export function authLogout(): Promise<{ status: string }> {
 }
 
 export function authRegister(body: AuthRegisterRequest): Promise<AuthRegisterResponse> {
-  return apiFetch<AuthRegisterResponse>("/api/auth/register", {
+  return apiFetch<AuthRegisterResponse>("/api/auth/signup", {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export function completeOnboarding(): Promise<AuthUser> {
+  return apiFetch<AuthUser>("/api/auth/onboarding/complete", { method: "POST" });
 }
 
 export function startUserExport(): Promise<UserExportStartResponse> {

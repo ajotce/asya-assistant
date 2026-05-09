@@ -38,13 +38,13 @@ except ModuleNotFoundError:
     Bitrix24Service = None  # type: ignore[assignment]
 
 try:
-    from app.integrations.imap import (
+    from app.integrations.imap import (  # type: ignore[import-not-found,import-untyped]
         ImapConfigurationError,
         ImapConnectionError,
         ImapMessageNotFoundError,
         ImapService,
         ImapSettings,
-    )  # type: ignore[import-not-found,import-untyped]
+    )
 except ModuleNotFoundError:
     ImapConfigurationError = RuntimeError
     ImapConnectionError = RuntimeError

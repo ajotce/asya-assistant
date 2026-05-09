@@ -1,8 +1,12 @@
 from pathlib import Path
 import uuid
+from typing import Callable, cast
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.requests import Request
 
 from app.api.routes_access_requests import admin_router as admin_access_requests_router
@@ -25,6 +29,7 @@ from app.api.routes_usage import router as usage_router
 from app.api.routes_voice import router as voice_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.rate_limit import limiter
 from app.core.request_context import request_id_ctx
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 
@@ -67,6 +72,12 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         openapi_url="/openapi.json",
     )
+    app.state.limiter = limiter
+    app.add_exception_handler(
+        RateLimitExceeded,
+        cast(Callable, _rate_limit_exceeded_handler),
+    )
+    app.add_middleware(SlowAPIMiddleware)
     app.include_router(health_router, prefix="/api")
     app.include_router(health_router)
     app.include_router(auth_router, prefix="/api")

@@ -179,6 +179,7 @@ export interface AuthUser {
   role: string;
   status: string;
   preferred_chat_id?: string | null;
+  onboarding_completed: boolean;
 }
 
 export interface AuthLoginRequest {

@@ -46,7 +46,8 @@ class Settings(BaseSettings):
     log_format: str = Field(default="json", alias="LOG_FORMAT")
     serve_frontend: bool = Field(default=True, alias="SERVE_FRONTEND")
     frontend_dist_path: str = Field(default="../frontend/dist", alias="FRONTEND_DIST_PATH")
-    auth_registration_mode: str = Field(default="open", alias="AUTH_REGISTRATION_MODE")
+    registration_mode: str = Field(default="invite_only", alias="REGISTRATION_MODE")
+    auth_registration_mode: str = Field(default="", alias="AUTH_REGISTRATION_MODE")
     auth_cookie_name: str = Field(default="asya_session", alias="AUTH_COOKIE_NAME")
     auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
     auth_session_ttl_hours: int = Field(default=168, alias="AUTH_SESSION_TTL_HOURS")
@@ -208,6 +209,18 @@ class Settings(BaseSettings):
             self.postgres_password.strip(),
         ]
         return all(values)
+
+    @property
+    def effective_registration_mode(self) -> str:
+        legacy_mode = self.auth_registration_mode.strip().lower()
+        if legacy_mode == "open":
+            return "open"
+        if legacy_mode == "closed":
+            return "invite_only"
+        mode = self.registration_mode.strip().lower()
+        if mode in {"invite_only", "open_with_oauth_only", "open"}:
+            return mode
+        return "invite_only"
 
 
 @lru_cache
