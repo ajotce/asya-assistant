@@ -168,24 +168,24 @@ Managed-варианты для оценки:
 - подтверждения `/confirm` устойчивы к роутингу между инстансами;
 - для production rollout обязателен отдельный шаг по distributed scheduler (план 1.0.6/1.0.7+).
 
-## ADR-018 (1.0.3): PostgreSQL как production-primary, SQLite как dev/test fallback
+## ADR-018 (R1, 1.0.10): Wake-word provider для активной вкладки
 
 Решение:
-- Production БД для фазы 1.0: `PostgreSQL + pgvector`.
-- Local dev/test fallback: `SQLite` остаётся поддерживаемым и дефолтным для локальной разработки.
-- Конфигурация БД принимается через `ASYA_DATABASE_URL` (или legacy-алиас `DATABASE_URL`) с поддержкой:
-  - `sqlite:///...`
-  - `postgresql+psycopg://...`
+- Для версии 1.0 выбран **browser-side keyword detection через Web Speech API (`SpeechRecognition`)** в активной вкладке браузера.
+- Сигнал wake-word переводит интерфейс в режим «Слушаю», затем аудио команды отправляется на backend `/api/voice/listen` и обрабатывается существующим STT-слоем.
+- При `document.visibilityState !== "visible"` слушание полностью останавливается.
 
-Детали:
-- Alembic миграции выполняются в conditional-режиме по `dialect` (`op.get_bind().dialect.name`).
-- Для PostgreSQL применяется `CREATE EXTENSION IF NOT EXISTS vector` и миграция `memory_chunks.embedding` к `vector(N)`.
-- Для SQLite ветка pgvector-миграции остаётся no-op без поломки dev окружения.
+Сравнение вариантов:
+- **Picovoice Porcupine**: есть Web SDK и готовый browser API, но нужен `accessKey` и отдельное лицензирование/операционное управление ключами.
+- **OpenWakeWord**: open-source (Apache-2.0), но базовый production-path — Python backend c websocket-streaming из браузера, что усложняет 1.0 контур.
+- **Browser-side (`SpeechRecognition`)**: без дополнительных SDK/ключей, минимальная интеграционная сложность в текущем web-контуре, достаточен для 1.0 scope (foreground-only, без barge-in).
 
-Рекомендация managed-варианта (финал R6):
-- Для РФ-юзеров и текущего 1.0 окна рекомендуется **Yandex Managed PostgreSQL** как baseline.
-- Допустимые альтернативы: AWS RDS PostgreSQL / Selectel Managed PostgreSQL.
+Почему:
+- 1.0 ограничен активной вкладкой и последовательным диалогом без interrupt (G5 вне scope).
+- Нужно минимизировать time-to-delivery и операционные риски.
+- В текущей архитектуре уже есть STT endpoint и voice settings, поэтому добавление wake-word в браузере даёт наименьшую стоимость изменений.
 
-Последствия:
-- `docker compose` получает профиль `postgres` для локального smoke прогона PostgreSQL-режима.
-- Добавляется CLI-утилита `python -m backend.cli db migrate-to-postgres --source ... --dest ... --dry-run` для тестовой/предпрод миграции данных.
+Ограничения:
+- Зависимость от браузерной поддержки `SpeechRecognition` (в первую очередь Chrome).
+- Качество распознавания wake-word зависит от устройства/шума и не равно dedicated wake-word engine.
+- Для 2.0+ допускается миграция на Porcupine/другой dedicated engine при росте требований по шумоустойчивости.

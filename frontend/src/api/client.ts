@@ -14,6 +14,9 @@ import type {
   UserExportStartResponse,
   UserExportStatusResponse,
   AuthUser,
+  DeleteMeConfirmResponse,
+  DeleteMePrepareResponse,
+  DeleteMeRequest,
   ChatCreateRequest,
   ChatListItem,
   ChatMessageItem,
@@ -68,6 +71,8 @@ import type {
   VoiceSettings,
   VoiceSettingsUpdateRequest,
   VoiceSTTResponse,
+  UserExportStartResponse,
+  UserExportStatusResponse,
 } from "../types/api";
 
 declare global {
@@ -518,6 +523,27 @@ export function authRegister(body: AuthRegisterRequest): Promise<AuthRegisterRes
   });
 }
 
+export function startUserExport(): Promise<UserExportStartResponse> {
+  return apiFetch<UserExportStartResponse>("/api/me/export", { method: "POST" });
+}
+
+export function getUserExportStatus(exportId: string): Promise<UserExportStatusResponse> {
+  return apiFetch<UserExportStatusResponse>(`/api/me/export/${encodeURIComponent(exportId)}`);
+}
+
+export function prepareDeleteMe(body: DeleteMeRequest): Promise<DeleteMePrepareResponse> {
+  return apiFetch<DeleteMePrepareResponse>("/api/me", {
+    method: "DELETE",
+    body: JSON.stringify(body),
+  });
+}
+
+export function confirmDeleteMe(token: string): Promise<DeleteMeConfirmResponse> {
+  return apiFetch<DeleteMeConfirmResponse>(`/api/me/confirm?token=${encodeURIComponent(token)}`, {
+    method: "DELETE",
+  });
+}
+
 export function authSetupPassword(body: AuthSetupPasswordRequest): Promise<AuthUser> {
   return apiFetch<AuthUser>("/api/auth/setup-password", {
     method: "POST",
@@ -612,6 +638,20 @@ export async function sendVoiceSTT(audioBlob: Blob): Promise<VoiceSTTResponse> {
     credentials: "include",
     headers: { "Content-Type": "audio/webm" },
     body: audioBlob,
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, "Ошибка распознавания речи"));
+  }
+  return (await response.json()) as VoiceSTTResponse;
+}
+
+export async function sendVoiceListen(audioBlob: Blob): Promise<VoiceSTTResponse> {
+  const formData = new FormData();
+  formData.append("audio", audioBlob, "listen.webm");
+  const response = await fetch(toApiUrl("/api/voice/listen"), {
+    method: "POST",
+    credentials: "include",
+    body: formData,
   });
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response, "Ошибка распознавания речи"));

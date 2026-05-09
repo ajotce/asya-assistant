@@ -18,3 +18,6 @@ class UserSettings(Base, TimestampMixin):
     assistant_name: Mapped[str] = mapped_column(String(120), nullable=False)
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
     selected_model: Mapped[str] = mapped_column(String(200), nullable=False)
+    wakeword_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
+    wakeword_phrase: Mapped[str] = mapped_column(String(32), nullable=False, default="ася")
+    wakeword_sensitivity: Mapped[float] = mapped_column(nullable=False, default=0.5)

@@ -49,6 +49,18 @@
 
 Все user-data endpoint-ы должны работать только в рамках `current user`.
 
+## User Export / Account Deletion (v1.0.8)
+
+- `POST /api/me/export` — запуск фоновой выгрузки данных пользователя, ответ: `export_id`, `status`.
+- `GET /api/me/export/{export_id}` — статус выгрузки; при `ready` возвращает `download_url` и `expires_at`.
+- `GET /api/me/export/download/{token}` — скачивание ZIP-архива по одноразовому токену (TTL 24 часа).
+- `DELETE /api/me` — шаг 1 удаления учётки: принимает `password`, возвращает `confirmation_token` (TTL 5 минут).
+- `DELETE /api/me/confirm?token=...` — шаг 2 удаления: фактическая очистка данных, создание audit-записи и возврат ссылки на auto-export.
+
+Требования безопасности:
+- Архив не содержит `encrypted_secrets`, OAuth tokens и иные integration secrets.
+- `download` token одноразовый: повторное использование возвращает `404`.
+
 ## 2. Контракт безопасности (обязательно для 0.2/0.3)
 - `401` без валидной сессии там, где требуется auth.
 - `403` для admin-only операций без роли admin.
@@ -288,3 +300,11 @@ Spaces API во frontend (используется в `ChatPage`):
 - `POST /api/integrations/telegram/notify-test` — отправить тестовое уведомление
 
 Привязка: пользователь получает `one_time_token`, переходит по ссылке `https://t.me/<bot>?start=<token>` в Telegram — бот обрабатывает `/start <token>` и связывает аккаунты.
+
+### 10.1 Дополнения v1.0.10
+
+- `POST /api/voice/listen` — STT для режима «Слушаю» (multipart/form-data, поле `audio`).
+- `GET/PUT /api/settings` теперь включают поля:
+  - `wakeword_enabled: bool`
+  - `wakeword_phrase: string` (`ася|асья|asya`)
+  - `wakeword_sensitivity: float (0.0..1.0)`

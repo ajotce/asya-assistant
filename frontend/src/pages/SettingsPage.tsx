@@ -1,17 +1,15 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import {
-  deleteMyAccount,
-  deleteUserExport,
   connectImap,
   disconnectImap,
-  getUserExportStatus,
   getImapMessage,
   getGitHubStatus,
   getIntegrations,
   getModels,
   getReasoningCache,
   getSettings,
+  getUserExportStatus,
   listImapFolders,
   listImapMessages,
   listGitHubIssues,
@@ -19,11 +17,12 @@ import {
   listGitHubRepos,
   markImapAsRead,
   probeReasoningModels,
-  requestDeleteConfirmation,
   readGitHubFile,
-  searchImapMessages,
   startUserExport,
+  searchImapMessages,
   testImapConnection,
+  prepareDeleteMe,
+  confirmDeleteMe,
   updateSettings,
 } from "../api/client";
 import AdminAccessRequestsSection from "../components/AdminAccessRequestsSection";
@@ -39,7 +38,6 @@ import type {
   ModelInfo,
   ReasoningProbeItem,
   SettingsResponse,
-  UserExportStatusResponse,
 } from "../types/api";
 
 interface SettingsPageProps {
@@ -78,12 +76,18 @@ interface SettingsFormState {
   assistant_name: string;
   selected_model: string;
   system_prompt: string;
+  wakeword_enabled: boolean;
+  wakeword_phrase: string;
+  wakeword_sensitivity: number;
 }
 
 const emptyState: SettingsFormState = {
   assistant_name: "",
   selected_model: "",
   system_prompt: "",
+  wakeword_enabled: false,
+  wakeword_phrase: "ася",
+  wakeword_sensitivity: 0.5,
 };
 
 export default function SettingsPage({ themePreference, onThemePreferenceChange, currentUserRole }: SettingsPageProps) {
@@ -129,12 +133,14 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
   const [imapQuery, setImapQuery] = useState("");
   const [imapFolder, setImapFolder] = useState("INBOX");
   const [imapSelectedMessage, setImapSelectedMessage] = useState<ImapMessageDetails | null>(null);
-  const [exportStatus, setExportStatus] = useState<UserExportStatusResponse | null>(null);
-  const [exportLoading, setExportLoading] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportId, setExportId] = useState<string | null>(null);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [exportDownloadUrl, setExportDownloadUrl] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
-  const [deleteToken, setDeleteToken] = useState<string | null>(null);
-  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
+  const [deleteConfirmToken, setDeleteConfirmToken] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -170,6 +176,24 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!exportId || exportStatus === "ready" || exportStatus === "failed") {
+      return;
+    }
+    const timerId = window.setInterval(() => {
+      void (async () => {
+        try {
+          const payload = await getUserExportStatus(exportId);
+          setExportStatus(payload.status);
+          setExportDownloadUrl(payload.download_url ?? null);
+        } catch {
+          // keep current state; manual refresh remains available
+        }
+      })();
+    }, 3000);
+    return () => window.clearInterval(timerId);
+  }, [exportId, exportStatus]);
 
   useEffect(() => {
     let active = true;
@@ -245,6 +269,9 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
       assistant_name: settings.assistant_name,
       selected_model: settings.selected_model,
       system_prompt: settings.system_prompt,
+      wakeword_enabled: settings.wakeword_enabled,
+      wakeword_phrase: settings.wakeword_phrase,
+      wakeword_sensitivity: settings.wakeword_sensitivity,
     });
     setApiKeyConfigured(settings.api_key_configured);
   }
@@ -436,75 +463,84 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
   }
 
   async function handleStartExport() {
-    setExportLoading(true);
-    setExportError(null);
+    setExportBusy(true);
+    setError(null);
     try {
-      const start = await startUserExport();
-      setExportStatus(await getUserExportStatus(start.export_id));
+      const started = await startUserExport();
+      setExportId(started.export_id);
+      setExportStatus(started.status);
+      setExportDownloadUrl(null);
     } catch (loadError) {
-      setExportError(getErrorMessage(loadError));
+      setError(getErrorMessage(loadError));
     } finally {
-      setExportLoading(false);
+      setExportBusy(false);
     }
   }
 
-  async function handleRefreshExport() {
-    if (!exportStatus?.export_id) return;
-    setExportLoading(true);
-    setExportError(null);
+  async function handlePollExport() {
+    if (!exportId) {
+      return;
+    }
+    setExportBusy(true);
+    setError(null);
     try {
-      setExportStatus(await getUserExportStatus(exportStatus.export_id));
+      const payload = await getUserExportStatus(exportId);
+      setExportStatus(payload.status);
+      setExportDownloadUrl(payload.download_url ?? null);
     } catch (loadError) {
-      setExportError(getErrorMessage(loadError));
+      setError(getErrorMessage(loadError));
     } finally {
-      setExportLoading(false);
+      setExportBusy(false);
     }
   }
 
-  async function handleDeleteExport() {
-    if (!exportStatus?.export_id) return;
-    setExportLoading(true);
-    setExportError(null);
+  async function handlePrepareDelete() {
+    if (!deletePassword.trim()) {
+      setError("Введите пароль для удаления учётки.");
+      return;
+    }
+    setDeleteBusy(true);
+    setError(null);
     try {
-      await deleteUserExport(exportStatus.export_id);
-      setExportStatus(null);
+      const prepared = await prepareDeleteMe({ password: deletePassword });
+      setDeleteConfirmToken(prepared.confirmation_token);
     } catch (loadError) {
-      setExportError(getErrorMessage(loadError));
+      setError(getErrorMessage(loadError));
     } finally {
-      setExportLoading(false);
+      setDeleteBusy(false);
     }
   }
 
-  async function handleRequestDeleteConfirmation() {
-    setExportLoading(true);
-    setExportError(null);
-    setDeleteMessage(null);
+  async function handleConfirmDelete() {
+    if (!deleteConfirmToken) {
+      return;
+    }
+    setDeleteBusy(true);
+    setError(null);
     try {
-      const result = await requestDeleteConfirmation();
-      setDeleteToken(result.confirmation_token);
-      setDeleteMessage("Подтверждение получено. Введите пароль и удалите учётку.");
+      const response = await confirmDeleteMe(deleteConfirmToken);
+      if (response.download_url) {
+        window.open(response.download_url, "_blank");
+      }
+      window.location.href = "/";
     } catch (loadError) {
-      setExportError(getErrorMessage(loadError));
+      setError(getErrorMessage(loadError));
     } finally {
-      setExportLoading(false);
+      setDeleteBusy(false);
     }
   }
 
-  async function handleDeleteAccount() {
-    if (!deleteToken || !deletePassword.trim()) return;
-    setExportLoading(true);
-    setExportError(null);
-    setDeleteMessage(null);
-    try {
-      const result = await deleteMyAccount({ confirmation_token: deleteToken, password: deletePassword });
-      setDeleteMessage(
-        `Учётка удалена. Export: ${result.export_id}. Ссылка: ${result.export_download_url ?? "недоступна"}`,
-      );
-    } catch (loadError) {
-      setExportError(getErrorMessage(loadError));
-    } finally {
-      setExportLoading(false);
+  function openDeleteModal() {
+    setDeleteModalOpen(true);
+  }
+
+  function closeDeleteModal() {
+    if (deleteBusy) {
+      return;
     }
+    setDeleteModalOpen(false);
+    setDeletePassword("");
+    setDeleteConfirmToken(null);
   }
 
   if (loading) {
@@ -614,6 +650,40 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
           value={form.system_prompt}
           onChange={(event) => updateField("system_prompt", event.target.value)}
           rows={6}
+        />
+        <label className="settings-form__label">
+          <input
+            type="checkbox"
+            checked={form.wakeword_enabled}
+            onChange={(event) => updateField("wakeword_enabled", event.target.checked)}
+          />{" "}
+          Wake-word в активной вкладке
+        </label>
+        <label className="settings-form__label" htmlFor="wakeword-phrase">
+          Wake-word фраза
+        </label>
+        <select
+          id="wakeword-phrase"
+          className="settings-form__input"
+          value={form.wakeword_phrase}
+          onChange={(event) => updateField("wakeword_phrase", event.target.value)}
+        >
+          <option value="ася">ася</option>
+          <option value="асья">асья</option>
+          <option value="asya">asya</option>
+        </select>
+        <label className="settings-form__label" htmlFor="wakeword-sensitivity">
+          Wake-word sensitivity: {form.wakeword_sensitivity.toFixed(2)}
+        </label>
+        <input
+          id="wakeword-sensitivity"
+          className="settings-form__input"
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={form.wakeword_sensitivity}
+          onChange={(event) => updateField("wakeword_sensitivity", Number(event.target.value))}
         />
 
         <button type="submit" className="settings-form__submit" disabled={saving || selectedModelIsChatUnsupported}>
@@ -776,65 +846,72 @@ export default function SettingsPage({ themePreference, onThemePreferenceChange,
           </ul>
         ) : null}
       </section>
-      <section className="reasoning-probe" aria-label="Экспорт и удаление">
-        <h3 className="reasoning-probe__title">Экспорт данных</h3>
-        <div className="settings-form__row">
-          <button type="button" className="chat-action-button" onClick={handleStartExport} disabled={exportLoading}>
-            Скачать мои данные
-          </button>
-          <button
-            type="button"
-            className="chat-action-button"
-            onClick={handleRefreshExport}
-            disabled={exportLoading || !exportStatus}
-          >
-            Обновить статус
-          </button>
-          <button
-            type="button"
-            className="chat-action-button"
-            onClick={handleDeleteExport}
-            disabled={exportLoading || !exportStatus}
-          >
-            Удалить архив
-          </button>
+      <section className="reasoning-probe" aria-label="Экспорт и удаление учётки">
+        <div className="page__row">
+          <h3 className="reasoning-probe__title">Экспорт данных</h3>
+          <div className="settings-form__row">
+            <button type="button" className="chat-action-button" onClick={handleStartExport} disabled={exportBusy}>
+              Скачать мои данные
+            </button>
+            <button
+              type="button"
+              className="chat-action-button"
+              onClick={handlePollExport}
+              disabled={exportBusy || !exportId}
+            >
+              Обновить статус
+            </button>
+            {exportDownloadUrl ? (
+              <a className="chat-action-button" href={exportDownloadUrl}>
+                Скачать архив
+              </a>
+            ) : null}
+          </div>
         </div>
-        {exportStatus ? (
-          <p className="status-text">
-            Export {exportStatus.export_id}: {exportStatus.status}
-            {exportStatus.download_url ? `, ${exportStatus.download_url}` : ""}
-          </p>
-        ) : null}
-
+        {exportStatus ? <p className="status-text">Статус экспорта: {exportStatus}</p> : null}
         <h3 className="reasoning-probe__title">Удаление учётки</h3>
+        <p className="status-text status-text--error">
+          Действие необратимо. Все данные пользователя будут удалены.
+        </p>
         <div className="settings-form__row">
-          <button
-            type="button"
-            className="chat-action-button"
-            onClick={handleRequestDeleteConfirmation}
-            disabled={exportLoading}
-          >
-            Запросить подтверждение
-          </button>
-          <input
-            className="settings-form__input"
-            type="password"
-            value={deletePassword}
-            onChange={(event) => setDeletePassword(event.target.value)}
-            placeholder="Пароль"
-          />
-          <button
-            type="button"
-            className="chat-action-button"
-            onClick={handleDeleteAccount}
-            disabled={exportLoading || !deleteToken}
-          >
-            Удалить учётку
+          <button type="button" className="chat-action-button" onClick={openDeleteModal}>
+            Открыть подтверждение удаления
           </button>
         </div>
-        {deleteMessage ? <p className="status-text status-text--ok">{deleteMessage}</p> : null}
-        {exportError ? <p className="status-text status-text--error">{exportError}</p> : null}
       </section>
+      {deleteModalOpen ? (
+        <div className="modal-overlay" role="presentation">
+          <section className="modal-card" role="dialog" aria-modal="true" aria-label="Удаление учётки">
+            <h3 className="reasoning-probe__title">Удаление учётки</h3>
+            <p className="status-text status-text--error">
+              Подтвердите пароль. После подтверждения действие необратимо.
+            </p>
+            <input
+              type="password"
+              className="settings-form__input"
+              value={deletePassword}
+              onChange={(event) => setDeletePassword(event.target.value)}
+              placeholder="Введите пароль"
+            />
+            <div className="settings-form__row">
+              <button type="button" className="chat-action-button" onClick={handlePrepareDelete} disabled={deleteBusy}>
+                Подтвердить пароль
+              </button>
+              <button
+                type="button"
+                className="chat-action-button"
+                onClick={handleConfirmDelete}
+                disabled={deleteBusy || !deleteConfirmToken}
+              >
+                Удалить учётку
+              </button>
+              <button type="button" className="chat-action-button" onClick={closeDeleteModal} disabled={deleteBusy}>
+                Отмена
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       {currentUserRole === "admin" ? <AdminAccessRequestsSection /> : null}
     </section>
   );

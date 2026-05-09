@@ -38,6 +38,9 @@ export interface SettingsResponse {
   assistant_name: string;
   system_prompt: string;
   selected_model: string;
+  wakeword_enabled: boolean;
+  wakeword_phrase: string;
+  wakeword_sensitivity: number;
   api_key_configured: boolean;
 }
 
@@ -45,6 +48,9 @@ export interface SettingsUpdateRequest {
   assistant_name: string;
   system_prompt: string;
   selected_model: string;
+  wakeword_enabled: boolean;
+  wakeword_phrase: string;
+  wakeword_sensitivity: number;
 }
 
 export interface ReasoningProbeItem {
@@ -207,18 +213,22 @@ export interface UserExportStatusResponse {
   status: string;
   download_url?: string | null;
   expires_at?: string | null;
-  error?: string | null;
 }
 
-export interface UserDeleteConfirmResponse {
+export interface DeleteMeRequest {
+  password: string;
+}
+
+export interface DeleteMePrepareResponse {
   confirmation_token: string;
-  expires_in_seconds: number;
+  expires_at: string;
 }
 
-export interface UserDeleteResponse {
+export interface DeleteMeConfirmResponse {
   status: string;
   export_id: string;
-  export_download_url?: string | null;
+  download_url?: string | null;
+  expires_at?: string | null;
 }
 
 export interface AccessRequestSubmitRequest {

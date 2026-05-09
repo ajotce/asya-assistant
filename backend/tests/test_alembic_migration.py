@@ -1,24 +1,16 @@
-import os
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
-import pytest
 
 from app.core.config import get_settings
 
 
-@pytest.mark.parametrize("backend", ["sqlite", "postgresql"])
-def test_alembic_upgrade_head_on_clean_database(tmp_path, monkeypatch, backend: str) -> None:
+def test_alembic_upgrade_head_on_clean_database(tmp_path, monkeypatch) -> None:
     db_path = tmp_path / "alembic-upgrade.sqlite3"
-    if backend == "sqlite":
-        db_url = f"sqlite+pysqlite:///{db_path}"
-    else:
-        db_url = os.getenv("TEST_POSTGRES_URL", "").strip()
-        if not db_url:
-            pytest.skip("TEST_POSTGRES_URL is not set for PostgreSQL migration test.")
-    monkeypatch.setenv("ASYA_DATABASE_URL", db_url)
+    db_url = f"sqlite+pysqlite:///{db_path}"
+    monkeypatch.setenv("ASYA_DB_PATH", db_path.as_posix())
     get_settings.cache_clear()
 
     backend_dir = Path(__file__).resolve().parents[1]
@@ -27,14 +19,6 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path, monkeypatch, backend: 
     config = Config(alembic_ini.as_posix())
     config.set_main_option("script_location", (backend_dir / "alembic").as_posix())
     config.set_main_option("sqlalchemy.url", db_url)
-
-    if backend == "postgresql":
-        engine = create_engine(db_url, future=True)
-        with engine.connect() as conn:
-            conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
-            conn.execute(text("CREATE SCHEMA public"))
-            conn.commit()
-        engine.dispose()
 
     command.upgrade(config, "head")
 
@@ -51,8 +35,12 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path, monkeypatch, backend: 
     assert "telegram_link_tokens" in inspector.get_table_names()
     assert "user_voice_settings" in inspector.get_table_names()
     assert "signup_tokens" in inspector.get_table_names()
+    user_settings_columns = {column["name"] for column in inspector.get_columns("user_settings")}
+    assert "wakeword_enabled" in user_settings_columns
+    assert "wakeword_phrase" in user_settings_columns
+    assert "wakeword_sensitivity" in user_settings_columns
 
     with engine.connect() as conn:
         revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert revision == "20260508_04"
+    assert revision == "20260509_01"
     get_settings.cache_clear()

@@ -234,6 +234,9 @@ class SettingsResponse(BaseModel):
     assistant_name: str
     system_prompt: str
     selected_model: str
+    wakeword_enabled: bool
+    wakeword_phrase: str
+    wakeword_sensitivity: float
     api_key_configured: bool
 
 
@@ -243,6 +246,9 @@ class SettingsUpdateRequest(BaseModel):
     assistant_name: str = Field(min_length=1, max_length=120)
     system_prompt: str = Field(min_length=1, max_length=12000)
     selected_model: str = Field(min_length=1, max_length=200)
+    wakeword_enabled: bool = False
+    wakeword_phrase: str = Field(default="ася", min_length=1, max_length=32)
+    wakeword_sensitivity: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
 class UsageTokensInfo(BaseModel):
@@ -708,3 +714,33 @@ class PersonalityProfileUpdateRequest(BaseModel):
     can_gently_disagree: bool = True
     address_user_by_name: bool = True
     is_active: bool = True
+
+
+class UserExportStartResponse(BaseModel):
+    export_id: str
+    status: str
+
+
+class UserExportStatusResponse(BaseModel):
+    export_id: str
+    status: str
+    download_url: Optional[str] = None
+    expires_at: Optional[str] = None
+
+
+class DeleteMeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=8, max_length=200)
+
+
+class DeleteMePrepareResponse(BaseModel):
+    confirmation_token: str
+    expires_at: str
+
+
+class DeleteMeConfirmResponse(BaseModel):
+    status: str
+    export_id: str
+    download_url: Optional[str] = None
+    expires_at: Optional[str] = None

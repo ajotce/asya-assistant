@@ -83,3 +83,18 @@ def test_voice_tts_returns_audio(tmp_path, monkeypatch):
     assert b"MOCK_AUDIO" in response.content
     assert response.headers.get("content-type", "").startswith("audio/")
     app.dependency_overrides.clear()
+
+
+def test_voice_listen_multipart(tmp_path, monkeypatch):
+    monkeypatch.setenv("MASTER_ENCRYPTION_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=")
+    client = build_authed_client(tmp_path, monkeypatch, "voice-listen@example.com")
+
+    response = client.post(
+        "/api/voice/listen",
+        files={"audio": ("command.webm", b"fake-audio-data", "audio/webm")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["text"] == "[mock transcript]"
+    assert data["provider"] == "mock"
+    app.dependency_overrides.clear()

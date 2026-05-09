@@ -8,6 +8,7 @@ import {
   deleteChat,
   getSpaceSettings,
   getChatMessages,
+  getSettings,
   getVoiceSettings,
   listSpaces,
   listChats,
@@ -21,6 +22,7 @@ import {
 } from "../api/client";
 import type { ChatListItem, SpaceListItem, SpaceMemorySettingsResponse, VoiceSettings } from "../types/api";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
+import WakeWordListener from "../components/WakeWordListener";
 
 interface ChatMessage {
   id: string;
@@ -82,6 +84,10 @@ export default function ChatPage({
   const [error, setError] = useState<string | null>(null);
 
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings | null>(null);
+  const [wakewordEnabled, setWakewordEnabled] = useState(false);
+  const [wakewordPhrase, setWakewordPhrase] = useState("ася");
+  const [wakewordSensitivity, setWakewordSensitivity] = useState(0.5);
+  const [wakewordState, setWakewordState] = useState("idle");
   const voiceRecorder = useVoiceRecorder();
 
   const hasMessages = messages.length > 0;
@@ -214,9 +220,12 @@ export default function ChatPage({
     let active = true;
     async function loadVoice() {
       try {
-        const data = await getVoiceSettings();
+        const [data, appSettings] = await Promise.all([getVoiceSettings(), getSettings()]);
         if (!active) return;
         setVoiceSettings(data);
+        setWakewordEnabled(appSettings.wakeword_enabled);
+        setWakewordPhrase(appSettings.wakeword_phrase);
+        setWakewordSensitivity(appSettings.wakeword_sensitivity);
       } catch {
         if (!active) return;
         setVoiceSettings(null);
@@ -627,6 +636,13 @@ export default function ChatPage({
     }
   }
 
+  async function handleWakeWordTranscript(text: string) {
+    if (!sessionId || isGenerating) {
+      return;
+    }
+    await sendUserMessageInSession(sessionId, text, []);
+  }
+
   const sessionStatusText = useMemo(() => {
     if (!sessionId) {
       return "Чат: не выбран";
@@ -809,6 +825,17 @@ export default function ChatPage({
           {error ? <p className="status-text status-text--error">{error}</p> : null}
           {messagesError ? <p className="status-text status-text--error">{messagesError}</p> : null}
           {messagesLoading ? <p className="status-text">Загрузка истории...</p> : null}
+          <div className="page__row">
+            <WakeWordListener
+              enabled={wakewordEnabled}
+              phrase={wakewordPhrase}
+              sensitivity={wakewordSensitivity}
+              busy={isGenerating}
+              onTranscript={handleWakeWordTranscript}
+              onStateChange={setWakewordState}
+            />
+            <span className="status-text">Режим: {wakewordState === "listening" ? "Слушаю" : "Ожидание"}</span>
+          </div>
 
           <div className="chat-list">
             {!hasMessages && !messagesLoading ? <p className="status-text">Сообщений пока нет. Напишите первый запрос.</p> : null}
