@@ -7,6 +7,7 @@ import {
   disconnectImap,
   getImapMessage,
   getGitHubStatus,
+  getBriefingSettings,
   getIntegrations,
   getModels,
   getReasoningCache,
@@ -25,6 +26,7 @@ import {
   readGitHubFile,
   searchImapMessages,
   testImapConnection,
+  patchBriefingSettings,
   updateSettings,
 } from "../api/client";
 import { type ThemePreference } from "../hooks/useTheme";
@@ -53,7 +55,9 @@ vi.mock("../api/client", () => ({
   getSettings: vi.fn(),
   getIntegrations: vi.fn(),
   getGitHubStatus: vi.fn(),
+  getBriefingSettings: vi.fn(),
   testImapConnection: vi.fn(),
+  patchBriefingSettings: vi.fn(),
   connectImap: vi.fn(),
   disconnectImap: vi.fn(),
   listImapFolders: vi.fn(),
@@ -80,7 +84,9 @@ describe("SettingsPage", () => {
     vi.mocked(getReasoningCache).mockReset();
     vi.mocked(getIntegrations).mockReset();
     vi.mocked(getGitHubStatus).mockReset();
+    vi.mocked(getBriefingSettings).mockReset();
     vi.mocked(testImapConnection).mockReset();
+    vi.mocked(patchBriefingSettings).mockReset();
     vi.mocked(connectImap).mockReset();
     vi.mocked(disconnectImap).mockReset();
     vi.mocked(listImapFolders).mockReset();
@@ -116,7 +122,29 @@ describe("SettingsPage", () => {
       { provider: "imap", status: "not_connected", scopes: [] },
     ]);
     vi.mocked(getGitHubStatus).mockResolvedValue({ provider: "github", status: "not_connected", scopes: [] });
+    vi.mocked(getBriefingSettings).mockResolvedValue({
+      timezone: "Europe/Moscow",
+      morning_enabled: true,
+      evening_enabled: true,
+      morning_time: "08:00",
+      evening_time: "19:00",
+      channel_in_app: true,
+      channel_telegram: false,
+      created_at: "2026-05-09T00:00:00Z",
+      updated_at: "2026-05-09T00:00:00Z",
+    });
     vi.mocked(testImapConnection).mockResolvedValue({ ok: true, folders: ["INBOX"] });
+    vi.mocked(patchBriefingSettings).mockResolvedValue({
+      timezone: "Europe/Moscow",
+      morning_enabled: true,
+      evening_enabled: true,
+      morning_time: "08:00",
+      evening_time: "19:00",
+      channel_in_app: true,
+      channel_telegram: false,
+      created_at: "2026-05-09T00:00:00Z",
+      updated_at: "2026-05-09T00:00:00Z",
+    });
     vi.mocked(connectImap).mockResolvedValue({ provider: "imap", status: "connected", scopes: ["mail.read"] });
     vi.mocked(disconnectImap).mockResolvedValue({ provider: "imap", status: "revoked", scopes: [] });
     vi.mocked(listImapFolders).mockResolvedValue({ folders: ["INBOX"] });

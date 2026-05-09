@@ -1,4 +1,4 @@
-export type AppTab = "chat" | "diary" | "observer" | "memory" | "activity" | "settings" | "status";
+export type AppTab = "chat" | "diary" | "briefings" | "observer" | "memory" | "activity" | "settings" | "status";
 
 interface TabItem {
   id: AppTab;
@@ -8,6 +8,7 @@ interface TabItem {
 const tabs: TabItem[] = [
   { id: "chat", label: "Чат" },
   { id: "diary", label: "Дневник" },
+  { id: "briefings", label: "Брифинги" },
   { id: "observer", label: "Наблюдатель" },
   { id: "memory", label: "Память" },
   { id: "activity", label: "Активность" },

@@ -23,6 +23,9 @@ import type {
   DiaryEntryUpdateRequest,
   DiarySettingsPatchRequest,
   DiarySettingsResponse,
+  BriefingItem,
+  BriefingSettingsPatchRequest,
+  BriefingSettingsResponse,
   ObservationItem,
   ObservationPostponeRequest,
   ObservationRuleItem,
@@ -822,3 +825,26 @@ export function postponeObservation(
     { method: "POST", body: JSON.stringify(body) },
   );
 }
+
+export function listBriefings(days = 30, limit = 100): Promise<BriefingItem[]> {
+  return apiFetch<BriefingItem[]>(`/api/briefings?days=${days}&limit=${limit}`);
+}
+
+export function generateBriefing(kind: "morning" | "evening"): Promise<BriefingItem> {
+  return apiFetch<BriefingItem>(`/api/briefings/generate?kind=${encodeURIComponent(kind)}`, {
+    method: "POST",
+  });
+}
+
+export function getBriefingSettings(): Promise<BriefingSettingsResponse> {
+  return apiFetch<BriefingSettingsResponse>("/api/briefings/settings");
+}
+
+export function patchBriefingSettings(body: BriefingSettingsPatchRequest): Promise<BriefingSettingsResponse> {
+  return apiFetch<BriefingSettingsResponse>("/api/briefings/settings", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export type { BriefingItem, BriefingSettingsPatchRequest };

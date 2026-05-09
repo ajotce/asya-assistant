@@ -162,6 +162,40 @@ class DiarySettingsPatchRequest(BaseModel):
     evening_prompt_enabled: bool
 
 
+class BriefingSettingsResponse(BaseModel):
+    timezone: str
+    morning_enabled: bool
+    evening_enabled: bool
+    morning_time: str
+    evening_time: str
+    channel_in_app: bool
+    channel_telegram: bool
+    created_at: str
+    updated_at: str
+
+
+class BriefingSettingsPatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    timezone: str = Field(min_length=1, max_length=64)
+    morning_enabled: bool
+    evening_enabled: bool
+    morning_time: str = Field(pattern=r"^\d{2}:\d{2}$")
+    evening_time: str = Field(pattern=r"^\d{2}:\d{2}$")
+    channel_in_app: bool
+    channel_telegram: bool
+
+
+class BriefingItemResponse(BaseModel):
+    id: str
+    user_id: str
+    kind: str
+    content: str
+    delivered_via: list[str]
+    created_at: str
+    updated_at: str
+
+
 class DiaryEntryItemResponse(BaseModel):
     id: str
     title: str
