@@ -126,6 +126,8 @@ class ActivityEventType(str, Enum):
     NOTIFICATION_CENTER = "notification_center"
     INTEGRATION_ACTION_EXECUTED = "integration_action_executed"
     OBSERVER_SYNC = "observer_sync"
+    BRIEFING_GENERATED = "briefing_generated"
+    BRIEFING_DELIVERED = "briefing_delivered"
 
 
 class ActivityEntityType(str, Enum):
@@ -143,6 +145,7 @@ class ActivityEntityType(str, Enum):
     OBSERVATION = "observation"
     INTEGRATION_ACTION = "integration_action"
     OBSERVER = "observer"
+    BRIEFING = "briefing"
 
 
 class VoiceProvider(str, Enum):
@@ -180,6 +183,11 @@ class IntegrationConnectionStatus(str, Enum):
     EXPIRED = "expired"
     REVOKED = "revoked"
     ERROR = "error"
+
+
+class BriefingKind(str, Enum):
+    MORNING = "morning"
+    EVENING = "evening"
 
 
 class UserExportStatus(str, Enum):

@@ -15,6 +15,18 @@
   (интеграция недоступна в текущем build), вместо падения импорта приложения.
 - PR readiness (2026-05-05): backend `py312` checks и QA smoke по integrations/API зелёные.
 
+## Обновление v1.0 Briefings (2026-05-09)
+
+- Добавлены endpoints:
+  - `GET /api/briefings` — список briefings пользователя (по умолчанию архив за 30 дней).
+  - `GET /api/briefings/{briefing_id}` — чтение конкретного briefing.
+  - `POST /api/briefings/generate?kind=morning|evening` — ручной trigger генерации.
+  - `GET /api/briefings/settings` — получить расписание/каналы доставки.
+  - `PATCH /api/briefings/settings` — обновить расписание/каналы доставки.
+- Delivery channels в модели briefing:
+  - `in_app` (Notification Center event + deeplink),
+  - `telegram` (если канал включен и аккаунт Telegram привязан).
+
 Документ описывает фактическое API после завершения v0.3 и foundation-слоя интеграций v0.4.
 
 Базовый префикс: `/api`

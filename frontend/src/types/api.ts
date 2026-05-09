@@ -453,6 +453,38 @@ export interface DiarySettingsPatchRequest {
   evening_prompt_enabled: boolean;
 }
 
+export interface BriefingSettingsResponse {
+  timezone: string;
+  morning_enabled: boolean;
+  evening_enabled: boolean;
+  morning_time: string;
+  evening_time: string;
+  channel_in_app: boolean;
+  channel_telegram: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BriefingSettingsPatchRequest {
+  timezone: string;
+  morning_enabled: boolean;
+  evening_enabled: boolean;
+  morning_time: string;
+  evening_time: string;
+  channel_in_app: boolean;
+  channel_telegram: boolean;
+}
+
+export interface BriefingItem {
+  id: string;
+  user_id: string;
+  kind: string;
+  content: string;
+  delivered_via: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DiaryEntryItem {
   id: string;
   title: string;
