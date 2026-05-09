@@ -6,6 +6,7 @@ from apscheduler.schedulers.background import BackgroundScheduler  # type: ignor
 
 from app.core.config import get_settings
 from app.db.session import create_session
+from app.services.briefing_service import BriefingService
 from app.services.observer_service import ObserverService
 
 _scheduler: BackgroundScheduler | None = None
@@ -28,6 +29,8 @@ def start_scheduler() -> None:
         )
     scheduler = BackgroundScheduler(timezone="UTC")
     scheduler.add_job(_run_observer_job, "interval", minutes=settings.observer_interval_minutes, id="observer")
+    scheduler.add_job(_run_briefings_job, "interval", minutes=1, id="briefings")
+    scheduler.add_job(_cleanup_briefings_job, "cron", hour=0, minute=30, id="briefings_cleanup")
     scheduler.start()
     _scheduler = scheduler
 
@@ -45,5 +48,21 @@ def _run_observer_job() -> None:
     session = create_session()
     try:
         ObserverService(session).run_all_users()
+    finally:
+        session.close()
+
+
+def _run_briefings_job() -> None:
+    session = create_session()
+    try:
+        BriefingService(session).run_scheduled()
+    finally:
+        session.close()
+
+
+def _cleanup_briefings_job() -> None:
+    session = create_session()
+    try:
+        BriefingService(session).cleanup_old(days=30)
     finally:
         session.close()

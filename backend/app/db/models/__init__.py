@@ -3,6 +3,8 @@ from app.db.models.activity_log import ActivityLog
 from app.db.models.assistant_personality_profile import AssistantPersonalityProfile
 from app.db.models.auth_session import AuthSession
 from app.db.models.behavior_rule import BehaviorRule
+from app.db.models.briefing import Briefing
+from app.db.models.briefing_settings import BriefingSettings
 from app.db.models.chat import Chat
 from app.db.models.diary_entry import DiaryEntry
 from app.db.models.diary_settings import DiarySettings
@@ -37,6 +39,8 @@ __all__ = [
     "AssistantPersonalityProfile",
     "AuthSession",
     "BehaviorRule",
+    "Briefing",
+    "BriefingSettings",
     "Chat",
     "DiaryEntry",
     "DiarySettings",
