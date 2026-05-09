@@ -859,6 +859,58 @@ body {
   margin-bottom: 1rem;
 }
 
+.public-page h1,
+.public-page h2 {
+  margin: 0;
+}
+
+.public-page ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.public-cta {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.consent-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+}
+
+.consent-checkbox input {
+  margin-top: 3px;
+}
+
+.consent-checkbox a {
+  color: var(--accent);
+}
+
+.public-footer {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  padding: 10px 12px;
+}
+
+.public-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+
+.public-footer a:hover {
+  color: var(--accent);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

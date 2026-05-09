@@ -7,11 +7,12 @@ type AuthMode = "login" | "register" | "request" | "setup";
 
 interface AuthPageProps {
   onAuthenticated: (user: AuthUser) => void;
+  forceSetupMode?: boolean;
 }
 
-export default function AuthPage({ onAuthenticated }: AuthPageProps) {
+export default function AuthPage({ onAuthenticated, forceSetupMode = false }: AuthPageProps) {
   const queryToken = useMemo(() => new URLSearchParams(window.location.search).get("token") ?? "", []);
-  const initialMode: AuthMode = window.location.pathname.startsWith("/setup-password") ? "setup" : "login";
+  const initialMode: AuthMode = forceSetupMode || window.location.pathname.startsWith("/setup-password") ? "setup" : "login";
 
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
