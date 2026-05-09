@@ -134,7 +134,7 @@ class DiaryService:
 
     def _store_audio_file(self, *, user_id: str, original_filename: str, payload: bytes) -> str:
         suffix = Path(original_filename).suffix or ".webm"
-        filename = f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{hashlib.sha1(payload).hexdigest()[:10]}{suffix}"
+        filename = f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{hashlib.sha256(payload).hexdigest()[:10]}{suffix}"
         object_key = f"diary/{user_id}/{filename}"
         blob_storage.put_bytes(object_key, payload)
         return object_key
